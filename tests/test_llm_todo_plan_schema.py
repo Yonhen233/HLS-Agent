@@ -79,3 +79,53 @@ def test_llm_planner_receives_layered_tool_view_without_specialist_private_tools
     assert payload["main_agent_actions"]["actions"][0]["name"] == "delegate_to_specialist"
     assert payload["available_specialists"][0]["name"]
     assert "allowed_tools" not in payload["available_specialists"][0]
+
+
+def test_llm_planner_filters_direct_tools_to_candidate_skill_contract(temp_workspace):
+    class RecordingFakeLLMClient(FakeLLMClient):
+        user_prompt = ""
+
+        def complete_json(self, system_prompt, user_prompt, schema, temperature=0.0):
+            self.user_prompt = user_prompt
+            return super().complete_json(system_prompt, user_prompt, schema, temperature)
+
+    agent = MainAgent(temp_workspace, console=False)
+    layered = build_layered_tool_view(agent.registry, build_default_router({}))
+    fake = RecordingFakeLLMClient(
+        json_responses=[
+            {
+                "selected_skill": "unsupported_boundary_flow",
+                "skill_usage": "strict",
+                "reason_summary": "boundary task",
+                "todos": [
+                    {
+                        "title": "Generate unsupported report",
+                        "assigned_tool": "report.write_unsupported",
+                        "assigned_specialist": None,
+                        "dependencies": [],
+                        "inputs": {},
+                    }
+                ],
+            }
+        ]
+    )
+    LLMTodoPlanner().plan(
+        task={"task_type": "model", "name": "resnet18_boundary_demo"},
+        skill_context={
+            "available_skills": [
+                {
+                    "name": "unsupported_boundary_flow",
+                    "allowed_tools": ["report.write_unsupported", "summary.write_summary"],
+                    "allowed_specialists": ["MemorySpecialist"],
+                }
+            ]
+        },
+        available_tools=layered["direct_tools"],
+        available_specialists=[item["name"] for item in layered["specialists"]],
+        retrieved_memories=[],
+        layered_tool_view=layered,
+        client=fake,
+    )
+    payload = json.loads(fake.user_prompt)
+    assert set(payload["direct_tools"]) <= {"report.write_unsupported", "summary.write_summary"}
+    assert payload["skill_tool_contracts"][0]["skill"] == "unsupported_boundary_flow"

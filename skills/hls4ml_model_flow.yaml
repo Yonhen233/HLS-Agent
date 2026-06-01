@@ -64,10 +64,13 @@
     "hls4ml.generate_config",
     "hls4ml.convert",
     "hls4ml.run_csim",
+    "graph_rewrite.rewrite",
+    "report.write_unsupported",
     "vivado.create_project",
     "vivado.run_csynth",
     "vivado.parse_report",
     "vivado.parse_log",
+    "summary.write_summary",
     "suggestion.suggest_optimization",
     "memory.promote_to_long_term"
   ],

@@ -43,7 +43,7 @@ class LLMGuard:
                     errors.append(
                         f"Todo #{index} assigns tool {tool_name} to specialist {specialist_name}, but it is outside allowed_tools."
                     )
-            if tool_name == "llm.generate_hls_candidate":
+            if tool_name in {"llm.generate_hls_candidate", "llm.generate_candidate"}:
                 if not any(
                     (
                         item.get("assigned_specialist") == "VerificationSpecialist"
@@ -75,6 +75,10 @@ class LLMGuard:
         decision_name = decision.get("decision")
         if decision_name not in allowed_actions:
             errors.append(f"Action {decision_name} is not in allowed_actions.")
+        if decision_name == "delegate_to_specialist":
+            specialist_name = action.get("specialist_name") or action.get("specialist")
+            if not specialist_name:
+                errors.append("delegate_to_specialist requires action.specialist_name.")
         if decision_name == "direct_tool_only_when_no_specialist":
             tool_name = action.get("tool_name") or action.get("tool")
             if tool_name not in allowed_tools:

@@ -6,6 +6,86 @@
 
 ---
 
+## 2026-06-01 15:11:00 +08:00：LLM 契约层、Skill 工具边界、hls4ml stdout 与 QKeras/H5 前端修补
+### 1. 本次测试做了什么
+执行与验证：
+- 修补 Main Agent ReAct schema：增加 `title`、`decision enum` 和强示例。
+- 增强 `REACT_SYSTEM_PROMPT`：明确只能输出严格 JSON，`decision` 必须来自 `allowed_actions`。
+- 新增严格 JSON repair 回合：第一次 LLM JSON 缺字段/格式错误时，只允许修复 JSON 结构和缺失必填字段，不允许改变任务语义。
+- 新增脱敏 LLM debug artifact：repair 失败时写入 `runs/<run_id>/llm_debug/*.json`，并对 API key/token/secret 做脱敏。
+- 收紧 planner capability exposure：planner 的 `direct_tools` 现在按候选 skill contract 过滤，同时显式提供 `skill_tool_contracts`。
+- 对齐 `hls4ml_model_flow` allowlist：加入 `graph_rewrite.rewrite`、`report.write_unsupported`、`summary.write_summary`，避免 failure policy 允许但 skill policy 拒绝。
+- 修复 LLM candidate 工具命名不一致：同时识别 `llm.generate_candidate` 和旧别名 `llm.generate_hls_candidate`。
+- 增加 QKeras/H5 frontend 分支：`.h5/.hdf5` 不再被当成 ONNX ModelProto 解析，而是返回结构化 unsupported / conversion error。
+- 捕获真实 hls4ml 部分 stdout：在 `config_from_onnx_model` / `convert_from_onnx_model` 调用处 redirect stdout 到 log artifact，避免污染 CLI JSON。
+- 增强 graph rewrite 检测：支持检测 ONNX `Gemm`、`Shape/Reshape/Flatten` 并给出明确 rewrite suggestion，但不假装已完成真实图重写。
+
+运行测试：
+- Focused：`python -m pytest tests/test_llm_client_config.py tests/test_llm_todo_plan_schema.py tests/test_skill_policy.py tests/test_hls4ml_mcp.py tests/test_demo_examples_schema.py tests/test_llm_react_decision_guard.py -q`，结果：27 passed。
+- Full：`python -m pytest -q`，结果：158 passed。
+
+### 2. 发现的问题与根因
+1) LLM ReAct 缺 `decision` 不应只靠 prompt 期待模型遵守
+- 根因：OpenAI-compatible 模型可能返回近似 JSON，但不稳定遵守必填字段。
+- 修复策略：schema enum + 强示例 + strict JSON repair + 失败 artifact，而不是静默 deterministic fallback。
+
+2) Boundary planner 违反 skill allowlist 是 tool contract 不一致问题
+- 根因：`hls4ml_model_flow` 的 failure_policy 提到 graph rewrite / unsupported report，但 allowed_tools 中没有这些工具；planner 也能看到比当前 skill 更多的 direct tools。
+- 修复策略：对齐 skill allowlist，并把 planner 可见 direct tools 限制到候选 skill contracts。
+
+3) Demo4 的 QKeras/H5 不应走 ONNX parser
+- 根因：adapter 没有 frontend 分支，导致 `.h5` 被 ONNX parser 解析并报 `Error parsing onnx.ModelProto`。
+- 修复策略：识别 `keras/qkeras/h5` frontend，返回明确结构化 unsupported/转换错误，指向专门 H5 frontend 后续实现。
+
+4) 真实 hls4ml stdout 污染 CLI JSON
+- 根因：第三方库直接打印 stdout，CLI 同时输出 JSON state。
+- 修复策略：在 adapter 真实调用点捕获 stdout 并写入日志 artifact。
+
+### 3. 已修复内容（含修复方式）
+修复文件：
+- `src/dl_op_to_hls/llm/schemas.py`
+- `src/dl_op_to_hls/llm/prompts.py`
+- `src/dl_op_to_hls/llm/client.py`
+- `src/dl_op_to_hls/llm/planner.py`
+- `src/dl_op_to_hls/llm/guards.py`
+- `src/dl_op_to_hls/skills/policy.py`
+- `skills/hls4ml_model_flow.yaml`
+- `src/dl_op_to_hls/adapters/hls4ml_adapter.py`
+- `src/dl_op_to_hls/tools/graph_rewrite.py`
+- `tests/test_llm_client_config.py`
+- `tests/test_llm_todo_plan_schema.py`
+- `tests/test_hls4ml_mcp.py`
+- `tests/test_demo_examples_schema.py`
+
+关键修复点：
+- `REACT_DECISION_SCHEMA.decision` 增加 enum：`delegate_to_specialist`、`direct_tool_only_when_no_specialist`、`request_replan`、`mark_blocked`、`mark_failed`。
+- `SPECIALIST_REACT_DECISION_SCHEMA.decision` 增加 enum：`call_tool`、`mark_blocked`、`mark_failed`、`finish_with_result`。
+- `LLMClient.complete_json()` 支持一次 strict repair，修复失败写脱敏 debug artifact。
+- Planner payload 新增 `skill_tool_contracts`，并过滤掉候选 skill 外的 direct tools。
+- HLS4MLAdapter 对 `.h5/.hdf5/qkeras/keras` 做前端识别，不再误走 ONNX parse。
+- Graph rewrite 明确返回 `implemented: false`，避免把建议误表示成已完成转换。
+
+### 4. 当前结果
+- 本地 mock/单元/集成测试全部通过：158 passed。
+- 已修复框架侧最直接的 LLM schema 缺字段问题，并增加可调试 artifact。
+- 已修复 skill contract 与 planner capability exposure 的主要不一致点。
+- 已修复 QKeras/H5 输入链路误报 ONNX parse 的问题。
+- 已部分修复 hls4ml stdout 污染 CLI JSON 的问题。
+
+### 5. 未修复完成的问题及原因
+1) 未完成真实 API Demo0 复测
+- 原因：尝试运行真实 API + Vivado Demo0 探针时，当前 Codex 环境提示使用额度限制，无法继续发起该外部执行。
+
+2) Gemm/Shape 仍只是 rewrite suggestion，不是真实 ONNX 图重写
+- 原因：真实 ONNX graph rewrite 需要安全地重写 initializer、shape metadata 和下游节点，不能在本轮用字符串级伪转换冒充完成。
+
+3) hls4ml stdout 捕获可能还不覆盖所有第三方打印点
+- 原因：已覆盖 adapter 中主要真实调用点，但其他库内部异步/底层输出仍需后续真实复测确认。
+
+4) Boundary demo 仍需真实 LLM 复测
+- 原因：本轮已修 prompt/contract/allowlist，但受额度限制未能重新运行真实 `run-llm` 验证。
+---
+
 ## 2026-06-01 14:48:53 +08:00：真实 LLM API 与真实 Vivado/HLS 工具链 Demo0-Demo6 全量验证
 ### 1. 本次测试做了什么
 执行与验证：

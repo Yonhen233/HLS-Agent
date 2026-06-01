@@ -21,18 +21,47 @@ class LLMTodoPlanner:
         layered_tool_view: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         layered_tool_view = layered_tool_view or {}
+        candidate_skill_tools = {
+            tool
+            for skill in skill_context.get("available_skills", [])
+            for tool in skill.get("allowed_tools", [])
+        }
+        candidate_skill_specialists = {
+            specialist
+            for skill in skill_context.get("available_skills", [])
+            for specialist in skill.get("allowed_specialists", [])
+        }
+        direct_tools = [
+            tool
+            for tool in layered_tool_view.get("direct_tools", available_tools)
+            if not candidate_skill_tools or tool in candidate_skill_tools
+        ]
+        specialists = []
+        for item in layered_tool_view.get("specialists", available_specialists):
+            specialist_name = item.get("name") if isinstance(item, dict) else item
+            if not candidate_skill_specialists or specialist_name in candidate_skill_specialists:
+                specialists.append(item)
         user_payload = {
             "task": task,
             "skill_context": skill_context,
             "main_agent_actions": layered_tool_view.get("main_agent_actions"),
-            "direct_tools": layered_tool_view.get("direct_tools", available_tools),
-            "available_specialists": layered_tool_view.get("specialists", available_specialists),
+            "direct_tools": direct_tools,
+            "available_specialists": specialists,
+            "skill_tool_contracts": [
+                {
+                    "skill": skill.get("name"),
+                    "allowed_tools": skill.get("allowed_tools", []),
+                    "allowed_specialists": skill.get("allowed_specialists", []),
+                }
+                for skill in skill_context.get("available_skills", [])
+            ],
             "retrieved_memories": retrieved_memories[:6],
             "instructions": [
                 "Return selected_skill, skill_usage, reason_summary, and todos.",
                 "Each todo should include title, assigned_tool, assigned_specialist, dependencies, and inputs.",
-                "Main Agent can only directly use direct_tools.",
+                "Main Agent can only directly use direct_tools and tools listed in the selected skill contract.",
                 "For specialist-owned work, assign the specialist and the intended tool, but do not expose or invoke specialist private tools from Main Agent ReAct.",
+                "Boundary/not-recommended demos should select unsupported_boundary_flow and only use that skill contract.",
             ],
         }
         result = client.complete_json(

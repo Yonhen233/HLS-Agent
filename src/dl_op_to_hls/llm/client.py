@@ -6,9 +6,11 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from ..core.errors import AgentRuntimeError, build_error
+from . import prompts
 from .config import LLMConfig
 from .schemas import validate_required
 from .trace import emit_llm_event
@@ -100,8 +102,16 @@ class LLMClient:
         try:
             text = self.complete_text(system_prompt, user_prompt, temperature=temperature, force_json=True)
             payload = self._parse_json_payload(text)
-            payload = self._normalize_payload(payload, schema)
-            validate_required(payload, schema)
+            try:
+                payload = self._normalize_payload(payload, schema)
+                validate_required(payload, schema)
+            except Exception as validation_exc:
+                payload = self._repair_json_payload(
+                    original_text=text,
+                    parsed_payload=payload,
+                    schema=schema,
+                    validation_error=str(validation_exc),
+                )
             emit_llm_event(
                 self.context,
                 "LLMCallFinished",
@@ -128,12 +138,19 @@ class LLMClient:
             )
             if isinstance(exc, AgentRuntimeError):
                 raise
+            artifact_path = self._write_llm_debug_artifact(
+                schema=schema,
+                error=str(exc),
+                raw_text=locals().get("text", ""),
+                parsed_payload=locals().get("payload", None),
+            )
             raise AgentRuntimeError(
                 build_error(
                     "LLMGenerationError",
                     str(exc),
                     recoverable=True,
                     source="llm.complete_json",
+                    details={"llm_debug_artifact": artifact_path} if artifact_path else {},
                 )
             ) from exc
 
@@ -275,6 +292,105 @@ class LLMClient:
             if isinstance(parsed, dict):
                 return parsed
         raise json.JSONDecodeError("No JSON object found in LLM response.", text, 0)
+
+    def _repair_json_payload(
+        self,
+        *,
+        original_text: str,
+        parsed_payload: dict[str, Any],
+        schema: dict[str, Any],
+        validation_error: str,
+    ) -> dict[str, Any]:
+        emit_llm_event(
+            self.context,
+            "LLMJsonRepairStarted",
+            {
+                "run_id": self.context.get("run_id"),
+                "schema_name": schema.get("title", "unnamed_schema"),
+                "validation_error": validation_error,
+            },
+        )
+        repair_payload = {
+            "schema": schema,
+            "validation_error": validation_error,
+            "parsed_payload": parsed_payload,
+            "raw_response_preview": self._redact_text(original_text)[:2000],
+            "repair_rules": [
+                "Preserve the original semantic intent.",
+                "Only add or rename fields required by the schema.",
+                "If decision is missing, infer it from action/tool/specialist and allowed enum values.",
+                "Do not introduce tools or specialists not present in the parsed payload.",
+            ],
+        }
+        repaired_text = self.complete_text(
+            prompts.JSON_REPAIR_SYSTEM_PROMPT,
+            json.dumps(repair_payload, ensure_ascii=False, default=str),
+            temperature=0.0,
+            force_json=True,
+        )
+        repaired = self._parse_json_payload(repaired_text)
+        repaired = self._normalize_payload(repaired, schema)
+        validate_required(repaired, schema)
+        emit_llm_event(
+            self.context,
+            "LLMJsonRepairFinished",
+            {
+                "run_id": self.context.get("run_id"),
+                "schema_name": schema.get("title", "unnamed_schema"),
+                "status": "success",
+            },
+        )
+        return repaired
+
+    def _redact_text(self, text: str) -> str:
+        if not text:
+            return ""
+        redacted = re.sub(r"(?i)(api[_-]?key|authorization|bearer)\s*[:=]\s*['\"]?[^'\"\s,}]+", r"\1=<redacted>", text)
+        redacted = re.sub(r"tp-[A-Za-z0-9_-]+", "tp-<redacted>", redacted)
+        return redacted
+
+    def _redact_payload(self, value: Any) -> Any:
+        if isinstance(value, str):
+            return self._redact_text(value)
+        if isinstance(value, list):
+            return [self._redact_payload(item) for item in value]
+        if isinstance(value, dict):
+            redacted: dict[str, Any] = {}
+            for key, item in value.items():
+                if re.search(r"(?i)(api[_-]?key|authorization|secret|token)", str(key)):
+                    redacted[key] = "<redacted>"
+                else:
+                    redacted[key] = self._redact_payload(item)
+            return redacted
+        return value
+
+    def _write_llm_debug_artifact(
+        self,
+        *,
+        schema: dict[str, Any],
+        error: str,
+        raw_text: str,
+        parsed_payload: Any,
+    ) -> str | None:
+        artifact_manager = self.context.get("artifact_manager")
+        if artifact_manager is None:
+            return None
+        payload = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "schema_name": schema.get("title", "unnamed_schema"),
+            "error": error,
+            "raw_response_preview": self._redact_text(raw_text)[:4000],
+            "parsed_payload": self._redact_payload(parsed_payload),
+        }
+        try:
+            path = artifact_manager.write_json(
+                f"llm_debug/{payload['schema_name']}_{int(time.time() * 1000)}.json",
+                payload,
+                "llm_debug",
+            )
+            return str(path)
+        except Exception:
+            return None
 
     def _normalize_payload(self, payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
         required = set(schema.get("required", []))

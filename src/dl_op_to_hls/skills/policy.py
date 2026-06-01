@@ -38,11 +38,11 @@ class SkillPolicy:
                 errors.append(f"Specialist {assigned_specialist} is outside selected skill allowlist.")
             if assigned_specialist == "VerificationSpecialist" or str(assigned_tool).startswith("verify"):
                 seen_verification = True
-            if assigned_tool == "llm.generate_hls_candidate" and not seen_verification:
+            if assigned_tool in {"llm.generate_hls_candidate", "llm.generate_candidate"} and not seen_verification:
                 # soft-check later after full scan
                 pass
         if verification_required and any(
-            todo.get("assigned_tool") == "llm.generate_hls_candidate" for todo in todos
+            todo.get("assigned_tool") in {"llm.generate_hls_candidate", "llm.generate_candidate"} for todo in todos
         ) and not any(
             todo.get("assigned_specialist") == "VerificationSpecialist"
             or str(todo.get("assigned_tool", "")).startswith("verify")

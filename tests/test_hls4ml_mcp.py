@@ -44,3 +44,30 @@ def test_hls4ml_convert_mock(tmp_path):
     assert result["status"] == "success"
     assert (tmp_path / "myproject.cpp").exists()
 
+
+def test_hls4ml_qkeras_h5_frontend_is_structured_unsupported(tmp_path, monkeypatch):
+    model = tmp_path / "mnist_qkeras_cnn.h5"
+    model.write_bytes(b"placeholder h5")
+    adapter = HLS4MLAdapter(mock_mode=False)
+    monkeypatch.setattr(adapter, "_installed", lambda: True)
+    result = adapter.check_support(
+        {
+            "task_type": "model",
+            "name": "mnist_qkeras_cnn",
+            "model_path": str(model),
+            "frontend": "qkeras",
+        }
+    )
+    assert result["status"] == "unsupported"
+    assert result["unsupported_layers"][0]["type"] == "QKerasH5"
+
+
+def test_hls4ml_qkeras_h5_convert_does_not_parse_as_onnx(tmp_path, monkeypatch):
+    model = tmp_path / "mnist_qkeras_cnn.h5"
+    model.write_bytes(b"placeholder h5")
+    adapter = HLS4MLAdapter(mock_mode=False)
+    monkeypatch.setattr(adapter, "_installed", lambda: True)
+    result = adapter.convert({"model_path": str(model), "frontend": "qkeras", "output_dir": str(tmp_path / "out")})
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] == "HLS4MLConversionError"
+    assert "ONNX" not in result["error"]["message"]

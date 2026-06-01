@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from dl_op_to_hls.schemas.task_schema import load_task
+from dl_op_to_hls.tools.graph_rewrite import rewrite_graph
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,3 +60,15 @@ def test_resnet_boundary_schema_valid():
     data = _validate_example("resnet18_boundary.json")
     assert data["task_type"] == "model"
     assert data["name"] == "resnet18_boundary_demo"
+
+
+def test_graph_rewrite_suggests_gemm_decomposition():
+    result = rewrite_graph({"task": {"task_type": "operator", "op_type": "Gemm"}}, {})
+    assert result["status"] == "rewrite_suggested"
+    assert "Gemm -> MatMul + Add" in result["rewrites"]
+
+
+def test_graph_rewrite_suggests_static_shape_elimination():
+    result = rewrite_graph({"task": {"task_type": "operator", "op_type": "Flatten"}}, {})
+    assert result["status"] == "rewrite_suggested"
+    assert result["implemented"] is False

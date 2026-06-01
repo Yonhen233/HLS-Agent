@@ -14,6 +14,7 @@ TASK_INTERPRETATION_SCHEMA: dict[str, Any] = {
 }
 
 TODO_PLAN_SCHEMA: dict[str, Any] = {
+    "title": "TodoPlan",
     "type": "object",
     "required": ["selected_skill", "skill_usage", "todos", "reason_summary"],
     "properties": {
@@ -25,23 +26,48 @@ TODO_PLAN_SCHEMA: dict[str, Any] = {
 }
 
 REACT_DECISION_SCHEMA: dict[str, Any] = {
+    "title": "MainAgentReActDecision",
     "type": "object",
     "required": ["reason_summary", "decision"],
     "properties": {
         "reason_summary": {"type": "string"},
-        "decision": {"type": "string"},
+        "decision": {
+            "type": "string",
+            "enum": [
+                "delegate_to_specialist",
+                "direct_tool_only_when_no_specialist",
+                "request_replan",
+                "mark_blocked",
+                "mark_failed",
+            ],
+        },
         "action": {"type": "object"},
         "expected_observation": {"type": "string"},
         "fallback_if_failed": {"type": "string"},
     },
+    "examples": [
+        {
+            "reason_summary": "This todo is assigned to VivadoSpecialist, so Main Agent must delegate instead of calling vivado tools.",
+            "decision": "delegate_to_specialist",
+            "action": {"specialist_name": "VivadoSpecialist"},
+            "expected_observation": "SpecialistResult with metrics or structured error.",
+        },
+        {
+            "reason_summary": "This atomic todo has no specialist route and can use the direct validation tool.",
+            "decision": "direct_tool_only_when_no_specialist",
+            "action": {"tool_name": "task.validate_schema", "arguments": {}},
+            "expected_observation": "Validated task schema.",
+        },
+    ],
 }
 
 SPECIALIST_REACT_DECISION_SCHEMA: dict[str, Any] = {
+    "title": "SpecialistLocalReActDecision",
     "type": "object",
     "required": ["reason_summary", "decision"],
     "properties": {
         "reason_summary": {"type": "string"},
-        "decision": {"type": "string"},
+        "decision": {"type": "string", "enum": ["call_tool", "mark_blocked", "mark_failed", "finish_with_result"]},
         "action": {"type": "object"},
         "expected_observation": {"type": "string"},
     },

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import shutil
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,28 @@ class HLS4MLAdapter:
         except Exception:
             return {}
 
+    def _is_h5_frontend(self, model_path: str, frontend: str | None = None) -> bool:
+        return (frontend or "").lower() in {"keras", "qkeras", "h5"} or Path(model_path).suffix.lower() in {".h5", ".hdf5"}
+
+    def _h5_frontend_result(self, task_or_path: dict[str, Any] | str, source: str) -> dict[str, Any]:
+        if isinstance(task_or_path, dict):
+            model_path = str(task_or_path.get("model_path", ""))
+            name = task_or_path.get("name", "model")
+        else:
+            model_path = str(task_or_path)
+            name = Path(model_path).stem or "model"
+        if not Path(model_path).exists():
+            reason = f"QKeras/Keras H5 model file does not exist: {model_path}"
+        else:
+            reason = "QKeras/Keras H5 frontend is recognized, but this prototype has not enabled the real H5 conversion branch yet."
+        return {
+            "status": "unsupported",
+            "supported_layers": [],
+            "unsupported_layers": [{"name": name, "type": "QKerasH5", "reason": reason}],
+            "recommendation": "Export the model through a supported hls4ml Keras/QKeras flow or add a dedicated H5 frontend adapter.",
+            "source": source,
+        }
+
     def inspect_model(self, model_path: str, frontend: str) -> dict[str, Any]:
         if self.mock_mode or not self._installed():
             warnings = []
@@ -69,6 +93,14 @@ class HLS4MLAdapter:
                     {"name": "dense_2", "type": "Dense", "input_shape": [32], "output_shape": [8]},
                 ],
                 "warnings": warnings,
+            }
+        if self._is_h5_frontend(model_path, frontend):
+            result = self._h5_frontend_result(model_path, "hls4ml.inspect_model")
+            return {
+                "status": "success" if Path(model_path).exists() else "error",
+                "frontend": frontend,
+                "layers": [{"name": Path(model_path).stem or "h5_model", "type": "QKerasH5", "input_shape": [], "output_shape": []}],
+                "warnings": [result["unsupported_layers"][0]["reason"]],
             }
         try:  # pragma: no cover - real dependency path
             import onnx  # type: ignore
@@ -203,6 +235,8 @@ class HLS4MLAdapter:
                 "recommendation": "Install hls4ml and onnx, or use fallback template path.",
             }
         original_model_path = str(task.get("model_path", ""))
+        if self._is_h5_frontend(original_model_path, task.get("frontend")):
+            return self._h5_frontend_result(task, "hls4ml.check_support")
         path = Path(original_model_path)
         if not path.exists():
             return {
@@ -240,13 +274,14 @@ class HLS4MLAdapter:
             default_precision = hls4ml_cfg.get("precision", "fixed<16,6>")
             default_reuse_factor = int(hls4ml_cfg.get("reuse_factor", 1))
             backend = task.get("target", {}).get("backend", "Vivado")
-            hls4ml.utils.config_from_onnx_model(
-                model,
-                granularity="name",
-                backend=backend,
-                default_precision=default_precision,
-                default_reuse_factor=default_reuse_factor,
-            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                hls4ml.utils.config_from_onnx_model(
+                    model,
+                    granularity="name",
+                    backend=backend,
+                    default_precision=default_precision,
+                    default_reuse_factor=default_reuse_factor,
+                )
             return {
                 "status": "supported",
                 "supported_layers": ops,
@@ -297,6 +332,17 @@ class HLS4MLAdapter:
                 )
             )
         model_path = str(arguments.get("model_path", ""))
+        if self._is_h5_frontend(model_path, arguments.get("frontend")):
+            return error_result(
+                build_error(
+                    "HLS4MLConversionError",
+                    "QKeras/Keras H5 frontend is recognized, but real H5 config generation is not enabled in this prototype.",
+                    recoverable=True,
+                    source="hls4ml.generate_config",
+                    suggested_action="Use a supported hls4ml Keras/QKeras frontend adapter or export a supported model format.",
+                    details={"model_path": model_path, "frontend": arguments.get("frontend")},
+                )
+            )
         if self._is_placeholder_model(model_path):
             return error_result(
                 build_error(
@@ -317,13 +363,15 @@ class HLS4MLAdapter:
             precision = arguments.get("precision", "fixed<16,6>")
             reuse_factor = int(arguments.get("reuse_factor", 1))
             strategy = arguments.get("strategy", "Latency")
-            generated = hls4ml.utils.config_from_onnx_model(
-                model,
-                granularity="name",
-                backend=backend,
-                default_precision=precision,
-                default_reuse_factor=reuse_factor,
-            )
+            stdout_buffer = io.StringIO()
+            with contextlib.redirect_stdout(stdout_buffer):
+                generated = hls4ml.utils.config_from_onnx_model(
+                    model,
+                    granularity="name",
+                    backend=backend,
+                    default_precision=precision,
+                    default_reuse_factor=reuse_factor,
+                )
             payload: dict[str, Any] = {
                 "model_path": model_path,
                 "frontend": arguments.get("frontend", "onnx"),
@@ -340,6 +388,11 @@ class HLS4MLAdapter:
                 payload["hls_config"]["Model"]["ReuseFactor"] = reuse_factor
                 payload["hls_config"]["Model"]["Strategy"] = strategy
             config_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            stdout_text = stdout_buffer.getvalue().strip()
+            if stdout_text:
+                log_dir = output_dir / "logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                (log_dir / "hls4ml_generate_config_stdout.log").write_text(stdout_text, encoding="utf-8")
             return {"status": "success", "config_path": str(config_path)}
         except Exception as exc:  # pragma: no cover - real dependency path
             return error_result(
@@ -399,6 +452,17 @@ class HLS4MLAdapter:
                 )
             )
         model_path = str(arguments.get("model_path", ""))
+        if self._is_h5_frontend(model_path, arguments.get("frontend")):
+            return error_result(
+                build_error(
+                    "HLS4MLConversionError",
+                    "QKeras/Keras H5 frontend is recognized, but real H5 conversion is not enabled in this prototype.",
+                    recoverable=True,
+                    source="hls4ml.convert",
+                    suggested_action="Use a dedicated Keras/QKeras converter path instead of the ONNX converter.",
+                    details={"model_path": model_path, "frontend": arguments.get("frontend")},
+                )
+            )
         if self._is_placeholder_model(model_path):
             return error_result(
                 build_error(
@@ -441,16 +505,18 @@ class HLS4MLAdapter:
                 if isinstance(config_payload, dict) and config_payload.get("clock_period") is not None
                 else arguments.get("clock_period", 5)
             )
-            converted = hls4ml.converters.convert_from_onnx_model(
-                model,
-                output_dir=str(output_dir),
-                project_name=top_function,
-                backend=backend,
-                hls_config=hls_config,
-                part=part,
-                clock_period=clock_period,
-            )
-            converted.write()
+            stdout_buffer = io.StringIO()
+            with contextlib.redirect_stdout(stdout_buffer):
+                converted = hls4ml.converters.convert_from_onnx_model(
+                    model,
+                    output_dir=str(output_dir),
+                    project_name=top_function,
+                    backend=backend,
+                    hls_config=hls_config,
+                    part=part,
+                    clock_period=clock_period,
+                )
+                converted.write()
             log_dir = output_dir.parent / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             log_path = log_dir / "hls4ml_convert.log"
@@ -462,6 +528,9 @@ class HLS4MLAdapter:
                         f"project_name={top_function}",
                         f"output_dir={output_dir}",
                         f"backend={backend}",
+                        "",
+                        "Captured stdout:",
+                        stdout_buffer.getvalue().strip(),
                     ]
                 ),
                 encoding="utf-8",
