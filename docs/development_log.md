@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-06-01 20:31:40 +08:00：修复后真实 LLM Demo0 复测结果
+### 1. 本次测试做了什么
+执行与验证：
+- 使用独立目录：`D:\hls_agent\standalone_work\dl-op-to-hls-agent`。
+- 使用真实 LLM API、真实 Vivado HLS 路径、非 mock 工具配置复测 Demo0：
+  - `python -m dl_op_to_hls.cli run-llm examples/dense_operator.json`
+  - `DL_OP_TO_HLS_MOCK_HLS4ML=0`
+  - `DL_OP_TO_HLS_MOCK_VIVADO=0`
+  - `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=strict`
+- 本次命令外层 15 分钟超时，后台 Python 进程继续运行；后续确认其长时间停留在 OptimizationSpecialist 阶段，因此已停止该孤儿进程，避免继续消耗 API。
+
+### 2. 当前复测结果
+本轮 run_id：
+- `dense_16x32_115c1f11_06`
+
+已经验证通过的链路：
+- Main Agent ReAct 不再卡在缺失 `decision`，trace 中已出现合法决策：
+  - `direct_tool_only_when_no_specialist`
+  - `delegate_to_specialist`
+- Fallback HLS template 已生成成功：
+  - `generated/dense_16x32.h`
+  - `generated/dense_16x32.cpp`
+  - `generated/testbench.cpp`
+  - `generated/run_hls.tcl`
+- VivadoSpecialist 已被正确委派并执行成功：
+  - `vivado.create_project` success
+  - `vivado.run_csynth` success
+  - `vivado.parse_report` success
+- Vivado report artifact 已生成：
+  - `runs/dense_16x32_115c1f11_06/vivado_hls/vivado_hls/solution1/syn/report/dense_16x32_csynth.rpt`
+- `Parse synthesis report` todo 也通过 `VivadoSpecialist` 完成。
+
+未完成的链路：
+- 执行到 `Generate optimization suggestions` / `OptimizationSpecialist` 后，trace 停在 `SpecialistStarted`，没有后续 tool event。
+- 外层命令超时后后台进程仍存在，说明该阶段可能卡在 Specialist local ReAct 的 LLM 调用、API 等待或 optimizer LLM 调用上。
+
+### 3. 发现的问题与根因
+1) 之前的 `decision` 缺失问题已明显改善
+- 证据：trace 中 Main Agent 多次返回合法 `decision`，并成功委派 VivadoSpecialist。
+- 结论：schema enum、prompt 示例、strict JSON repair 对主 ReAct 契约有效。
+
+2) 新瓶颈转移到 OptimizationSpecialist 阶段
+- 现象：trace 最后事件为 `SpecialistStarted` for `OptimizationSpecialist`，之后无 `PreToolUse` / `SpecialistFinished`。
+- 初步根因：OptimizationSpecialist 内部 local ReAct 也会调用 LLM decider；在当前真实 API/限速环境下可能等待过长或挂起。
+- 下一步修复方向：为 Specialist local ReAct 增加 per-call timeout、超时结构化错误、以及针对 OptimizationSpecialist 的“必须先发出 local_react trace 再调用 LLM”可观测性。
+
+3) run-llm 长流程缺少全局 wall-clock budget
+- 现象：外层 shell 超时后子进程仍继续运行。
+- 初步根因：当前 runtime 没有统一 run-level deadline / cancellation propagation。
+- 下一步修复方向：增加 `DL_OP_TO_HLS_RUN_TIMEOUT_SEC` 或 runtime deadline，在 LLM/tool/specialist 层统一检查并返回 structured timeout error。
+
+### 4. 已修复内容（含修复方式）
+- 本次为真实复测与定位，未修改业务代码。
+- 停止了超时后残留的 Python 进程，避免继续消耗 API。
+
+### 5. 未修复完成的问题及原因
+1) Demo0 run-llm 尚未完整成功
+- 原因：虽然已通过 Main Agent ReAct、fallback generation、Vivado synthesis/report parsing，但卡在 OptimizationSpecialist 阶段。
+
+2) 本次没有 push 到 GitHub
+- 原因：用户要求“如果成功则 push”；本轮复测未完整成功，因此不推送新的日志/状态提交，避免把未完成验证误标为通过。
+---
+
 ## 2026-06-01 15:11:00 +08:00：LLM 契约层、Skill 工具边界、hls4ml stdout 与 QKeras/H5 前端修补
 ### 1. 本次测试做了什么
 执行与验证：
