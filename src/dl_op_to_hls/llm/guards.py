@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+
+class LLMGuard:
+    def validate_todo_plan(self, plan: dict, tool_registry, specialist_router, skill_registry) -> dict:
+        errors: list[str] = []
+        todos = plan.get("todos")
+        if not isinstance(todos, list) or not todos:
+            errors.append("Todo plan must contain a non-empty todos list.")
+            return {"status": "invalid", "errors": errors}
+
+        selected_skill = plan.get("selected_skill")
+        if selected_skill:
+            try:
+                skill_registry.get(selected_skill)
+            except KeyError:
+                errors.append(f"Unknown selected_skill: {selected_skill}")
+
+        tools = {spec.name for spec in tool_registry.list_tools()}
+        specialist_specs = {item["name"]: item for item in specialist_router.list_specialists()}
+        specialists = set(specialist_specs)
+        private_tool_owners: dict[str, list[str]] = {}
+        for specialist_name, spec in specialist_specs.items():
+            for allowed_tool in spec.get("allowed_tools", []):
+                private_tool_owners.setdefault(allowed_tool, []).append(specialist_name)
+        for index, todo in enumerate(todos, start=1):
+            tool_name = todo.get("assigned_tool")
+            specialist_name = todo.get("assigned_specialist")
+            if tool_name and tool_name not in tools:
+                errors.append(f"Todo #{index} uses unknown tool: {tool_name}")
+            if specialist_name and specialist_name not in specialists:
+                errors.append(f"Todo #{index} uses unknown specialist: {specialist_name}")
+            if tool_name in private_tool_owners and not specialist_name:
+                errors.append(
+                    f"Todo #{index} uses specialist-private tool {tool_name} without assigning one of {private_tool_owners[tool_name]}."
+                )
+            if specialist_name and tool_name and specialist_name in specialist_specs:
+                allowed_tools = set(specialist_specs[specialist_name].get("allowed_tools", []))
+                if tool_name not in allowed_tools:
+                    errors.append(
+                        f"Todo #{index} assigns tool {tool_name} to specialist {specialist_name}, but it is outside allowed_tools."
+                    )
+            if tool_name == "llm.generate_hls_candidate":
+                if not any(
+                    (
+                        item.get("assigned_specialist") == "VerificationSpecialist"
+                        or str(item.get("assigned_tool", "")).startswith("verify")
+                        or item.get("assigned_tool") == "verify_candidate.run"
+                    )
+                    for item in todos
+                ):
+                    errors.append("LLM candidate generation must include verification specialist/tool.")
+
+        return {"status": "invalid" if errors else "valid", "errors": errors}
+
+    def validate_react_decision(
+        self,
+        decision: dict,
+        allowed_tools: list[str] | None = None,
+        allowed_actions: list[str] | None = None,
+    ) -> dict:
+        allowed_tools = allowed_tools or []
+        allowed_actions = allowed_actions or [
+            "delegate_to_specialist",
+            "direct_tool_only_when_no_specialist",
+            "request_replan",
+            "mark_blocked",
+            "mark_failed",
+        ]
+        errors: list[str] = []
+        action = decision.get("action", {})
+        decision_name = decision.get("decision")
+        if decision_name not in allowed_actions:
+            errors.append(f"Action {decision_name} is not in allowed_actions.")
+        if decision_name == "direct_tool_only_when_no_specialist":
+            tool_name = action.get("tool_name") or action.get("tool")
+            if tool_name not in allowed_tools:
+                errors.append(f"Tool {tool_name} is not in allowed_tools.")
+        return {"status": "invalid" if errors else "valid", "errors": errors}
+
+    def validate_reflection(self, reflection: dict, current_skill: str | None) -> dict:
+        errors: list[str] = []
+        if "new_todos" not in reflection:
+            errors.append("Reflection payload must include new_todos.")
+        if reflection.get("todo_status") not in {
+            "pending",
+            "in_progress",
+            "completed",
+            "completed_with_warning",
+            "failed",
+            "blocked",
+            "skipped",
+            "cancelled",
+        }:
+            errors.append("Invalid todo_status in reflection.")
+        if current_skill is None and reflection.get("decision") == "switch_skill":
+            errors.append("Cannot switch skill when no current skill is selected.")
+        return {"status": "invalid" if errors else "valid", "errors": errors}
+
+    def validate_candidate_files(self, candidate: dict, run_dir: str) -> dict:
+        errors: list[str] = []
+        run_path = Path(run_dir).resolve()
+        if candidate.get("status") == "verified":
+            errors.append("Candidate cannot be marked verified before verification pipeline.")
+        for file_item in candidate.get("files", []):
+            rel = file_item.get("relative_path", "")
+            if Path(rel).is_absolute():
+                errors.append(f"Candidate file path must be relative: {rel}")
+                continue
+            resolved = (run_path / rel).resolve()
+            allowed_root = (run_path / "candidate").resolve()
+            if resolved != allowed_root and allowed_root not in resolved.parents:
+                errors.append(f"Candidate file path is outside run candidate dir: {rel}")
+        return {"status": "invalid" if errors else "valid", "errors": errors}

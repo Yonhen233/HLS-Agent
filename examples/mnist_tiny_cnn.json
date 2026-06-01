@@ -1,0 +1,28 @@
+{
+  "task_type": "model",
+  "name": "mnist_tiny_cnn",
+  "model_path": "models/generated/mnist_tiny_cnn.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    28,
+    28,
+    1
+  ],
+  "layout": "NHWC",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 10
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 8,
+    "strategy": "Latency"
+  },
+  "objective": "balanced",
+  "demo": {
+    "expected_path": "hls4ml",
+    "mock_tools": true,
+    "description": "Tiny MNIST CNN demo using hls4ml path."
+  }
+}

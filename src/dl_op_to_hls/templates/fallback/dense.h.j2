@@ -1,0 +1,12 @@
+#ifndef $guard
+#define $guard
+#include "ap_fixed.h"
+typedef $dtype data_t;
+void $top_function(
+    const data_t input[$input_dim],
+    const data_t weights[$output_dim][$input_dim],
+    const data_t bias[$output_dim],
+    data_t output[$output_dim]
+);
+#endif
+

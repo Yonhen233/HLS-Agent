@@ -1,0 +1,9 @@
+#include "$top_function.h"
+
+void $top_function(const data_t input[$input_dim], data_t output[$input_dim]) {
+  for (int i = 0; i < $input_dim; ++i) {
+#pragma HLS PIPELINE II=$pipeline_ii
+    output[i] = input[i] > 0 ? input[i] : (data_t)0;
+  }
+}
+

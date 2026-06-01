@@ -1,0 +1,13 @@
+#include "$top_function.h"
+
+void $top_function(
+    const data_t lhs[$input_dim],
+    const data_t rhs[$input_dim],
+    data_t output[$input_dim]
+) {
+  for (int i = 0; i < $input_dim; ++i) {
+#pragma HLS PIPELINE II=$pipeline_ii
+    output[i] = lhs[i] + rhs[i];
+  }
+}
+

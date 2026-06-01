@@ -1,0 +1,1034 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from ..core.context import ContextCompressor
+from ..core.errors import AgentRuntimeError, build_error
+from ..memory.short_term import build_short_term_entry
+from ..schemas.hls_project_schema import normalize_hls_project_task
+from ..schemas.model_schema import normalize_model_task
+from ..schemas.operator_schema import normalize_operator_task
+from ..schemas.report_schema import empty_report
+from ..schemas.task_schema import load_task
+from ..specialists.context import ContextBuilder
+from ..specialists.router import build_default_router
+from .executor import AgentExecutor
+from .finalizer import finalize_state
+from .planner import build_plan
+from .reflector import reflect_on_errors, update_status_from_todos
+from .state import AgentState
+from .todo import DONE_STATUSES, TodoItem, TodoManager
+
+
+def _load_json(path: str | Path) -> dict[str, Any]:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
+    validated = load_task(task)
+    if validated["task_type"] == "operator":
+        return normalize_operator_task(validated)
+    if validated["task_type"] == "model":
+        return normalize_model_task(validated)
+    return normalize_hls_project_task(validated)
+
+
+class PlanExecuteReactRuntime:
+    def __init__(self, agent):
+        self.agent = agent
+        self.context: dict[str, Any] | None = None
+        self.executor: AgentExecutor | None = None
+        self.todo_manager: TodoManager | None = None
+        self.compressor: ContextCompressor | None = None
+        self.context_builder = ContextBuilder()
+        self.specialist_router = None
+
+    def run(self, task_path: str) -> AgentState:
+        state = self.initialize(task_path)
+        hooks = self.context["hooks"]
+        hooks.emit("RunStarted", {"run_id": state.run_id, "message": f"Starting run for {state.task.get('name')}"})
+        try:
+            state = self.retrieve_initial_memory(state)
+            state = self.plan(state)
+            state = self.create_todos(state)
+            state = self.execute_todos(state)
+            state = self.finalize(state)
+        except AgentRuntimeError as exc:
+            state.errors.append(exc.error.to_dict())
+            state.status = "failed"
+        except Exception as exc:  # pragma: no cover - defensive
+            state.errors.append(
+                build_error("InvalidTaskError", str(exc), recoverable=True, source="runtime.run").to_dict()
+            )
+            state.status = "failed"
+        finally:
+            reflect_on_errors(state)
+            update_status_from_todos(state)
+            trace_path = self.context["run_dir"] / "trace.jsonl"
+            if trace_path.exists():
+                self.context["artifact_manager"].register_file(trace_path, "trace")
+                state.artifacts["trace"] = str(trace_path)
+            finalize_state(state, self.context["artifact_manager"])
+            state_path = self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+            state.artifacts["state"] = str(state_path)
+            Path(state_path).write_text(json.dumps(state.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+            hooks.emit("RunFinished", {"run_id": state.run_id, "status": state.status})
+        return state
+
+    def initialize(self, task_path: str) -> AgentState:
+        raw_task = _load_json(task_path)
+        task = _normalize_task(raw_task)
+        run_id = self.agent.make_run_id(task)
+        self.context = self.agent.create_run_context(run_id)
+        self.executor = AgentExecutor(self.agent.registry, self.context)
+        self.todo_manager = TodoManager(self.context["run_dir"], hooks=self.context["hooks"], artifact_manager=self.context["artifact_manager"])
+        self.compressor = ContextCompressor(hooks=self.context["hooks"], run_id=run_id)
+        self.specialist_router = build_default_router(self.context)
+        state = AgentState(run_id=run_id, task=task, objective=task.get("objective"))
+        state.artifacts["run_dir"] = str(self.context["run_dir"])
+        self.context["artifact_manager"].write_json("input.json", raw_task, "input_task")
+        self.context["artifact_manager"].write_json("normalized_task.json", task, "normalized_task")
+        self._call_tool(
+            state,
+            "db.save_experiment",
+            {
+                "run_id": run_id,
+                "task_type": task["task_type"],
+                "name": task["name"],
+                "objective": state.objective,
+                "selected_path": state.selected_path,
+                "status": state.status,
+            },
+        )
+        return state
+
+    def retrieve_initial_memory(self, state: AgentState) -> AgentState:
+        query = f"{state.task.get('name')} {state.task.get('op_type', '')} {state.objective} reuse factor DSP Vivado HLS"
+        similar = self._call_tool(state, "memory.retrieve_similar_experiences", {"query": query, "top_k": 5})
+        failures = self._call_tool(state, "memory.retrieve_failure_cases", {"query": query, "top_k": 5})
+        optimization = self._call_tool(state, "memory.retrieve_optimization_rules", {"query": query, "top_k": 5})
+        retrieved = {
+            "similar_experiences": similar.get("results", []),
+            "failure_cases": failures.get("results", []),
+            "optimization_rules": optimization.get("results", []),
+        }
+        path = self.context["artifact_manager"].write_json("memory/retrieved_memories.json", retrieved, "memory_retrieved")
+        state.retrieved_memories = retrieved["similar_experiences"] + retrieved["failure_cases"] + retrieved["optimization_rules"]
+        state.rag_context = [
+            {"summary": item.get("text", "")[:200], "source": item.get("source_run_id") or item.get("id"), "text": item.get("text", "")}
+            for item in state.retrieved_memories[:10]
+        ]
+        state.artifacts["retrieved_memories"] = str(path)
+        return state
+
+    def plan(self, state: AgentState) -> AgentState:
+        state.plan = build_plan(state.task)
+        return state
+
+    def create_todos(self, state: AgentState) -> AgentState:
+        todo_list = self.todo_manager.create_from_plan(state.run_id, state.plan, state.task)
+        state.todos = todo_list.items
+        state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
+        return state
+
+    def execute_todos(self, state: AgentState) -> AgentState:
+        while self.todo_manager.has_pending_or_ready():
+            todo = self.todo_manager.get_next_ready_item(self.todo_manager.todo_list)
+            if todo is None:
+                break
+            observation = self.execute_todo_with_react(state, todo)
+            state = self.reflect(state, todo, observation)
+            if self.should_stop(state):
+                break
+        update_status_from_todos(state)
+        return state
+
+    def execute_todo_with_react(self, state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        state.current_todo_id = todo.id
+        self.todo_manager.mark_started(todo.id)
+        reason = self._reason_for_todo(state, todo)
+        specialist = self.specialist_router.route(todo) if self.specialist_router else None
+        if specialist is not None:
+            observation = self._execute_todo_with_specialist(state, todo, specialist)
+        else:
+            observation = self._execute_todo_actions(state, todo)
+        decision = self._decision_from_observation(state, todo, observation)
+        todo.react_steps.append(
+            {
+                "reason": reason,
+                "action": observation.get("action"),
+                "observation": observation.get("observation"),
+                "decision": decision,
+            }
+        )
+        todo.updated_at = self.todo_manager._find(todo.id).updated_at
+        self._write_short_term_for_todo(state, todo, observation)
+        return observation
+
+    def _execute_todo_with_specialist(self, state: AgentState, todo: TodoItem, specialist) -> dict[str, Any]:
+        hooks = self.context["hooks"]
+        hooks.emit(
+            "SpecialistSelected",
+            {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name},
+        )
+        if specialist.name == "MemorySpecialist":
+            state_path = self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+            state.artifacts["state"] = str(state_path)
+        envelope = self.context_builder.build_for_specialist(state=state, todo=todo, specialist_name=specialist.name)
+        hooks.emit(
+            "ContextEnvelopeCreated",
+            {
+                "run_id": state.run_id,
+                "todo_id": todo.id,
+                "specialist": specialist.name,
+                "max_context_tokens": envelope.max_context_tokens,
+            },
+        )
+        hooks.emit("SpecialistStarted", {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name})
+        try:
+            result = specialist.handle(envelope, self.agent.registry, self.context["permission_gate"])
+            event = "SpecialistFinished" if result.status != "failed" else "SpecialistFailed"
+            hooks.emit(
+                event,
+                {
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "specialist": specialist.name,
+                    "status": result.status,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            error = build_error(
+                "InvalidTaskError",
+                str(exc),
+                recoverable=True,
+                source=f"{specialist.name}.handle",
+            ).to_dict()
+            from ..specialists.result import SpecialistResult
+
+            result = SpecialistResult(
+                specialist_name=specialist.name,
+                todo_id=todo.id,
+                status="failed",
+                summary=f"{specialist.name} failed unexpectedly.",
+                errors=[error],
+            )
+            hooks.emit(
+                "SpecialistFailed",
+                {
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "specialist": specialist.name,
+                    "status": result.status,
+                    "error_type": error["error_type"],
+                    "message": error["message"],
+                },
+            )
+        hooks.emit(
+            "ContextCompressionMeasured",
+            {
+                "run_id": state.run_id,
+                "todo_id": todo.id,
+                "specialist": specialist.name,
+                **result.context_usage,
+            },
+        )
+        state = self.executor.merge_specialist_result(state, todo, result)
+        hooks.emit(
+            "SpecialistResultMerged",
+            {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name},
+        )
+        return self._apply_specialist_observation(state, todo, result)
+
+    def _apply_specialist_observation(self, state: AgentState, todo: TodoItem, result) -> dict[str, Any]:
+        observation = {
+            "status": self._todo_status_from_specialist(result.status),
+            "action": {"specialist": result.specialist_name},
+            "observation": {
+                "status": result.status,
+                "summary": result.summary,
+                "metrics": result.metrics,
+                "errors": result.errors,
+                "warnings": result.warnings,
+                "suggested_todos": result.suggested_todos,
+                "context_usage": result.context_usage,
+            },
+            "specialist_status": result.status,
+            "specialist_name": result.specialist_name,
+        }
+        if result.specialist_name == "HLS4MLSpecialist":
+            support_observation = next(
+                (
+                    item.get("result", {})
+                    for item in result.observations
+                    if item.get("tool") in {"hls4ml.check_support", "hls4ml.check_hls4ml_support"}
+                ),
+                {},
+            )
+            if support_observation:
+                state.hls4ml_support = support_observation
+                observation["hls4ml_status"] = support_observation.get("status")
+            config_path = self._first_artifact_path(result, "hls4ml_config")
+            if config_path:
+                state.hls4ml_config_path = config_path
+            hls_project = self._first_artifact_path(result, "hls_project")
+            if hls_project:
+                state.selected_path = "hls4ml_path"
+                state.hls_project_dir = hls_project
+            convert_observation = next(
+                (
+                    item.get("result", {})
+                    for item in result.observations
+                    if item.get("tool") in {"hls4ml.convert", "hls4ml.convert_with_hls4ml"}
+                ),
+                {},
+            )
+            top_function = convert_observation.get("top_function")
+            if top_function:
+                state.task["top_function"] = top_function
+            if observation["status"] == "failed":
+                first_error = (result.errors[0] if result.errors else {}) or {}
+                if first_error.get("recoverable") and first_error.get("error_type") in {
+                    "HLS4MLConversionError",
+                    "HLS4MLNotInstalledError",
+                }:
+                    observation["status"] = "completed_with_warning"
+                    observation["error_type"] = first_error.get("error_type")
+                    observation["hls4ml_status"] = "unsupported"
+                    if not result.warnings:
+                        result.warnings.append({"message": first_error.get("message", "Recoverable hls4ml issue.")})
+                    observation["observation"]["warnings"] = result.warnings
+        if result.specialist_name == "VivadoSpecialist":
+            for item in result.observations:
+                if item.get("tool") == "vivado.create_project":
+                    create_result = item.get("result", {})
+                    if create_result.get("work_dir"):
+                        state.vivado_work_dir = create_result["work_dir"]
+            if result.status == "partial_success":
+                observation["error_type"] = (result.errors[0] if result.errors else {}).get("error_type")
+                if observation["error_type"] == "VivadoNotFoundError":
+                    observation["status"] = "skipped"
+        if result.specialist_name == "VerificationSpecialist" and result.errors:
+            observation["error_type"] = result.errors[0].get("error_type")
+            if observation["error_type"] == "VerificationFailedError":
+                observation["status"] = "completed_with_warning"
+        if result.specialist_name == "OptimizationSpecialist" and result.metrics:
+            state.suggestions = result.metrics.get("suggestions", state.suggestions)
+            suggestions_path = self._first_artifact_path(result, "suggestions")
+            if suggestions_path:
+                state.artifacts["suggestions"] = suggestions_path
+        if result.specialist_name == "MemorySpecialist" and result.metrics:
+            state.memory_candidates = result.metrics.get("memory_candidates", state.memory_candidates)
+            state.promoted_memories = result.metrics.get("promoted_memories", state.promoted_memories)
+            for artifact in result.artifacts:
+                if artifact.get("type") in {"compressed_context", "memory_candidates", "promoted_memories"}:
+                    state.artifacts[artifact["type"]] = artifact["path"]
+
+        if observation["status"] == "completed":
+            self.todo_manager.mark_completed(todo.id, todo.outputs or {"status": result.status, "summary": result.summary})
+        elif observation["status"] == "completed_with_warning":
+            warning = result.warnings[0] if result.warnings else {"message": result.summary}
+            self.todo_manager.mark_completed_with_warning(todo.id, todo.outputs or {"status": result.status, "summary": result.summary}, warning)
+        elif observation["status"] == "skipped":
+            self.todo_manager.mark_skipped(todo.id, result.summary)
+        elif observation["status"] == "blocked":
+            self.todo_manager.mark_blocked(todo.id, result.summary)
+        else:
+            error = result.errors[0] if result.errors else {"message": result.summary}
+            self.todo_manager.mark_failed(todo.id, error)
+        return observation
+
+    def _todo_status_from_specialist(self, status: str) -> str:
+        mapping = {
+            "success": "completed",
+            "partial_success": "completed_with_warning",
+            "skipped": "skipped",
+            "blocked": "blocked",
+            "failed": "failed",
+        }
+        return mapping.get(status, "failed")
+
+    def _first_artifact_path(self, result, artifact_type: str) -> str | None:
+        for artifact in result.artifacts:
+            if artifact.get("type") == artifact_type:
+                return artifact.get("path")
+        return None
+
+    def reflect(self, state: AgentState, todo: TodoItem, observation: dict) -> AgentState:
+        status = observation.get("status")
+        if todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "unsupported":
+            graph_todo = self.todo_manager.append_item(
+                title="Try graph rewrite",
+                description="Attempt simple graph rewrite rules for unsupported path.",
+                priority=todo.priority + 1,
+                assigned_tool="graph_rewrite.rewrite",
+                dependencies=[todo.id],
+                inputs={"task": state.task},
+            )
+            if state.task["task_type"] == "operator":
+                fallback_todo = self.todo_manager.append_item(
+                    title="Generate fallback HLS template",
+                    description="Generate fallback operator HLS template.",
+                    priority=graph_todo.priority + 1,
+                    assigned_tool="fallback.generate_operator_hls",
+                    dependencies=[graph_todo.id],
+                    inputs={"task": state.task},
+                )
+                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", fallback_todo.id)
+                state.todos = self.todo_manager.todo_list.items
+            else:
+                unsupported_todo = self.todo_manager.append_item(
+                    title="Generate unsupported report",
+                    description="Write actionable unsupported report.",
+                    priority=graph_todo.priority + 1,
+                    assigned_tool="report.write_unsupported",
+                    dependencies=[graph_todo.id],
+                    inputs={"reason": "hls4ml unsupported after inspection"},
+                )
+                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "partially_supported":
+            graph_todo = self.todo_manager.append_item(
+                title="Try graph rewrite",
+                description="Attempt graph rewrite and folding rules for partial hls4ml support.",
+                priority=todo.priority + 1,
+                assigned_tool="graph_rewrite.rewrite",
+                dependencies=[todo.id],
+                inputs={"task": state.task},
+            )
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="Write boundary report for partially supported model.",
+                priority=graph_todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[graph_todo.id],
+                inputs={"reason": state.hls4ml_support.get("recommendation") if state.hls4ml_support else "Model is only partially supported by hls4ml."},
+            )
+            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            for item in self.todo_manager.todo_list.items:
+                if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
+                    self.todo_manager.mark_skipped(item.id, "Boundary demo selected: skip full synthesis and emit boundary report.")
+            state.selected_path = "unsupported_path"
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "not_recommended":
+            recommendation = state.hls4ml_support.get("recommendation") if state.hls4ml_support else "Model is outside MVP scope."
+            name = str(state.task.get("name", "")).lower()
+            model_path = str(state.task.get("model_path", "")).lower()
+            if "resnet18" in name or "resnet18" in model_path:
+                reason = (
+                    "Full ResNet-18 is outside the recommended scope for this MVP. "
+                    f"{recommendation}"
+                )
+            else:
+                reason = recommendation
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="Write unsupported/not-recommended report.",
+                priority=todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[todo.id],
+                inputs={"reason": reason},
+            )
+            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            for item in self.todo_manager.todo_list.items:
+                if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
+                    self.todo_manager.mark_skipped(item.id, "Not recommended boundary demo: skip full synthesis.")
+            state.selected_path = "unsupported_path"
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "supported" and state.task["task_type"] == "model":
+            config_todo = self.todo_manager.append_item(
+                title="Generate hls4ml config",
+                description="Create hls4ml config for the supported model.",
+                priority=todo.priority + 1,
+                assigned_tool="hls4ml.generate_config",
+                dependencies=[todo.id],
+                inputs={"task": state.task},
+            )
+            convert_todo = self.todo_manager.append_item(
+                title="Convert with hls4ml",
+                description="Convert model into an HLS project with hls4ml.",
+                priority=config_todo.priority + 1,
+                assigned_tool="hls4ml.convert",
+                dependencies=[config_todo.id],
+                inputs={"task": state.task},
+            )
+            self._add_dependency_to_title(state, "Run Vivado HLS synthesis", convert_todo.id)
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title in {"Generate hls4ml config", "Convert with hls4ml"} and observation.get("error_type") in {
+            "HLS4MLConversionError",
+            "HLS4MLNotInstalledError",
+        }:
+            graph_todo = self.todo_manager.append_item(
+                title="Try graph rewrite",
+                description="Attempt graph rewrite rules for unsupported hls4ml model patterns.",
+                priority=todo.priority + 1,
+                assigned_tool="graph_rewrite.rewrite",
+                dependencies=[todo.id],
+                inputs={"task": state.task},
+            )
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="Write actionable unsupported report after hls4ml conversion/config failure.",
+                priority=graph_todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[graph_todo.id],
+                inputs={
+                    "reason": (
+                        observation.get("observation", {})
+                        .get("errors", [{}])[0]
+                        .get("message")
+                        or "hls4ml conversion/config generation failed for this model."
+                    )
+                },
+            )
+            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            for item in self.todo_manager.todo_list.items:
+                if item.id == todo.id:
+                    continue
+                if item.status in {"pending", "blocked"} and item.title in {
+                    "Generate hls4ml config",
+                    "Convert with hls4ml",
+                    "Run Vivado HLS synthesis",
+                    "Parse synthesis report",
+                }:
+                    self.todo_manager.mark_cancelled(
+                        item.id,
+                        "hls4ml conversion path failed; switching to boundary/unsupported report path.",
+                    )
+            state.selected_path = "unsupported_path"
+            state.status = "partial_success"
+            if state.report is None:
+                state.report = empty_report("missing")
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Run Vivado HLS synthesis" and observation.get("status") == "blocked" and not state.hls_project_dir:
+            existing = next(
+                (
+                    item
+                    for item in self.todo_manager.todo_list.items
+                    if item.title == "Generate LLM candidate" and item.status in {"pending", "blocked", "in_progress", "completed"}
+                ),
+                None,
+            )
+            if existing is None:
+                llm_todo = self.todo_manager.append_item(
+                    title="Generate LLM candidate",
+                    description="Fallback templates were unavailable; try mock LLM candidate generation.",
+                    priority=todo.priority + 1,
+                    assigned_tool="llm.generate_candidate",
+                    dependencies=todo.dependencies[:],
+                    inputs={"task": state.task},
+                )
+                self.todo_manager.add_dependency(todo.id, llm_todo.id)
+            else:
+                self.todo_manager.add_dependency(todo.id, existing.id)
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Run Vivado HLS synthesis" and observation.get("error_type") == "VivadoNotFoundError":
+            state.status = "partial_success"
+        elif todo.title == "Verify LLM candidate" and observation.get("error_type") == "VerificationFailedError":
+            attempts = sum(
+                1
+                for item in self.todo_manager.todo_list.items
+                if item.title == "Verify LLM candidate" and item.status in {"completed_with_warning", "failed"}
+            )
+            if attempts < 2:
+                repair_todo = self.todo_manager.append_item(
+                    title="Generate LLM candidate",
+                    description="Repair and regenerate LLM candidate.",
+                    priority=todo.priority + 1,
+                    assigned_tool="llm.generate_candidate",
+                    dependencies=[todo.id],
+                    inputs={"task": state.task, "repair_attempt": attempts},
+                )
+                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", repair_todo.id)
+            else:
+                unsupported_todo = self.todo_manager.append_item(
+                    title="Generate unsupported report",
+                    description="Candidate failed verification too many times.",
+                    priority=todo.priority + 1,
+                    assigned_tool="report.write_unsupported",
+                    dependencies=[todo.id],
+                    inputs={"reason": "LLM candidate failed verification after max repair attempts."},
+                )
+                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                for item in self.todo_manager.todo_list.items:
+                    if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
+                        self.todo_manager.mark_cancelled(item.id, "Verification failed and the runtime switched to unsupported report generation.")
+            state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Generate LLM candidate" and observation.get("status") == "failed":
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="LLM candidate generation failed; emit actionable unsupported report.",
+                priority=todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[],
+                inputs={"reason": "LLM candidate generation failed and no verified fallback implementation is available."},
+            )
+            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            for item in self.todo_manager.todo_list.items:
+                if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
+                    self.todo_manager.mark_cancelled(item.id, "No valid HLS candidate was available.")
+            state.selected_path = "unsupported_path"
+            if state.report is None:
+                state.report = empty_report("missing")
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+        update_status_from_todos(state)
+        return state
+
+    def finalize(self, state: AgentState) -> AgentState:
+        if not state.report:
+            state.report = empty_report("missing")
+        report_path = self.context["artifact_manager"].write_json("report.json", state.report, "report_json")
+        state.artifacts["report_json"] = str(report_path)
+        state.artifacts["trace"] = str(self.context["run_dir"] / "trace.jsonl")
+        self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+        if not state.artifacts.get("compressed_context"):
+            compressed_result = self._call_tool(state, "memory.compress_run_context", {"run_id": state.run_id})
+            state.artifacts["compressed_context"] = compressed_result.get("path")
+        compressed_payload = self._compress_outputs(state)
+        compressed_logs_path = self.context["artifact_manager"].write_json("compressed_logs.json", compressed_payload, "report_json")
+        state.artifacts["compressed_logs"] = str(compressed_logs_path)
+        if not state.memory_candidates:
+            candidates_result = self._call_tool(state, "memory.extract_memory_candidates", {"run_id": state.run_id})
+            state.memory_candidates = candidates_result.get("candidates", [])
+            if candidates_result.get("path"):
+                state.artifacts["memory_candidates"] = candidates_result["path"]
+        if not state.promoted_memories:
+            promote_result = self._call_tool(
+                state,
+                "memory.promote_to_long_term",
+                {"run_id": state.run_id, "candidates": state.memory_candidates},
+            )
+            state.promoted_memories = promote_result.get("promoted_memories", [])
+            if promote_result.get("path"):
+                state.artifacts["promoted_memories"] = promote_result["path"]
+        if not state.suggestions:
+            suggestion_result = self._call_tool(
+                state,
+                "suggestion.suggest_optimization",
+                {
+                    "state": state.to_dict(),
+                    "report": state.report,
+                    "rag_context": state.rag_context,
+                    "objective": state.objective,
+                },
+            )
+            state.suggestions = suggestion_result.get("suggestions", [])
+            if suggestion_result.get("path"):
+                state.artifacts["suggestions"] = suggestion_result["path"]
+        summary_result = self._call_tool(state, "summary.write_summary", {"state": state.to_dict()})
+        if summary_result.get("path"):
+            state.artifacts["summary"] = summary_result["path"]
+        artifact_paths = [
+            path
+            for path in [
+                state.artifacts.get("summary"),
+                state.artifacts.get("suggestions"),
+                state.artifacts.get("compressed_context"),
+                state.artifacts.get("report_json"),
+                state.artifacts.get("compressed_logs"),
+                state.artifacts.get("unsupported_report"),
+            ]
+            if path
+        ]
+        if artifact_paths:
+            self._call_tool(state, "rag.index_artifact", {"run_id": state.run_id, "artifact_paths": artifact_paths})
+        update_status_from_todos(state)
+        self._call_tool(
+            state,
+            "db.save_experiment",
+            {
+                "run_id": state.run_id,
+                "task_type": state.task["task_type"],
+                "name": state.task["name"],
+                "objective": state.objective,
+                "selected_path": state.selected_path,
+                "status": state.status,
+            },
+        )
+        self.todo_manager.save(state.run_id, self.todo_manager.todo_list)
+        state.todos = self.todo_manager.todo_list.items
+        return state
+
+    def should_stop(self, state: AgentState) -> bool:
+        if state.status == "failed":
+            return True
+        terminal_todos = [item for item in state.todos if item.title == "Generate unsupported report" and item.status == "completed"]
+        return bool(terminal_todos and state.selected_path == "unsupported_path")
+
+    def _call_tool(self, state: AgentState, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.executor.call_and_record(state, tool_name, arguments)
+
+    def _reason_for_todo(self, state: AgentState, todo: TodoItem) -> str:
+        return f"Need to execute '{todo.title}' for task {state.task.get('name')} with current path {state.selected_path or 'unselected'}."
+
+    def _execute_todo_actions(self, state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        if todo.title == "Validate task schema" or todo.assigned_tool == "task.validate_schema":
+            result = self._call_tool(state, "task.validate_schema", {"task": state.task})
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "task.validate_schema"}, "observation": result}
+
+        if todo.title == "Inspect model structure" or todo.assigned_tool == "hls4ml.inspect_model":
+            result = self._call_tool(
+                state,
+                "hls4ml.inspect_model",
+                {"model_path": state.task["model_path"], "frontend": state.task.get("frontend", "onnx")},
+            )
+            if result.get("status") == "success":
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "action": {"tool": "hls4ml.inspect_model"}, "observation": result}
+            self.todo_manager.mark_failed(todo.id, result.get("error", {}))
+            state.errors.append(result.get("error", {}))
+            return {"status": "failed", "action": {"tool": "hls4ml.inspect_model"}, "observation": result}
+
+        if todo.title == "Check hls4ml support" or todo.assigned_tool == "hls4ml.check_support":
+            result = self._call_tool(state, "hls4ml.check_support", {"task": state.task})
+            state.hls4ml_support = result
+            if result.get("status") == "supported":
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "hls4ml_status": "supported", "action": {"tool": "hls4ml.check_support"}, "observation": result}
+            self.todo_manager.mark_completed_with_warning(todo.id, result, {"message": result.get("recommendation")})
+            return {"status": "completed_with_warning", "hls4ml_status": "unsupported", "action": {"tool": "hls4ml.check_support"}, "observation": result}
+
+        if todo.title == "Try graph rewrite":
+            result = self._call_tool(state, "graph_rewrite.rewrite", {"task": state.task})
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "graph_rewrite.rewrite"}, "observation": result}
+
+        if todo.title == "Generate hls4ml config" or todo.assigned_tool == "hls4ml.generate_config":
+            result = self._call_tool(
+                state,
+                "hls4ml.generate_config",
+                {
+                    "model_path": state.task["model_path"],
+                    "frontend": state.task.get("frontend", "onnx"),
+                    "backend": state.task.get("target", {}).get("backend", "Vivado"),
+                    "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
+                    "clock_period": state.task.get("target", {}).get("clock_period", 5),
+                    "precision": state.task.get("hls4ml", {}).get("precision", "fixed<16,6>"),
+                    "reuse_factor": state.task.get("hls4ml", {}).get("reuse_factor", 1),
+                    "strategy": state.task.get("hls4ml", {}).get("strategy", "Latency"),
+                    "output_dir": str(self.context["artifact_manager"].run_dir),
+                },
+            )
+            state.hls4ml_config_path = result.get("config_path")
+            if result.get("status") == "success":
+                if state.hls4ml_config_path:
+                    self.context["artifact_manager"].register_file(state.hls4ml_config_path, "hls4ml_config")
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "action": {"tool": "hls4ml.generate_config"}, "observation": result}
+            self.todo_manager.mark_failed(todo.id, result.get("error", {}))
+            state.errors.append(result.get("error", {}))
+            return {"status": "failed", "action": {"tool": "hls4ml.generate_config"}, "observation": result}
+
+        if todo.title == "Convert with hls4ml" or todo.assigned_tool == "hls4ml.convert":
+            result = self._call_tool(
+                state,
+                "hls4ml.convert",
+                {
+                    "model_path": state.task["model_path"],
+                    "frontend": state.task.get("frontend", "onnx"),
+                    "config_path": state.hls4ml_config_path,
+                    "output_dir": str(self.context["artifact_manager"].run_dir / "hls_project"),
+                },
+            )
+            if result.get("status") == "success":
+                state.selected_path = "hls4ml_path"
+                state.hls_project_dir = result.get("hls_project_dir")
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "action": {"tool": "hls4ml.convert"}, "observation": result}
+            self.todo_manager.mark_failed(todo.id, result.get("error", {}))
+            state.errors.append(result.get("error", {}))
+            return {"status": "failed", "action": {"tool": "hls4ml.convert"}, "observation": result}
+
+        if todo.title == "Generate fallback HLS template" or todo.assigned_tool == "fallback.generate_operator_hls":
+            generated_dir = self.context["artifact_manager"].run_dir / "generated"
+            result = self._call_tool(state, "fallback.generate_operator_hls", {"task": state.task, "output_dir": str(generated_dir)})
+            if result.get("status") == "success":
+                state.selected_path = "fallback_template_path"
+                state.hls_project_dir = str(generated_dir)
+                self._call_tool(
+                    state,
+                    "db.save_implementation",
+                    {
+                        "run_id": state.run_id,
+                        "operator_id": None,
+                        "source": "fallback_template",
+                        "status": "generated",
+                        "hls_project_dir": state.hls_project_dir,
+                        "hls_file_path": next((str(path) for path in Path(state.hls_project_dir).glob("*.cpp") if path.name != "testbench.cpp"), None),
+                        "testbench_path": next((str(path) for path in Path(state.hls_project_dir).glob("testbench.cpp")), None),
+                        "tcl_path": next((str(path) for path in Path(state.hls_project_dir).glob("*.tcl")), None),
+                        "notes": "Generated from fallback template.",
+                    },
+                )
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "action": {"tool": "fallback.generate_operator_hls"}, "observation": result}
+            self.todo_manager.mark_completed_with_warning(todo.id, result, result.get("error", {}))
+            return {"status": "completed_with_warning", "action": {"tool": "fallback.generate_operator_hls"}, "observation": result}
+
+        if todo.title == "Generate LLM candidate" or todo.assigned_tool == "llm.generate_candidate":
+            candidate_dir = self.context["artifact_manager"].run_dir / "candidate"
+            result = self._call_tool(
+                state,
+                "llm.generate_candidate",
+                {"op_spec": state.task, "rag_context": state.rag_context, "output_dir": str(candidate_dir)},
+            )
+            if result.get("status") == "candidate_generated":
+                state.selected_path = "llm_candidate_path"
+                state.hls_project_dir = str(candidate_dir)
+                self.todo_manager.mark_completed(todo.id, result)
+                verify_todo = self.todo_manager.append_item(
+                    title="Verify LLM candidate",
+                    description="Verify candidate with csim/csynth flow.",
+                    priority=todo.priority + 1,
+                    assigned_tool="verify_candidate.run",
+                    dependencies=[todo.id],
+                    inputs={"candidate_dir": str(candidate_dir)},
+                )
+                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", verify_todo.id)
+                state.todos = self.todo_manager.todo_list.items
+                return {"status": "completed", "action": {"tool": "llm.generate_candidate"}, "observation": result}
+            self.todo_manager.mark_failed(todo.id, result.get("error", {}))
+            state.errors.append(result.get("error", {}))
+            return {"status": "failed", "action": {"tool": "llm.generate_candidate"}, "observation": result}
+
+        if todo.title == "Verify LLM candidate" or todo.assigned_tool == "verify_candidate.run":
+            report_dir = self.context["artifact_manager"].run_dir / "reports"
+            result = self._call_tool(
+                state,
+                "verify_candidate.run",
+                {"candidate_dir": state.hls_project_dir, "report_dir": str(report_dir), "force_fail": bool(state.task.get("force_fail"))},
+            )
+            if result.get("status") == "verified":
+                report_path = result.get("csynth", {}).get("report_path")
+                if report_path:
+                    state.report = self._call_tool(state, "vivado.parse_report", {"report_path": report_path})
+                self.todo_manager.mark_completed(todo.id, result)
+                return {"status": "completed", "action": {"tool": "verify_candidate.run"}, "observation": result}
+            self.todo_manager.mark_completed_with_warning(todo.id, result, result.get("error", {}))
+            state.errors.append(result.get("error", {}))
+            return {"status": "completed_with_warning", "error_type": result.get("error", {}).get("error_type"), "action": {"tool": "verify_candidate.run"}, "observation": result}
+
+        if todo.title == "Prepare existing HLS project" or todo.assigned_tool == "task.prepare_existing_project":
+            state.selected_path = "existing_hls_project_path"
+            state.hls_project_dir = state.task["hls_project_dir"]
+            self._call_tool(
+                state,
+                "db.save_implementation",
+                {
+                    "run_id": state.run_id,
+                    "operator_id": None,
+                    "source": "existing_hls_project",
+                    "status": "generated",
+                    "hls_project_dir": state.hls_project_dir,
+                    "hls_file_path": next((str(path) for path in Path(state.hls_project_dir).glob("*.cpp") if path.name != "testbench.cpp"), None),
+                    "testbench_path": next((str(path) for path in Path(state.hls_project_dir).glob("testbench.cpp")), None),
+                    "tcl_path": next((str(path) for path in Path(state.hls_project_dir).glob("*.tcl")), None),
+                    "notes": "Using existing HLS project.",
+                },
+            )
+            result = {"status": "success", "hls_project_dir": state.hls_project_dir}
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "task.prepare_existing_project"}, "observation": result}
+
+        if todo.title == "Run Vivado HLS synthesis" or todo.assigned_tool == "vivado.run_csynth":
+            if not state.hls_project_dir and state.task["task_type"] == "operator":
+                llm_todo = self.todo_manager.append_item(
+                    title="Generate LLM candidate",
+                    description="Fallback templates were unavailable; try mock LLM candidate generation.",
+                    priority=todo.priority - 1 if todo.priority > 1 else 1,
+                    assigned_tool="llm.generate_candidate",
+                    dependencies=todo.dependencies[:],
+                    inputs={"task": state.task},
+                )
+                self.todo_manager.add_dependency(todo.id, llm_todo.id)
+                self.todo_manager.mark_blocked(todo.id, "Waiting for a generated HLS implementation path.")
+                state.todos = self.todo_manager.todo_list.items
+                return {"status": "blocked", "action": {"tool": None}, "observation": {"status": "blocked"}}
+            if not state.hls_project_dir:
+                self.todo_manager.mark_skipped(todo.id, "No HLS project directory was available.")
+                return {"status": "skipped", "action": {"tool": None}, "observation": {"status": "skipped"}}
+            create_result = self._call_tool(
+                state,
+                "vivado.create_project",
+                {
+                    "hls_project_dir": state.hls_project_dir,
+                    "top_function": state.task.get("top_function") or state.task.get("name"),
+                    "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
+                    "clock_period": state.task.get("target", {}).get("clock_period", 5),
+                    "work_dir": str(self.context["artifact_manager"].run_dir / "vivado_hls"),
+                },
+            )
+            if create_result.get("status") != "success":
+                self.todo_manager.mark_failed(todo.id, create_result.get("error", {}))
+                state.errors.append(create_result.get("error", {}))
+                return {"status": "failed", "action": {"tool": "vivado.create_project"}, "observation": create_result}
+            state.vivado_work_dir = create_result.get("work_dir")
+            tcl_path = create_result.get("tcl_path")
+            csynth_result = self._call_tool(
+                state,
+                "vivado.run_csynth",
+                {"work_dir": state.vivado_work_dir, "tcl_path": tcl_path, "top_function": create_result.get("top_function")},
+            )
+            if csynth_result.get("status") == "success":
+                report_path = csynth_result.get("report_path")
+                if report_path and Path(report_path).exists():
+                    self.context["artifact_manager"].register_file(report_path, "vivado_report")
+                    state.report = self._call_tool(state, "vivado.parse_report", {"report_path": report_path})
+                    self._call_tool(
+                        state,
+                        "db.save_synthesis_run",
+                        {
+                            "run_id": state.run_id,
+                            "implementation_id": None,
+                            "tool": "vivado_hls",
+                            "tool_version": "mock" if "solution1" in report_path else "unknown",
+                            "part": state.task.get("target", {}).get("part"),
+                            "clock_period": state.task.get("target", {}).get("clock_period"),
+                            "latency_min": state.report.get("latency", {}).get("min_cycles"),
+                            "latency_max": state.report.get("latency", {}).get("max_cycles"),
+                            "ii_min": state.report.get("interval", {}).get("min_ii"),
+                            "ii_max": state.report.get("interval", {}).get("max_ii"),
+                            "dsp": state.report.get("resources", {}).get("dsp"),
+                            "bram": state.report.get("resources", {}).get("bram"),
+                            "lut": state.report.get("resources", {}).get("lut"),
+                            "ff": state.report.get("resources", {}).get("ff"),
+                            "timing_met": 1 if state.report.get("timing", {}).get("met") else 0 if state.report.get("timing", {}).get("met") is False else None,
+                            "report_path": report_path,
+                        },
+                    )
+                self.todo_manager.mark_completed(todo.id, csynth_result)
+                return {
+                    "status": "completed",
+                    "action": {"tool": "vivado.run_csynth", "args_hash": csynth_result.get("log_path")},
+                    "observation": csynth_result,
+                }
+            error = csynth_result.get("error", {})
+            if error.get("error_type") == "VivadoNotFoundError":
+                state.errors.append(error)
+                self._call_tool(
+                    state,
+                    "db.save_failure",
+                    {
+                        "run_id": state.run_id,
+                        "implementation_id": None,
+                        "error_type": error.get("error_type"),
+                        "error_message": error.get("message"),
+                        "log_summary": error.get("message"),
+                        "suggested_fix": error.get("suggested_action"),
+                    },
+                )
+                state.report = empty_report("skipped")
+                self.todo_manager.mark_skipped(todo.id, error.get("message", "Vivado synthesis skipped."))
+                return {"status": "skipped", "error_type": error.get("error_type"), "action": {"tool": "vivado.run_csynth"}, "observation": csynth_result}
+            self.todo_manager.mark_failed(todo.id, error)
+            state.errors.append(error)
+            return {"status": "failed", "action": {"tool": "vivado.run_csynth"}, "observation": csynth_result}
+
+        if todo.title == "Parse synthesis report" or todo.assigned_tool == "vivado.parse_report":
+            if state.report and state.report.get("status") == "success":
+                self.todo_manager.mark_completed(todo.id, state.report)
+                return {"status": "completed", "action": {"tool": "vivado.parse_report"}, "observation": state.report}
+            if state.vivado_work_dir:
+                log_result = self._call_tool(state, "vivado.parse_log", {"log_path": str(Path(state.vivado_work_dir) / "csynth.log")})
+                if log_result.get("warnings"):
+                    self.todo_manager.mark_completed_with_warning(todo.id, log_result, {"message": log_result.get("summary")})
+                    return {"status": "completed_with_warning", "action": {"tool": "vivado.parse_log"}, "observation": log_result}
+                self.todo_manager.mark_skipped(todo.id, "Report unavailable; log summary captured instead.")
+                return {"status": "skipped", "action": {"tool": "vivado.parse_log"}, "observation": log_result}
+            self.todo_manager.mark_skipped(todo.id, "No Vivado work directory was available.")
+            return {"status": "skipped", "action": {"tool": None}, "observation": {"status": "skipped"}}
+
+        if todo.title == "Generate unsupported report" or todo.assigned_tool == "report.write_unsupported":
+            result = self._call_tool(
+                state,
+                "report.write_unsupported",
+                {"reason": todo.inputs.get("reason") or "No safe path was available for this task."},
+            )
+            state.selected_path = "unsupported_path"
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "report.write_unsupported"}, "observation": result}
+
+        if todo.title == "Generate optimization suggestions" or todo.assigned_tool == "suggestion.suggest_optimization":
+            result = self._call_tool(
+                state,
+                "suggestion.suggest_optimization",
+                {
+                    "state": state.to_dict(),
+                    "report": state.report or empty_report("missing"),
+                    "rag_context": state.rag_context,
+                    "objective": state.objective,
+                },
+            )
+            state.suggestions = result.get("suggestions", [])
+            if result.get("path"):
+                state.artifacts["suggestions"] = result["path"]
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "suggestion.suggest_optimization"}, "observation": result}
+
+        if todo.title == "Write run summary" or todo.assigned_tool == "summary.write_summary":
+            result = self._call_tool(state, "summary.write_summary", {"state": state.to_dict()})
+            if result.get("path"):
+                state.artifacts["summary"] = result["path"]
+            self.todo_manager.mark_completed(todo.id, result)
+            return {"status": "completed", "action": {"tool": "summary.write_summary"}, "observation": result}
+
+        if todo.title == "Promote memories" or todo.assigned_tool == "memory.promote_to_long_term":
+            self.todo_manager.mark_skipped(todo.id, "Memory promotion is handled during runtime finalization.")
+            return {"status": "skipped", "action": {"tool": "memory.promote_to_long_term"}, "observation": {"status": "skipped"}}
+
+        self.todo_manager.mark_skipped(todo.id, "No action mapped for this todo.")
+        return {"status": "skipped", "action": {"tool": None}, "observation": {"status": "skipped"}}
+
+    def _decision_from_observation(self, state: AgentState, todo: TodoItem, observation: dict) -> str:
+        status = observation.get("status")
+        if status == "completed":
+            return "Mark todo as completed and continue."
+        if status == "completed_with_warning":
+            return "Mark todo as completed_with_warning and let the reflector decide follow-up todos."
+        if status == "skipped":
+            return "Mark todo as skipped and continue remaining ready todos."
+        if status == "blocked":
+            return "Keep todo blocked until a prerequisite implementation path is produced."
+        state.status = "failed" if status == "failed" and state.report is None else state.status
+        return "Mark todo as failed and surface the structured error."
+
+    def _write_short_term_for_todo(self, state: AgentState, todo: TodoItem, observation: dict) -> None:
+        entry = build_short_term_entry(
+            todo.id,
+            {
+                "title": todo.title,
+                "status": observation.get("status"),
+                "summary": (todo.outputs or {}).get("summary") or (todo.error or {}).get("message") or todo.title,
+                "error": todo.error,
+                "selected_path": state.selected_path,
+            },
+        )
+        result = self._call_tool(state, "memory.write_short_term", {"run_id": state.run_id, "key": entry["key"], "value": entry["value"]})
+        state.short_term_memory = result.get("short_term", {}).get("entries", state.short_term_memory)
+        if result.get("path"):
+            state.artifacts["short_term_memory"] = result["path"]
+
+    def _add_dependency_to_title(self, state: AgentState, title: str, dependency_id: str) -> None:
+        for item in self.todo_manager.todo_list.items:
+            if item.title == title and item.id != dependency_id:
+                self.todo_manager.add_dependency(item.id, dependency_id)
+        state.todos = self.todo_manager.todo_list.items
+
+    def _compress_outputs(self, state: AgentState) -> dict[str, Any]:
+        compressed = {"logs": [], "reports": []}
+        for item in state.tool_results:
+            result = item["result"]
+            if isinstance(result, dict):
+                log_path = result.get("log_path")
+                report_path = result.get("report_path")
+                if log_path:
+                    compressed["logs"].append(self.compressor.compress_vivado_log(log_path))
+                if report_path:
+                    compressed["reports"].append(self.compressor.compress_csynth_report(report_path))
+        return compressed

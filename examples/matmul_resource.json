@@ -1,0 +1,33 @@
+{
+  "task_type": "operator",
+  "op_type": "MatMul",
+  "name": "matmul_16x16_resource",
+  "input_shape": [
+    16,
+    16
+  ],
+  "weight_shape": [
+    16,
+    16
+  ],
+  "output_shape": [
+    16,
+    16
+  ],
+  "dtype": "ap_fixed<12,4>",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 8
+  },
+  "optimization": {
+    "objective": "resource",
+    "reuse_factor": 8,
+    "pipeline_ii": 2
+  },
+  "demo": {
+    "expected_path": "fallback_template",
+    "mock_tools": true,
+    "description": "Resource-oriented MatMul demo."
+  }
+}

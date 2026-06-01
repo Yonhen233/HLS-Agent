@@ -1,0 +1,11 @@
+#ifndef $guard
+#define $guard
+#include "ap_fixed.h"
+typedef $dtype data_t;
+void $top_function(
+    const data_t lhs[$lhs_rows][$lhs_cols],
+    const data_t rhs[$lhs_cols][$rhs_cols],
+    data_t output[$lhs_rows][$rhs_cols]
+);
+#endif
+

@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_PERMISSIONS = {
+    "filesystem": {
+        "allowed_read_dirs": [".", "./examples", "./models", "./runs"],
+        "allowed_write_dirs": ["./runs"],
+        "denied_dirs": ["/", "/etc", "~/.ssh", "~/.aws"],
+    },
+    "commands": {
+        "allow": ["vivado_hls", "pytest"],
+        "ask": ["python"],
+        "deny": ["rm", "rm -rf", "curl", "wget", "ssh", "scp", "sudo"],
+    },
+}
+
+
+def _simple_yaml_load(text: str) -> dict[str, Any]:
+    try:
+        import yaml  # type: ignore
+
+        loaded = yaml.safe_load(text)
+        return loaded if isinstance(loaded, dict) else {}
+    except Exception:
+        pass
+
+    result: dict[str, Any] = {}
+    section_stack: list[tuple[int, dict[str, Any] | list[Any]]] = [(-1, result)]
+    current_key: str | None = None
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        if not line or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        stripped = line.strip()
+        while section_stack and indent <= section_stack[-1][0]:
+            section_stack.pop()
+        container = section_stack[-1][1]
+        if stripped.startswith("- "):
+            value = stripped[2:].strip().strip('"').strip("'")
+            if isinstance(container, list):
+                container.append(value)
+            elif current_key and isinstance(container, dict):
+                target = container.setdefault(current_key, [])
+                if isinstance(target, list):
+                    target.append(value)
+            continue
+        if ":" in stripped:
+            key, value = stripped.split(":", 1)
+            key = key.strip()
+            value = value.strip()
+            current_key = key
+            if not value:
+                next_container: dict[str, Any] = {}
+                if isinstance(container, dict):
+                    container[key] = next_container
+                section_stack.append((indent, next_container))
+            else:
+                parsed: Any = value.strip('"').strip("'")
+                if parsed.lower() in {"true", "false"}:
+                    parsed = parsed.lower() == "true"
+                elif parsed.isdigit():
+                    parsed = int(parsed)
+                if isinstance(container, dict):
+                    container[key] = parsed
+    return result
+
+
+@dataclass
+class AppConfig:
+    workspace_root: Path
+    runs_root: Path
+    docs_root: Path
+    db_path: Path
+    permissions_path: Path
+    mock_hls4ml: bool = True
+    mock_vivado: bool = True
+    vivado_hls_path: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def load(cls, workspace_root: str | Path | None = None) -> "AppConfig":
+        root = Path(workspace_root or os.getcwd()).resolve()
+        return cls(
+            workspace_root=root,
+            runs_root=root / "runs",
+            docs_root=root / "docs",
+            db_path=root / "runs" / "metadata.db",
+            permissions_path=root / "permissions.yaml",
+            mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", "1") != "0",
+            mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", "1") != "0",
+            vivado_hls_path=os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH"),
+        )
+
+    def ensure_directories(self) -> None:
+        self.runs_root.mkdir(parents=True, exist_ok=True)
+        self.docs_root.mkdir(parents=True, exist_ok=True)
+
+    def load_permissions(self) -> dict[str, Any]:
+        if not self.permissions_path.exists():
+            return DEFAULT_PERMISSIONS
+        data = _simple_yaml_load(self.permissions_path.read_text(encoding="utf-8"))
+        if not data:
+            return DEFAULT_PERMISSIONS
+        return data
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workspace_root": str(self.workspace_root),
+            "runs_root": str(self.runs_root),
+            "docs_root": str(self.docs_root),
+            "db_path": str(self.db_path),
+            "permissions_path": str(self.permissions_path),
+            "mock_hls4ml": self.mock_hls4ml,
+            "mock_vivado": self.mock_vivado,
+            "vivado_hls_path": self.vivado_hls_path,
+            "extra": self.extra,
+        }
+
+    def write_runtime_config(self, path: str | Path) -> None:
+        Path(path).write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

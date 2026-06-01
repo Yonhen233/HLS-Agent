@@ -1,0 +1,56 @@
+{
+  "name": "unsupported_boundary_flow",
+  "description": "Handle partially supported or unsupported hls4ml/model boundary cases with actionable reporting.",
+  "intent": "unsupported_boundary_handling",
+  "trigger": {
+    "task_type": ["model", "operator"],
+    "conditions": ["hls4ml_unsupported_or_not_recommended"]
+  },
+  "preconditions": [
+    "support_check_completed"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Try graph rewrite",
+      "assigned_tool": "graph_rewrite.rewrite",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Generate unsupported report",
+      "assigned_tool": "report.write_unsupported",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Write run summary",
+      "assigned_tool": "summary.write_summary",
+      "assigned_specialist": null
+    }
+  ],
+  "allowed_tools": [
+    "graph_rewrite.rewrite",
+    "report.write_unsupported",
+    "summary.write_summary",
+    "memory.promote_to_long_term"
+  ],
+  "allowed_specialists": [
+    "MemorySpecialist"
+  ],
+  "required_artifacts": [
+    "unsupported_report",
+    "summary",
+    "trace",
+    "state"
+  ],
+  "failure_policy": {
+    "UnsupportedOperatorError": {
+      "recommended_action": "write_actionable_report"
+    }
+  },
+  "verification_policy": {
+    "generated_code_requires_verification": true
+  },
+  "memory_policy": {
+    "promote_failures": true
+  },
+  "tags": ["unsupported", "boundary"]
+}

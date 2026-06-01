@@ -1,0 +1,89 @@
+{
+  "name": "llm_candidate_verification_flow",
+  "description": "Generate candidate HLS for unsupported operators with LLM and enforce verification loop.",
+  "intent": "llm_generated_hls_candidate_verification",
+  "trigger": {
+    "task_type": ["operator", "model_subgraph"],
+    "conditions": ["hls4ml_unsupported", "fallback_template_missing", "llm_enabled"]
+  },
+  "preconditions": [
+    "candidate_generation_allowed",
+    "input_shape_static",
+    "verification_required"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Retrieve similar implementations",
+      "assigned_tool": "memory.retrieve_similar_experiences",
+      "assigned_specialist": "MemorySpecialist"
+    },
+    {
+      "title": "Generate LLM candidate",
+      "assigned_tool": "llm.generate_hls_candidate",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Verify LLM candidate",
+      "assigned_tool": "verify_candidate.run",
+      "assigned_specialist": "VerificationSpecialist"
+    },
+    {
+      "title": "Run Vivado HLS synthesis",
+      "assigned_tool": "vivado.run_csynth",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Parse synthesis report",
+      "assigned_tool": "vivado.parse_report",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Promote memories",
+      "assigned_tool": "memory.promote_to_long_term",
+      "assigned_specialist": "MemorySpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "memory.retrieve_similar_experiences",
+    "llm.generate_hls_candidate",
+    "llm.generate_candidate",
+    "verify.generate_testbench",
+    "verify.run_csim",
+    "verify_candidate.run",
+    "vivado.run_csynth",
+    "vivado.parse_report",
+    "vivado.parse_log",
+    "memory.promote_to_long_term"
+  ],
+  "allowed_specialists": [
+    "VerificationSpecialist",
+    "VivadoSpecialist",
+    "MemorySpecialist"
+  ],
+  "required_artifacts": [
+    "hls_cpp",
+    "hls_header",
+    "testbench",
+    "vivado_report"
+  ],
+  "failure_policy": {
+    "VerificationFailedError": {
+      "recommended_action": "repair_or_reject",
+      "max_repair_attempts": 2
+    },
+    "VivadoSynthesisError": {
+      "recommended_action": "reject_candidate_or_repair"
+    }
+  },
+  "verification_policy": {
+    "llm_candidate_initial_status": "candidate_generated",
+    "llm_cannot_mark_verified": true,
+    "requires_csim": true,
+    "requires_csynth": true
+  },
+  "memory_policy": {
+    "promote_verified_candidate": true,
+    "record_failed_candidate": true
+  },
+  "tags": ["llm", "candidate", "verification"]
+}

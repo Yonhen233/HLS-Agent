@@ -1,0 +1,13 @@
+{
+  "task_type": "hls_project",
+  "name": "existing_dense_project",
+  "hls_project_dir": "examples/hls_projects/dense",
+  "top_function": "existing_dense_project",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 5
+  },
+  "objective": "resource"
+}
+

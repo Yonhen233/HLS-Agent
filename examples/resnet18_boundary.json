@@ -1,0 +1,28 @@
+{
+  "task_type": "model",
+  "name": "resnet18_boundary_demo",
+  "model_path": "models/generated/resnet18.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "layout": "NHWC",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 10
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 32,
+    "strategy": "Resource"
+  },
+  "objective": "resource",
+  "demo": {
+    "expected_path": "unsupported_report",
+    "mock_tools": true,
+    "description": "Full ResNet-18 boundary demo. Agent should avoid overpromising."
+  }
+}

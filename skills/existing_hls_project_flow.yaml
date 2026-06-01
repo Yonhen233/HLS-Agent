@@ -1,0 +1,76 @@
+{
+  "name": "existing_hls_project_flow",
+  "description": "Use an existing HLS project and run Vivado synthesis/report flow.",
+  "intent": "existing_hls_project_synthesis",
+  "trigger": {
+    "task_type": "hls_project"
+  },
+  "preconditions": [
+    "hls_project_dir_exists"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Validate task schema",
+      "assigned_tool": "task.validate_schema",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Prepare existing HLS project",
+      "assigned_tool": "task.prepare_existing_project",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Run Vivado HLS synthesis",
+      "assigned_tool": "vivado.run_csynth",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Parse synthesis report",
+      "assigned_tool": "vivado.parse_report",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Generate optimization suggestions",
+      "assigned_tool": "suggestion.suggest_optimization",
+      "assigned_specialist": "OptimizationSpecialist"
+    },
+    {
+      "title": "Promote memories",
+      "assigned_tool": "memory.promote_to_long_term",
+      "assigned_specialist": "MemorySpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "task.validate_schema",
+    "task.prepare_existing_project",
+    "vivado.create_project",
+    "vivado.run_csynth",
+    "vivado.parse_report",
+    "vivado.parse_log",
+    "suggestion.suggest_optimization",
+    "memory.promote_to_long_term"
+  ],
+  "allowed_specialists": [
+    "VivadoSpecialist",
+    "OptimizationSpecialist",
+    "MemorySpecialist"
+  ],
+  "required_artifacts": [
+    "hls_project",
+    "summary",
+    "trace",
+    "state"
+  ],
+  "failure_policy": {
+    "VivadoNotFoundError": {
+      "recommended_action": "mark_partial_success"
+    }
+  },
+  "verification_policy": {
+    "existing_project_requires_report_validation": true
+  },
+  "memory_policy": {
+    "promote_metrics": true
+  },
+  "tags": ["hls_project", "vivado"]
+}

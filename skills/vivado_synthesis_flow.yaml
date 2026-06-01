@@ -1,0 +1,54 @@
+{
+  "name": "vivado_synthesis_flow",
+  "description": "Create Vivado project and run csynth with structured error handling.",
+  "intent": "vivado_synthesis",
+  "trigger": {
+    "task_type": ["model", "operator", "hls_project"]
+  },
+  "preconditions": [
+    "hls_project_dir_available"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Run Vivado HLS synthesis",
+      "assigned_tool": "vivado.run_csynth",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Parse synthesis report",
+      "assigned_tool": "vivado.parse_report",
+      "assigned_specialist": "VivadoSpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "vivado.create_project",
+    "vivado.run_csim",
+    "vivado.run_csynth",
+    "vivado.parse_report",
+    "vivado.parse_log"
+  ],
+  "allowed_specialists": [
+    "VivadoSpecialist"
+  ],
+  "required_artifacts": [
+    "vivado_log",
+    "vivado_report"
+  ],
+  "failure_policy": {
+    "VivadoNotFoundError": {
+      "recommended_action": "mark_partial_success",
+      "continue_with": ["vivado.parse_log", "summary.write_summary"]
+    },
+    "VivadoSynthesisError": {
+      "recommended_action": "parse_log_then_reflect"
+    }
+  },
+  "verification_policy": {
+    "requires_csynth": true
+  },
+  "memory_policy": {
+    "promote_failures": true,
+    "promote_metrics": true
+  },
+  "tags": ["vivado", "csynth"]
+}

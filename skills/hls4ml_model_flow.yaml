@@ -1,0 +1,112 @@
+{
+  "name": "hls4ml_model_flow",
+  "description": "Convert ONNX/Keras/QKeras models with hls4ml and run Vivado synthesis when available.",
+  "intent": "model_to_hls_hls4ml",
+  "trigger": {
+    "task_type": "model",
+    "frontends": ["onnx", "keras", "qkeras"]
+  },
+  "preconditions": [
+    "model_path_exists",
+    "frontend_supported"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Validate model task schema",
+      "assigned_tool": "task.validate_schema",
+      "assigned_specialist": null
+    },
+    {
+      "title": "Inspect model structure",
+      "assigned_tool": "hls4ml.inspect_model",
+      "assigned_specialist": "HLS4MLSpecialist"
+    },
+    {
+      "title": "Check hls4ml support",
+      "assigned_tool": "hls4ml.check_support",
+      "assigned_specialist": "HLS4MLSpecialist"
+    },
+    {
+      "title": "Generate hls4ml config",
+      "assigned_tool": "hls4ml.generate_config",
+      "assigned_specialist": "HLS4MLSpecialist"
+    },
+    {
+      "title": "Convert with hls4ml",
+      "assigned_tool": "hls4ml.convert",
+      "assigned_specialist": "HLS4MLSpecialist"
+    },
+    {
+      "title": "Run Vivado HLS synthesis",
+      "assigned_tool": "vivado.run_csynth",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Parse synthesis report",
+      "assigned_tool": "vivado.parse_report",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Generate optimization suggestions",
+      "assigned_tool": "suggestion.suggest_optimization",
+      "assigned_specialist": "OptimizationSpecialist"
+    },
+    {
+      "title": "Promote memories",
+      "assigned_tool": "memory.promote_to_long_term",
+      "assigned_specialist": "MemorySpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "task.validate_schema",
+    "hls4ml.inspect_model",
+    "hls4ml.check_support",
+    "hls4ml.generate_config",
+    "hls4ml.convert",
+    "hls4ml.run_csim",
+    "vivado.create_project",
+    "vivado.run_csynth",
+    "vivado.parse_report",
+    "vivado.parse_log",
+    "suggestion.suggest_optimization",
+    "memory.promote_to_long_term"
+  ],
+  "allowed_specialists": [
+    "HLS4MLSpecialist",
+    "VivadoSpecialist",
+    "OptimizationSpecialist",
+    "MemorySpecialist"
+  ],
+  "required_artifacts": [
+    "hls4ml_config",
+    "hls_project",
+    "summary",
+    "trace",
+    "state",
+    "manifest"
+  ],
+  "failure_policy": {
+    "HLS4MLNotInstalledError": {
+      "recommended_action": "fail_with_structured_error"
+    },
+    "HLS4MLConversionError": {
+      "recommended_action": "reflect",
+      "allowed_recovery": ["graph_rewrite.rewrite", "report.write_unsupported", "llm_candidate_verification_flow"]
+    },
+    "VivadoSynthesisError": {
+      "recommended_action": "parse_log_then_reflect"
+    },
+    "ReportMissingError": {
+      "recommended_action": "parse_log_then_summarize"
+    }
+  },
+  "verification_policy": {
+    "hls4ml_generated_project_requires_report_validation": true
+  },
+  "memory_policy": {
+    "promote_failures": true,
+    "promote_metrics": true,
+    "promote_conversion_warnings": true
+  },
+  "tags": ["model", "hls4ml", "vivado"]
+}

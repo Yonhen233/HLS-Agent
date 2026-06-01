@@ -1,0 +1,29 @@
+filesystem:
+  allowed_read_dirs:
+    - "."
+    - "./examples"
+    - "./models"
+    - "./runs"
+  allowed_write_dirs:
+    - "./runs"
+  denied_dirs:
+    - "/"
+    - "/etc"
+    - "~/.ssh"
+    - "~/.aws"
+
+commands:
+  allow:
+    - "vivado_hls"
+    - "pytest"
+  ask:
+    - "python"
+  deny:
+    - "rm"
+    - "rm -rf"
+    - "curl"
+    - "wget"
+    - "ssh"
+    - "scp"
+    - "sudo"
+

@@ -1,0 +1,18 @@
+{
+  "task_type": "model",
+  "name": "mlp_demo",
+  "model_path": "models/mlp.onnx",
+  "frontend": "onnx",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 5
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 1,
+    "strategy": "Latency"
+  },
+  "objective": "latency"
+}
+

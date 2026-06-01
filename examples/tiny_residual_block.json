@@ -1,0 +1,28 @@
+{
+  "task_type": "model",
+  "name": "tiny_residual_block",
+  "model_path": "models/generated/tiny_residual_block.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    16,
+    16,
+    8
+  ],
+  "layout": "NHWC",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 10
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 16,
+    "strategy": "Resource"
+  },
+  "objective": "resource",
+  "demo": {
+    "expected_path": "unsupported_or_partial",
+    "mock_tools": true,
+    "description": "Tiny ResNet-like block to demonstrate boundary handling."
+  }
+}

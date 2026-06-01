@@ -1,0 +1,25 @@
+{
+  "task_type": "model",
+  "name": "mnist_mlp_demo",
+  "model_path": "models/generated/mnist_mlp.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    784
+  ],
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 5
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 4,
+    "strategy": "Latency"
+  },
+  "objective": "latency",
+  "demo": {
+    "expected_path": "hls4ml",
+    "mock_tools": true,
+    "description": "Small MNIST MLP through hls4ml path."
+  }
+}

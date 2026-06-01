@@ -1,0 +1,28 @@
+{
+  "task_type": "model",
+  "name": "mnist_qkeras_cnn",
+  "model_path": "models/generated/mnist_qkeras_cnn.h5",
+  "frontend": "qkeras",
+  "input_shape": [
+    28,
+    28,
+    1
+  ],
+  "layout": "NHWC",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 10
+  },
+  "hls4ml": {
+    "precision": "fixed<8,3>",
+    "reuse_factor": 8,
+    "strategy": "Resource"
+  },
+  "objective": "resource",
+  "demo": {
+    "expected_path": "hls4ml",
+    "mock_tools": true,
+    "description": "Quantized MNIST CNN demo for FPGA resource optimization."
+  }
+}

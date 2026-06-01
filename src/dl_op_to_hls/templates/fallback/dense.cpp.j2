@@ -1,0 +1,18 @@
+#include "$top_function.h"
+
+void $top_function(
+    const data_t input[$input_dim],
+    const data_t weights[$output_dim][$input_dim],
+    const data_t bias[$output_dim],
+    data_t output[$output_dim]
+) {
+  for (int o = 0; o < $output_dim; ++o) {
+#pragma HLS PIPELINE II=$pipeline_ii
+    data_t acc = bias[o];
+    for (int i = 0; i < $input_dim; ++i) {
+      acc += input[i] * weights[o][i];
+    }
+    output[o] = acc;
+  }
+}
+

@@ -1,0 +1,19 @@
+#include "$top_function.h"
+
+void $top_function(
+    const data_t lhs[$lhs_rows][$lhs_cols],
+    const data_t rhs[$lhs_cols][$rhs_cols],
+    data_t output[$lhs_rows][$rhs_cols]
+) {
+  for (int r = 0; r < $lhs_rows; ++r) {
+    for (int c = 0; c < $rhs_cols; ++c) {
+#pragma HLS PIPELINE II=$pipeline_ii
+      data_t acc = 0;
+      for (int k = 0; k < $lhs_cols; ++k) {
+        acc += lhs[r][k] * rhs[k][c];
+      }
+      output[r][c] = acc;
+    }
+  }
+}
+

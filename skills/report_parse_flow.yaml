@@ -1,0 +1,51 @@
+{
+  "name": "report_parse_flow",
+  "description": "Parse csynth report and log summaries into structured metrics.",
+  "intent": "report_parse",
+  "trigger": {
+    "task_type": ["model", "operator", "hls_project"]
+  },
+  "preconditions": [
+    "vivado_run_attempted"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Parse synthesis report",
+      "assigned_tool": "vivado.parse_report",
+      "assigned_specialist": "VivadoSpecialist"
+    },
+    {
+      "title": "Generate optimization suggestions",
+      "assigned_tool": "suggestion.suggest_optimization",
+      "assigned_specialist": "OptimizationSpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "vivado.parse_report",
+    "vivado.parse_log",
+    "suggestion.suggest_optimization"
+  ],
+  "allowed_specialists": [
+    "VivadoSpecialist",
+    "OptimizationSpecialist"
+  ],
+  "required_artifacts": [
+    "report_json",
+    "summary"
+  ],
+  "failure_policy": {
+    "ReportMissingError": {
+      "recommended_action": "parse_log_then_summarize"
+    },
+    "ReportParseError": {
+      "recommended_action": "fallback_to_log_parse"
+    }
+  },
+  "verification_policy": {
+    "requires_metrics_for_optimization": true
+  },
+  "memory_policy": {
+    "promote_metrics": true
+  },
+  "tags": ["report", "metrics"]
+}

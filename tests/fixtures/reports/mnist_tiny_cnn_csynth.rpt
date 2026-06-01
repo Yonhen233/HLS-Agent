@@ -1,0 +1,8 @@
+== Utilization Estimates
+Latency (cycles): min = 2400, max = 2400
+Interval (cycles): min = 4, max = 4
+BRAM_18K = 8
+DSP48E = 64
+FF = 18000
+LUT = 32000
+Timing (ns): Target = 10.00, Estimated = 8.90

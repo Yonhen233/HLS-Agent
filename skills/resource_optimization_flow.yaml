@@ -1,0 +1,38 @@
+{
+  "name": "resource_optimization_flow",
+  "description": "Optimize for resource usage (DSP/BRAM/LUT/FF) using report metrics and memory hints.",
+  "intent": "resource_optimization",
+  "trigger": {
+    "task_type": ["model", "operator", "hls_project"],
+    "conditions": ["objective_resource"]
+  },
+  "preconditions": [
+    "report_metrics_available"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Generate optimization suggestions",
+      "assigned_tool": "suggestion.suggest_optimization",
+      "assigned_specialist": "OptimizationSpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "rag.retrieve_experience",
+    "memory.retrieve_optimization_rules",
+    "suggestion.suggest_optimization"
+  ],
+  "allowed_specialists": [
+    "OptimizationSpecialist"
+  ],
+  "required_artifacts": [
+    "suggestions"
+  ],
+  "failure_policy": {},
+  "verification_policy": {
+    "requires_report_metrics": true
+  },
+  "memory_policy": {
+    "promote_optimization": true
+  },
+  "tags": ["optimization", "resource"]
+}

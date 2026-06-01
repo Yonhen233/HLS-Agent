@@ -1,0 +1,4 @@
+INFO: [HLS] Starting synthesis...
+WARNING: [SCHED 204-61] Estimated clock period may exceed target.
+INFO: [HLS] Finished generating all RTL models.
+

@@ -1,0 +1,54 @@
+{
+  "name": "memory_promotion_flow",
+  "description": "Compress run context, extract memory candidates, promote long-term memories, and index retrieval chunks.",
+  "intent": "memory_promotion",
+  "trigger": {
+    "task_type": ["model", "operator", "hls_project"]
+  },
+  "preconditions": [
+    "run_finalization_started"
+  ],
+  "recommended_todos": [
+    {
+      "title": "Promote memories",
+      "assigned_tool": "memory.promote_to_long_term",
+      "assigned_specialist": "MemorySpecialist"
+    }
+  ],
+  "allowed_tools": [
+    "memory.write_short_term",
+    "memory.compress_run_context",
+    "memory.extract_memory_candidates",
+    "memory.promote_to_long_term",
+    "memory.retrieve_similar_experiences",
+    "memory.retrieve_failure_cases",
+    "memory.retrieve_optimization_rules",
+    "memory.save_skill",
+    "rag.index_artifact"
+  ],
+  "allowed_specialists": [
+    "MemorySpecialist"
+  ],
+  "required_artifacts": [
+    "memory_short_term",
+    "memory_compressed",
+    "memory_candidates",
+    "memory_promoted"
+  ],
+  "failure_policy": {
+    "DatabaseError": {
+      "recommended_action": "record_failure_and_continue"
+    },
+    "RagIndexError": {
+      "recommended_action": "record_warning_and_continue"
+    }
+  },
+  "verification_policy": {},
+  "memory_policy": {
+    "promote_failures": true,
+    "promote_metrics": true,
+    "promote_verified_implementations": true,
+    "promote_skills": true
+  },
+  "tags": ["memory", "rag"]
+}
