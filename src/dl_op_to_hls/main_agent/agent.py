@@ -156,7 +156,7 @@ class MainAgent:
         self.registry.register(
             ToolSpec(
                 name="verify_candidate.run",
-                description="Verify an LLM-generated candidate with a mock csim/csynth flow.",
+                description="Verify an LLM-generated candidate. Mock verification is only used when mock mode is explicitly active.",
                 input_schema=simple_schema({"candidate_dir": {"type": "string"}, "report_dir": {"type": "string"}}, ["candidate_dir", "report_dir"]),
                 output_schema=simple_schema({"status": {"type": "string"}}),
                 permission_level="write",
@@ -484,6 +484,12 @@ class MainAgent:
             "memory_manager": self.memory_manager,
             "llm_candidate_generator": self.llm_generator,
             "llm_client": self.llm_client,
+            "hls4ml_adapter": self.hls4ml_adapter,
+            "vivado_adapter": self.vivado_adapter,
+            "runtime_mode": self.config.runtime_mode,
+            "llm_fallback_policy": self.config.llm_fallback_policy,
+            "optimization_fallback_mode": self.config.optimization_fallback_mode,
+            "specialist_llm_decider_enabled": self.config.specialist_llm_decider_enabled,
             "config": self.config,
         }
 

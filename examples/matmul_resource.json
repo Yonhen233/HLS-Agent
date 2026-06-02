@@ -27,7 +27,7 @@
   },
   "demo": {
     "expected_path": "fallback_template",
-    "mock_tools": true,
-    "description": "Resource-oriented MatMul demo."
+    "mock_tools": false,
+    "description": "Resource-oriented MatMul demo; real Vivado HLS is used when configured."
   }
 }

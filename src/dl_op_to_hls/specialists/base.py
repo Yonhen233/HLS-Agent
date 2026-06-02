@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
 from ..core.errors import build_error
+from ..core.token_budget import TokenBudgetManager
 from .context import ContextEnvelope
 from .react import SpecialistReActDecider
 from .result import SpecialistResult
@@ -25,6 +27,7 @@ class BaseSpecialist(ABC):
     def __init__(self, runtime_context: dict[str, Any] | None = None):
         self.runtime_context = runtime_context or {}
         self.local_react_decider = SpecialistReActDecider()
+        self.token_budget_manager = TokenBudgetManager()
 
     def set_runtime_context(self, runtime_context: dict[str, Any]) -> None:
         self.runtime_context = runtime_context
@@ -62,13 +65,19 @@ class BaseSpecialist(ABC):
         preferred_tool: str | None,
         arguments: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        llm_decider_enabled = str(
+            self.runtime_context.get(
+                "specialist_llm_decider_enabled",
+                os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED", "0"),
+            )
+        ).lower() in {"1", "true", "yes", "on"}
         decision = self.local_react_decider.decide(
             envelope=envelope,
             allowed_tools=[tool for tool in envelope.allowed_tools if tool in self.allowed_tools],
             recent_observations=observations,
             preferred_tool=preferred_tool,
             arguments=arguments or {},
-            client=self.runtime_context.get("llm_client"),
+            client=self.runtime_context.get("llm_client") if llm_decider_enabled else None,
         )
         observations.append({"type": "local_react", "decision": decision})
         return decision
@@ -127,10 +136,16 @@ class BaseSpecialist(ABC):
         usage = self._artifact_usage(envelope)
         summary_bytes = len(json.dumps(result.to_dict(), ensure_ascii=False, default=str).encode("utf-8"))
         raw_bytes = usage["raw_bytes_read"]
+        envelope_budget = envelope.constraints.get("token_budget", {})
         result.context_usage = {
             **usage,
             "summary_bytes_returned": summary_bytes,
             "compression_ratio": round(summary_bytes / raw_bytes, 6) if raw_bytes else 1.0,
+            "estimated_input_tokens": envelope_budget.get("estimated_input_tokens")
+            or self.token_budget_manager.estimate_tokens(envelope.to_dict()),
+            "estimated_output_tokens": self.token_budget_manager.estimate_tokens(result.to_dict()),
+            "max_context_tokens": envelope.max_context_tokens,
+            "context_truncated": bool(envelope_budget.get("truncated")),
         }
         self._write_local_outputs(envelope, result)
         return result

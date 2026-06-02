@@ -19,7 +19,7 @@
   "objective": "latency",
   "demo": {
     "expected_path": "hls4ml",
-    "mock_tools": true,
-    "description": "Small MNIST MLP through hls4ml path."
+    "mock_tools": false,
+    "description": "Small MNIST MLP through hls4ml path; mock tools are only for offline smoke tests."
   }
 }

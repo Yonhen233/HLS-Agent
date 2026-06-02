@@ -79,6 +79,11 @@ class AppConfig:
     docs_root: Path
     db_path: Path
     permissions_path: Path
+    runtime_config_path: Path
+    runtime_mode: str = "demo"
+    llm_fallback_policy: str = "error"
+    optimization_fallback_mode: str = "demo"
+    specialist_llm_decider_enabled: bool = False
     mock_hls4ml: bool = True
     mock_vivado: bool = True
     vivado_hls_path: str | None = None
@@ -87,12 +92,36 @@ class AppConfig:
     @classmethod
     def load(cls, workspace_root: str | Path | None = None) -> "AppConfig":
         root = Path(workspace_root or os.getcwd()).resolve()
+        runtime_config_path = root / "runtime.yaml"
+        runtime_config = _simple_yaml_load(runtime_config_path.read_text(encoding="utf-8")) if runtime_config_path.exists() else {}
+        runtime_section = runtime_config.get("runtime", {}) if isinstance(runtime_config.get("runtime", {}), dict) else {}
+        llm_section = runtime_section.get("llm", {}) if isinstance(runtime_section.get("llm", {}), dict) else {}
+        optimization_section = runtime_section.get("optimization", {}) if isinstance(runtime_section.get("optimization", {}), dict) else {}
+        specialist_section = runtime_section.get("specialist", {}) if isinstance(runtime_section.get("specialist", {}), dict) else {}
+        runtime_mode = os.environ.get("DL_OP_TO_HLS_RUNTIME_MODE", runtime_section.get("mode", "demo")).lower()
+        if runtime_mode not in {"strict", "demo", "production"}:
+            raise ValueError(f"Invalid DL_OP_TO_HLS runtime mode: {runtime_mode}")
+        optimization_fallback_mode = os.environ.get(
+            "DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE",
+            optimization_section.get("fallback", "strict" if runtime_mode in {"strict", "production"} else "demo"),
+        ).lower()
+        llm_fallback_policy = os.environ.get("DL_OP_TO_HLS_LLM_FALLBACK_POLICY", llm_section.get("fallback", "error")).lower()
+        specialist_llm_decider_enabled = os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED")
+        if specialist_llm_decider_enabled is None:
+            specialist_llm_decider_enabled_value = bool(specialist_section.get("llm_decider_enabled", False))
+        else:
+            specialist_llm_decider_enabled_value = specialist_llm_decider_enabled.strip().lower() in {"1", "true", "yes", "on"}
         return cls(
             workspace_root=root,
             runs_root=root / "runs",
             docs_root=root / "docs",
             db_path=root / "runs" / "metadata.db",
             permissions_path=root / "permissions.yaml",
+            runtime_config_path=runtime_config_path,
+            runtime_mode=runtime_mode,
+            llm_fallback_policy=llm_fallback_policy,
+            optimization_fallback_mode=optimization_fallback_mode,
+            specialist_llm_decider_enabled=specialist_llm_decider_enabled_value,
             mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", "1") != "0",
             mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", "1") != "0",
             vivado_hls_path=os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH"),
@@ -117,6 +146,11 @@ class AppConfig:
             "docs_root": str(self.docs_root),
             "db_path": str(self.db_path),
             "permissions_path": str(self.permissions_path),
+            "runtime_config_path": str(self.runtime_config_path),
+            "runtime_mode": self.runtime_mode,
+            "llm_fallback_policy": self.llm_fallback_policy,
+            "optimization_fallback_mode": self.optimization_fallback_mode,
+            "specialist_llm_decider_enabled": self.specialist_llm_decider_enabled,
             "mock_hls4ml": self.mock_hls4ml,
             "mock_vivado": self.mock_vivado,
             "vivado_hls_path": self.vivado_hls_path,

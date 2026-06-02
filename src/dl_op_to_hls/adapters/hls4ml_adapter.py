@@ -556,5 +556,50 @@ class HLS4MLAdapter:
         log_dir = Path(hls_project_dir).parent / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "hls4ml_csim.log"
-        log_path.write_text("Mock hls4ml csim completed successfully.", encoding="utf-8")
-        return {"status": "success", "log_path": str(log_path)}
+        if self.mock_mode:
+            log_path.write_text("Mock hls4ml csim completed successfully.", encoding="utf-8")
+            return {"status": "success", "log_path": str(log_path), "mode": "mock"}
+        project_dir = Path(hls_project_dir)
+        if not project_dir.exists():
+            return error_result(
+                build_error(
+                    "HLS4MLConversionError",
+                    "hls4ml project directory does not exist; real csim cannot run.",
+                    recoverable=True,
+                    source="hls4ml.run_csim",
+                    suggested_action="Run hls4ml.convert successfully before requesting csim.",
+                    details={"hls_project_dir": hls_project_dir},
+                )
+            )
+        if not self._installed():
+            return error_result(
+                build_error(
+                    "HLS4MLNotInstalledError",
+                    "hls4ml and onnx are required for the real hls4ml csim path.",
+                    recoverable=True,
+                    source="hls4ml.run_csim",
+                    suggested_action="Install hls4ml/onnx or use Vivado HLS synthesis on the generated project.",
+                )
+            )
+        build_script = project_dir / "build_prj.tcl"
+        if not build_script.exists():
+            return error_result(
+                build_error(
+                    "HLS4MLConversionError",
+                    "Real hls4ml csim requires a generated build_prj.tcl; none was found.",
+                    recoverable=True,
+                    source="hls4ml.run_csim",
+                    suggested_action="Use hls4ml.convert to generate a complete project, then run Vivado HLS through vivado.run_csim/run_csynth.",
+                    details={"hls_project_dir": hls_project_dir},
+                )
+            )
+        return error_result(
+            build_error(
+                "HLS4MLConversionError",
+                "Direct real hls4ml csim execution is not enabled in this adapter; use VivadoSpecialist for real Tcl execution.",
+                recoverable=True,
+                source="hls4ml.run_csim",
+                suggested_action="Delegate real C simulation/synthesis to VivadoSpecialist with the generated HLS project.",
+                details={"build_script": str(build_script), "log_path": str(log_path)},
+            )
+        )

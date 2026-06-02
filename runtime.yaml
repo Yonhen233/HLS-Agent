@@ -1,0 +1,8 @@
+runtime:
+  mode: demo
+  llm:
+    fallback: error
+  optimization:
+    fallback: demo
+  specialist:
+    llm_decider_enabled: false

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from ..core.token_budget import TokenBudgetManager
+
 
 SPECIALIST_ALLOWED_TOOLS = {
     "HLS4MLSpecialist": [
@@ -72,6 +74,9 @@ class ContextEnvelope:
 
 
 class ContextBuilder:
+    def __init__(self, token_budget_manager: TokenBudgetManager | None = None):
+        self.token_budget_manager = token_budget_manager or TokenBudgetManager()
+
     def build_for_specialist(self, state, todo, specialist_name: str) -> ContextEnvelope:
         max_context_tokens = int(todo.context_scope.get("max_context_tokens", 3000) if todo.context_scope else 3000)
         task = state.task
@@ -94,7 +99,7 @@ class ContextBuilder:
             }
             for item in state.retrieved_memories[:5]
         ]
-        return ContextEnvelope(
+        envelope = ContextEnvelope(
             run_id=state.run_id,
             todo_id=todo.id,
             specialist_name=specialist_name,
@@ -112,6 +117,8 @@ class ContextBuilder:
                 "Artifact refs are paths and metadata only; raw logs, reports, code, and trace content stay outside the envelope."
             ],
         )
+        self.token_budget_manager.enforce_envelope_budget(envelope)
+        return envelope
 
     def _scoped_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
         task = state.task

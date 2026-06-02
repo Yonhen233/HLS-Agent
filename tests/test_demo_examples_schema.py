@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from dl_op_to_hls.schemas.task_schema import load_task
 from dl_op_to_hls.tools.graph_rewrite import rewrite_graph
 
@@ -72,3 +74,31 @@ def test_graph_rewrite_suggests_static_shape_elimination():
     result = rewrite_graph({"task": {"task_type": "operator", "op_type": "Flatten"}}, {})
     assert result["status"] == "rewrite_suggested"
     assert result["implemented"] is False
+
+
+def test_graph_rewrite_rewrites_onnx_gemm_to_matmul_add(tmp_path):
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    model_path = tmp_path / "gemm.onnx"
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 16])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 32])
+    weights = numpy_helper.from_array(numpy.ones((32, 16), dtype=numpy.float32), name="w")
+    bias = numpy_helper.from_array(numpy.zeros((32,), dtype=numpy.float32), name="b")
+    gemm = helper.make_node("Gemm", inputs=["x", "w", "b"], outputs=["y"], name="dense_gemm", transB=1)
+    graph = helper.make_graph([gemm], "gemm_graph", [x], [y], initializer=[weights, bias])
+    model = helper.make_model(graph)
+    onnx.save(model, str(model_path))
+
+    result = rewrite_graph(
+        {"task": {"task_type": "model", "model_path": str(model_path), "frontend": "onnx"}},
+        {"run_dir": tmp_path / "run"},
+    )
+
+    assert result["status"] == "success"
+    assert result["implemented"] is True
+    rewritten = onnx.load(result["rewritten_model_path"])
+    ops = {node.op_type for node in rewritten.graph.node}
+    assert "Gemm" not in ops
+    assert {"MatMul", "Add"} <= ops

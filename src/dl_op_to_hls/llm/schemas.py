@@ -87,11 +87,24 @@ REFLECTION_DECISION_SCHEMA: dict[str, Any] = {
 }
 
 OPTIMIZATION_SUGGESTION_SCHEMA: dict[str, Any] = {
+    "title": "OptimizationSuggestionSchema",
     "type": "object",
     "required": ["summary", "suggestions", "memory_used"],
     "properties": {
         "summary": {"type": "string"},
-        "suggestions": {"type": "array"},
+        "suggestions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["title", "reason", "expected_tradeoff", "confidence"],
+                "properties": {
+                    "title": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "expected_tradeoff": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
         "memory_used": {"type": "array"},
     },
 }

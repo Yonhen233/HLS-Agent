@@ -17,7 +17,7 @@
   },
   "demo": {
     "expected_path": "fallback_template",
-    "mock_tools": true,
-    "description": "Stable fallback demo that does not require hls4ml or Vivado HLS."
+    "mock_tools": false,
+    "description": "Stable fallback demo; real Vivado HLS is used when configured, with --mock-tools available only for offline smoke tests."
   }
 }

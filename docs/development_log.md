@@ -6,6 +6,328 @@
 
 ---
 
+## 2026-06-02 15:32:42 +08:00：Agent 框架契约收紧、真实 Graph Rewrite、上下文预算与沙箱补强
+### 1. 本次测试做了什么
+执行与验证：
+- 继续在独立目录 `D:\hls_agent\standalone_work\dl-op-to-hls-agent` 开发，未修改旧 `D:\hls_agent` 脚本。
+- 复查外部评审提出的 5 类架构问题：
+  - ContextEnvelope token budget 只有声明、没有真实预算控制。
+  - Specialist Sub-agent 串行执行，是否需要 Multi-Agent Coordinator。
+  - Skill YAML 仍主要手工维护，是否需要自动提炼。
+  - LLM candidate 只有目录权限约束，缺少 HLS C++ 静态安全扫描。
+  - strict/demo/production 模式和 fallback 策略主要靠环境变量，契约不够显式。
+- 针对 Demo2 既往失败继续排查：
+  - 真实 hls4ml 遇到 ONNX `Gemm` 报 `Unsupported operation type: Gemm`。
+  - LLM reflection 曾提出未注册工具/专家，如 `onnx_graph_rewrite`、`GraphRewriteSpecialist`。
+- 运行新增/聚焦测试：
+  - `python -m pytest tests/test_demo_examples_schema.py tests/test_llm_reflection_guard.py tests/test_token_budget.py tests/test_candidate_sandbox.py tests/test_runtime_config.py -q`
+- 运行全量测试：
+  - `python -m pytest -q`
+- 尝试启动真实 DeepSeek + Vivado Demo0-Demo6 批量复测：
+  - DeepSeek OpenAI-compatible。
+  - `DL_OP_TO_HLS_MOCK_HLS4ML=0`
+  - `DL_OP_TO_HLS_MOCK_VIVADO=0`
+  - `DL_OP_TO_HLS_VIVADO_HLS_PATH=D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`
+  - `DL_OP_TO_HLS_RUNTIME_MODE=strict`
+  - `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=strict`
+  - `DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED=1`
+
+### 2. 当前测试结果
+已通过：
+- 聚焦测试通过：`18 passed`。
+- 全量测试通过：`python -m pytest -q`，全部通过。
+- 新增 ONNX Gemm rewrite 单元测试通过：
+  - 构造真实 ONNX `Gemm(transB=1)` 图。
+  - `graph_rewrite.rewrite` 生成 rewritten ONNX。
+  - rewritten graph 中不再包含 `Gemm`，包含 `MatMul` 和 `Add`。
+
+真实 Demo0-Demo6 复测状态：
+- 本轮批量真实运行未能启动。
+- 原因：Codex 提权审批器因当前 usage limit 拒绝联网 API/Vivado 执行请求：
+  - `You've hit your usage limit...`
+- 处理：按照安全规则，没有绕过审批器继续执行同等网络/API命令，也没有改用 mock 冒充真实结果。
+- 后续：额度恢复后可直接用本轮同等 strict 配置重跑 Demo0-Demo6。
+
+### 3. 发现的问题与根因
+1) ContextEnvelope token budget 之前只是“声明式”
+- 现象：`max_context_tokens=3000` 存在，但 ContextBuilder 没有实际估算/截断。
+- 根因：context isolation 已经做了 artifact ref 隔离，但没有把 budget 变成执行约束。
+- 风险：RAG / memory 摘要积累后，Main Agent 或 Specialist prompt 仍可能越界。
+
+2) Demo2 的 Gemm 问题不是简单“LLM 基模不行”
+- 现象：真实 hls4ml 对当前 MNIST MLP ONNX 的 `Gemm` 不支持。
+- 根因：`graph_rewrite.rewrite` 之前只返回建议，`implemented=False`，没有真的改写 ONNX。
+- 风险：LLM 会尝试凭空提出 `onnx_graph_rewrite` 等不存在工具，说明框架没有把可用能力边界喂清楚并强校验。
+
+3) LLM reflection 新增 todo 缺少二次 ToolRegistry / Specialist allowlist 校验
+- 现象：LLM reflection 可以提出未知 tool / unknown specialist。
+- 根因：planner 阶段有 guard，但 reflect 阶段新增 todo 进入 TodoList 前缺少同等级别 guard。
+- 风险：后续执行阶段才爆 PermissionDenied / KeyError，问题定位太晚。
+
+4) Candidate 代码缺少 HLS C++ 静态沙箱
+- 现象：已有 `LLMGuard.validate_candidate_files` 限制 candidate 目录，但不扫描 C++ 内容。
+- 根因：路径隔离与代码安全扫描没有分层。
+- 风险：LLM candidate 可能包含 `system()`、危险 include、进程/网络 API 等不适合 HLS 验证环境的内容。
+
+5) runtime mode / fallback 策略配置不够集中
+- 现象：strict/demo 切换分散在多个环境变量中。
+- 根因：缺少统一 `runtime.yaml` 作为声明式配置源。
+- 风险：开发期 strict 与 demo 展示期 fallback 语义混淆。
+
+### 4. 已修复内容（含修复方式）
+- 新增 `core/token_budget.py`
+  - 实现轻量 token 估算：默认 `1 token ~= 4 chars`。
+  - ContextBuilder 构造 ContextEnvelope 后立即执行预算检查。
+  - 超预算时优先截断 RAG / retrieved memory，再截断 state summary / notes，最后裁剪 artifact refs。
+  - SpecialistResult `context_usage` 新增：
+    - `estimated_input_tokens`
+    - `estimated_output_tokens`
+    - `max_context_tokens`
+    - `context_truncated`
+- 新增 `core/candidate_sandbox.py`
+  - 对 LLM candidate HLS C++ 做 pattern-based 静态扫描。
+  - 拒绝：
+    - `system()`
+    - `popen()`
+    - process spawn API
+    - `#include <fstream>` / `<filesystem>` / `<windows.h>` / `<unistd.h>` 等危险 include
+    - socket/network include
+    - inline asm
+  - `llm/candidate_generator.py` 写文件前先扫描，违规则返回 `PermissionDeniedError`，不写 candidate 文件。
+- 新增 `runtime.yaml`
+  - 集中声明：
+    - `runtime.mode: strict | demo | production`
+    - `runtime.llm.fallback: error`
+    - `runtime.optimization.fallback: demo | strict`
+    - `runtime.specialist.llm_decider_enabled`
+  - `core/config.py` 读取 runtime.yaml，并保留环境变量 override。
+- `graph_rewrite.rewrite` 从建议升级为真实 ONNX rewrite 工具
+  - 对安全模式 `Gemm(alpha=1,beta=1,transA=0)` 执行自动改写。
+  - 支持 `transB=1` 时转置常量 initializer。
+  - 输出 rewritten ONNX 到 `runs/<run_id>/rewritten/*_gemm_rewritten.onnx`。
+  - 注册 rewritten model artifact。
+  - 遇到非平凡 Gemm 参数时返回结构化“不可安全改写”，不强行改变语义。
+- Runtime 接入 rewritten model
+  - `Try graph rewrite` 成功后更新：
+    - `state.task["original_model_path"]`
+    - `state.task["model_path"]`
+    - `state.artifacts["rewritten_model"]`
+  - rewrite 成功后重新追加 `Check hls4ml support`，再进入 config/convert。
+  - rewrite 未实现或不安全时才进入 unsupported report。
+- LLM reflection 新增 todo guard
+  - `LLMFirstRuntime._validate_reflection_todo()` 校验：
+    - assigned_tool 必须存在于 ToolRegistry。
+    - assigned_specialist 必须存在于 SpecialistRouter。
+    - specialist-private tool 必须委派给对应 specialist。
+    - assigned_tool 必须在 assigned_specialist.allowed_tools 内。
+  - 被拒绝的 reflection todo 写入 `LLMReflectionTodoRejected` trace，并记录脱敏结构化错误。
+- 优化建议 strict schema 继续收紧
+  - 支持 DeepSeek 可能返回的 `justification` / `rationale` 字段映射到 `reason`。
+  - 占位标题但 reason 具体时规范化为 `Optimization action`。
+  - 纯占位/空建议 strict 模式下仍失败，不再静默规则兜底。
+
+### 5. 新增或更新的测试
+- `test_graph_rewrite_rewrites_onnx_gemm_to_matmul_add`
+- `test_llm_reflection_rejects_unknown_tool_and_specialist`
+- `test_llm_reflection_rejects_specialist_tool_mismatch`
+- `test_token_budget_*`
+- `test_candidate_sandbox_*`
+- `test_runtime_config_*`
+- `test_llm_react_fills_delegate_specialist_from_todo`
+- `test_llm_optimizer_strict_mode_accepts_justification_field`
+
+测试结果：
+- 聚焦测试：通过。
+- 全量测试：通过。
+
+### 6. 未修复完成的问题及原因
+1) Multi-Agent Coordinator 并行调度暂未进入主线
+- 原因：当前 artifact manifest、SQLite、Todo 状态、Vivado 工作目录 merge 都是共享状态；贸然并行会引入竞态，降低 demo bug 信号质量。
+- 策略：作为后续 feature flag 实验模式实现，例如 `runtime.coordinator.parallel_enabled=true`；默认 production/strict 仍保持串行、可追踪、可复现。
+
+2) Skill 自动提炼暂未写入 YAML 自动生成流程
+- 原因：当前 MemoryManager 已能抽取/promote memory candidates，但自动写 skill YAML 会改变可执行能力集合，必须先增加 review/approval gate，避免 Agent 自行扩大权限。
+- 策略：后续实现 `skills/candidates/*.yaml`，先作为候选 skill，不自动启用；通过人工批准或 tests 后再移入 `skills/*.yaml`。
+
+3) Demo3 Shape/Reshape/Flatten 静态消除未完成
+- 原因：本轮优先修复 Demo2 已知 `Gemm -> MatMul + Add` 的真实 rewrite；Shape/Reshape/Flatten 需要更多 ONNX shape/value_info 语义处理。
+- 策略：后续补 `static_shape_elimination`，并用真实 Tiny CNN ONNX 单元图测试。
+
+4) Demo4 QKeras/H5 真实前端仍未完成
+- 原因：当前环境缺 `qkeras` / `tensorflow`，adapter 只能结构化 unsupported。
+- 策略：后续增加 Keras/QKeras frontend adapter，或提供先导出为 hls4ml 支持输入格式的转换脚本。
+
+5) 真实 DeepSeek + Vivado Demo0-Demo6 未完成
+- 原因：Codex 当前外部命令审批因 usage limit 拒绝联网真实运行。
+- 策略：额度恢复后继续执行 strict 真实复测；不使用 mock 替代真实结果。
+
+---
+
+## 2026-06-02 10:32:02 +08:00：真实/Mock 边界体检、严格验证修补、DeepSeek Demo0 真实复测
+### 1. 本次测试做了什么
+执行与验证：
+- 使用独立目录：`D:\hls_agent\standalone_work\dl-op-to-hls-agent`。
+- 检查用户指出的潜在问题：
+  - `adapters/` 是否只有 `__init__.py`。
+  - `cli:main` 是否缺失。
+  - `verify_candidate` 是否写死 mock 报告。
+  - `hls4ml.run_csim` 是否仍然无条件 mock 成功。
+  - Permission / Hook / Trace 等基础设施是否存在。
+- 使用 DeepSeek OpenAI-compatible 配置进行真实 Demo0 复测：
+  - `DL_OP_TO_HLS_LLM_PROVIDER=openai-compatible`
+  - `DL_OP_TO_HLS_LLM_BASE_URL=https://api.deepseek.com`
+  - `DL_OP_TO_HLS_LLM_MODEL=deepseek-v4-pro`
+  - `DL_OP_TO_HLS_LLM_API_KEY=<redacted>`
+  - `DL_OP_TO_HLS_MOCK_HLS4ML=0`
+  - `DL_OP_TO_HLS_MOCK_VIVADO=0`
+  - `DL_OP_TO_HLS_VIVADO_HLS_PATH=D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`
+  - `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=strict`
+- 运行聚焦测试：
+  - `python -m pytest tests/test_fallback_templates.py -vv`
+  - `python -m pytest tests/test_hls4ml_mcp.py tests/test_specialists.py -q`
+  - `python -m pytest tests/test_llm_optimizer_fallback.py tests/test_fallback_templates.py tests/test_hls4ml_mcp.py tests/test_specialists.py -q`
+- 运行全量测试：
+  - `python -m pytest -q`
+
+### 2. 当前复测结果
+已确认不是问题的项：
+- `src/dl_op_to_hls/adapters/` 并非只有 `__init__.py`，当前已存在：
+  - `hls4ml_adapter.py`
+  - `vivado_hls_adapter.py`
+  - `legacy_vivado_env.py`
+  - `llm_adapter.py`
+  - `senior_agent_adapter.py`
+- CLI 入口存在：
+  - `src/dl_op_to_hls/cli.py`
+  - `pyproject.toml` 中注册：`dl-op-to-hls = "dl_op_to_hls.cli:main"`。
+- Permission / Hook / Trace / Artifact / DB / RAG 等基础设施存在，且本轮 pytest 仍全量通过。
+
+已确认确实存在的问题：
+- `verify_candidate.run` 之前会写死 `MOCK_REPORT` 并返回 `status=verified`。
+- `hls4ml.run_csim` 之前无论真实/非真实模式都会写入 `Mock hls4ml csim completed successfully.`。
+- Demo JSON 中 `demo.mock_tools=true` 会污染 LLM plan/summary，使真实运行也被描述成 mock demo。
+- Demo0 真实运行虽然完成，但 `suggestions.md` 出现了泛化占位输出：`Suggestion` / `Suggestion`。这不是 mock，但属于 LLM 输出质量 guard 不足。
+
+Demo0 真实复测结果：
+- run_id：`dense_16x32_115c1f11_07`
+- 运行状态：`success`
+- selected_path：`fallback_template_path`
+- DeepSeek LLM plan/react 成功；Main Agent 使用 `delegate_to_specialist` 调度 VivadoSpecialist / OptimizationSpecialist / MemorySpecialist。
+- VivadoSpecialist 真实调用 `vivado_hls.bat` 完成 synthesis/report parsing。
+- 真实报告指标：
+  - Latency：269 / 269 cycles
+  - II：269 / 269
+  - DSP：16
+  - BRAM：0
+  - LUT：549
+  - FF：732
+  - Timing estimated：4.304 ns
+  - Timing met：true
+- summary 已包含：
+  - `Todo Execution Summary`
+  - `Specialist Execution Summary`
+  - `Context Isolation`
+  - `Memory Summary`
+
+依赖状态：
+- `hls4ml`：已安装。
+- `onnx`：已安装。
+- `qkeras`：未安装。
+- `tensorflow`：未安装。
+- 因此 Demo4 的真实 QKeras/H5 分支当前预期应结构化 unsupported，而不是伪造成功。
+
+### 3. 发现的问题与根因
+1) `verify_candidate` 将 mock 结果伪装为 verified
+- 现象：无论候选代码是否真实通过 csim/csynth，工具都会写固定 csynth.rpt 并返回 `verified`。
+- 根因：P0 mock 验证接口未与真实模式隔离。
+- 风险：LLM candidate 可能未经真实 testbench/Vivado 验证就进入可复用 implementation 记忆。
+
+2) `hls4ml.run_csim` 真实模式下仍写 mock 成功日志
+- 现象：真实工具环境下仍输出 `Mock hls4ml csim completed successfully.`。
+- 根因：adapter 没有区分 `mock_mode=True/False`。
+- 风险：真实 hls4ml csim 状态被错误标记为 success。
+
+3) Specialist local ReAct 可能重复调用 LLM，导致长流程卡顿
+- 现象：上轮真实 Demo0 卡在 OptimizationSpecialist。
+- 根因：Main Agent 已经做了 LLM ReAct 决策，Specialist 内部 local ReAct 又默认使用 LLM decider。
+- 修复策略：Specialist local ReAct 默认使用确定性 schema guard；只有显式设置 `DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED=1` 时才启用 LLM。
+
+4) Demo JSON 的 `mock_tools=true` 会误导 LLM
+- 现象：真实 Demo0 summary 的 LLM reasoning 提到了 mock Vivado。
+- 根因：任务 JSON 中的 demo 元数据仍写着 mock_tools true。
+- 修复策略：Demo0-Demo6 的 `mock_tools` 改为 `false`，描述改成真实优先，`--mock-tools` 仅用于离线冒烟测试。
+
+5) Optimization suggestions 缺少质量 guard
+- 现象：DeepSeek 返回的 suggestions 被规范化成 `Suggestion` / `Suggestion`，系统仍写入 summary。
+- 根因：schema 只检查字段存在，没有检查内容是否为空壳/占位。
+- 修复策略：新增 placeholder suggestion guard；strict 模式下空建议/占位建议返回 `LLMGenerationError`，demo 模式下才允许回退到规则建议。
+
+### 4. 已修复内容（含修复方式）
+- `verify_candidate.run`
+  - 新增显式 `mock` / `real` 模式判断。
+  - mock 模式才允许写 fixture report。
+  - real 模式要求 candidate dir 存在、testbench 存在，并通过 Vivado adapter 创建项目、运行 Tcl、解析 report 后才返回 `verified`。
+  - 缺 testbench / Vivado 失败 / report 缺失 / report 解析失败都会返回 structured error。
+- `hls4ml.run_csim`
+  - mock 模式保留原有 demo 行为并标记 `mode=mock`。
+  - real 模式不再写假成功日志。
+  - 缺项目目录、缺 hls4ml/onnx、缺 `build_prj.tcl` 或直接 csim 未启用时返回结构化错误。
+- `MainAgent.create_run_context`
+  - 注入 `hls4ml_adapter`、`vivado_adapter`。
+  - 显式设置 `specialist_llm_decider_enabled=False`。
+- `BaseSpecialist`
+  - local ReAct 默认走确定性 decider。
+  - 只有 `DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED=1` 才调用 Specialist 内部 LLM decider。
+- `PermissionGate`
+  - `check_tool` 增加 `candidate_dir`、`testbench_path`、`report_dir` 检查。
+- `VerificationSpecialist`
+  - 描述从 mock csim/csynth 改为 explicit mock or real Vivado-backed verification。
+- Demo JSON
+  - Demo0-Demo6 的 `demo.mock_tools` 改为 `false`。
+  - 描述改成真实优先，mock 仅用于 offline smoke test。
+- `suggest_optimization`
+  - 新增占位建议识别。
+  - strict 模式下拒绝 `Suggestion` / 空 reason / 空建议。
+
+### 5. 新增或更新的测试
+- `test_verify_candidate_mock_success`
+  - 显式传 `mode=mock`。
+- `test_verify_candidate_real_mode_requires_testbench`
+  - 验证真实模式下没有 testbench 不能返回 verified。
+- `test_hls4ml_run_csim_real_mode_does_not_mock_success`
+  - 验证真实模式不会写 mock 成功。
+- `test_llm_optimizer_strict_mode_rejects_placeholder_suggestions`
+  - 验证 strict 模式拒绝占位建议。
+
+测试结果：
+- 聚焦测试通过：
+  - fallback / hls4ml / specialists / optimizer tests 全部通过。
+- 全量测试通过：
+  - `python -m pytest -q` 通过。
+
+### 6. 未修复完成的问题及原因
+1) Demo1-Demo6 本轮未能继续真实运行
+- 原因：批量真实命令需要联网调用 DeepSeek API 并调用 Vivado HLS，Codex 提权系统返回 usage limit，拒绝继续执行：
+  - `You've hit your usage limit...`
+- 处理：按照安全规则，未绕过提权限制继续执行同等网络/Vivado命令。
+- 后续：额度恢复后继续运行 Demo1-Demo6，或用户可在本机 PowerShell 中直接运行同等命令。
+
+2) Demo0 在新增 suggestions guard 后尚未重新真实复测
+- 原因：同样受 usage limit 限制，不能继续调用 DeepSeek API。
+- 已完成的验证：pytest 已覆盖 placeholder suggestion strict rejection。
+- 后续：额度恢复后需要重新运行 Demo0，确认 DeepSeek 在 strict guard 下能返回高质量建议；如果不能，应继续优化 optimizer prompt 或将该阶段标为结构化失败。
+
+3) Demo2/Demo3 真实 hls4ml 图支持问题仍可能存在
+- 既往结果显示 MNIST MLP 可能包含 Gemm，Tiny CNN 可能包含 Shape/reshape/flatten 类节点。
+- 当前已有 graph rewrite suggestion，但并未真正完成 ONNX graph rewrite。
+- 后续：实现真实 Gemm -> MatMul + Add、静态 Shape/Reshape/Flatten 消除，不能只靠 fallback。
+
+4) Demo4 QKeras/H5 真实链路未完成
+- 当前 `qkeras` / `tensorflow` 未安装，adapter 只做结构化 unsupported。
+- 后续：补 Keras/QKeras frontend 分支，或提供从 QKeras/H5 到 hls4ml 支持输入的真实转换路径。
+
+---
+
 ## 2026-06-01 20:31:40 +08:00：修复后真实 LLM Demo0 复测结果
 ### 1. 本次测试做了什么
 执行与验证：

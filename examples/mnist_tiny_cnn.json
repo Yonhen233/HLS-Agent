@@ -22,7 +22,7 @@
   "objective": "balanced",
   "demo": {
     "expected_path": "hls4ml",
-    "mock_tools": true,
-    "description": "Tiny MNIST CNN demo using hls4ml path."
+    "mock_tools": false,
+    "description": "Tiny MNIST CNN demo using hls4ml path when the real frontend supports the graph."
   }
 }

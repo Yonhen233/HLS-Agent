@@ -60,7 +60,7 @@ def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_worksp
     context = agent.create_run_context("llm_debug_test")
     client = SequenceLLMClient(
         [
-            '{"reason_summary":"bad","secret":"tp-schljryj10kvh7tq3knk2d5djjuq9wmam27d865wfc6983q1"}',
+            '{"reason_summary":"bad","secret":"tp-fake-debug-secret-123456"}',
             '{"reason_summary":"still bad"}',
         ]
     )
@@ -71,7 +71,7 @@ def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_worksp
         artifact = exc.error.details.get("llm_debug_artifact")
         assert artifact
         content = open(artifact, encoding="utf-8").read()
-        assert "tp-schljryj" not in content
+        assert "tp-fake-debug-secret" not in content
         assert "tp-<redacted>" in content
     else:
         raise AssertionError("Expected repair failure to raise AgentRuntimeError")

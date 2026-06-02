@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.errors import AgentRuntimeError, build_error
+from ..core.candidate_sandbox import CandidateSandbox
 from . import prompts
 from .guards import LLMGuard
 from .schemas import CANDIDATE_GENERATION_SCHEMA
@@ -14,6 +15,7 @@ from .trace import emit_llm_event
 class LLMCandidateGenerator:
     def __init__(self, guard: LLMGuard | None = None):
         self.guard = guard or LLMGuard()
+        self.sandbox = CandidateSandbox()
 
     def generate(
         self,
@@ -47,6 +49,17 @@ class LLMCandidateGenerator:
                     "; ".join(guard["errors"]),
                     recoverable=False,
                     source="llm.generate_hls_candidate",
+                )
+            )
+        sandbox_result = self.sandbox.scan_candidate_payload(result)
+        if sandbox_result["status"] != "valid":
+            raise AgentRuntimeError(
+                build_error(
+                    "PermissionDeniedError",
+                    "CandidateSandbox rejected generated HLS code.",
+                    recoverable=False,
+                    source="llm.generate_hls_candidate",
+                    details={"violations": sandbox_result["violations"]},
                 )
             )
         target_root = Path(run_dir).resolve()
@@ -85,4 +98,5 @@ class LLMCandidateGenerator:
             "requires_verification": True,
             "candidate_name": result.get("candidate_name"),
             "assumptions": result.get("assumptions", []),
+            "sandbox_scan": sandbox_result,
         }

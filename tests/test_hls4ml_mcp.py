@@ -45,6 +45,16 @@ def test_hls4ml_convert_mock(tmp_path):
     assert (tmp_path / "myproject.cpp").exists()
 
 
+def test_hls4ml_run_csim_real_mode_does_not_mock_success(tmp_path):
+    project_dir = tmp_path / "hls_project"
+    project_dir.mkdir()
+    adapter = HLS4MLAdapter(mock_mode=False)
+    result = adapter.run_csim(str(project_dir))
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] in {"HLS4MLNotInstalledError", "HLS4MLConversionError"}
+    assert "Mock hls4ml csim completed successfully" not in (tmp_path / "logs" / "hls4ml_csim.log").read_text(encoding="utf-8", errors="ignore") if (tmp_path / "logs" / "hls4ml_csim.log").exists() else True
+
+
 def test_hls4ml_qkeras_h5_frontend_is_structured_unsupported(tmp_path, monkeypatch):
     model = tmp_path / "mnist_qkeras_cnn.h5"
     model.write_bytes(b"placeholder h5")

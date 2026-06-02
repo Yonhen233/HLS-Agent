@@ -22,7 +22,7 @@
   "objective": "resource",
   "demo": {
     "expected_path": "unsupported_or_partial",
-    "mock_tools": true,
-    "description": "Tiny ResNet-like block to demonstrate boundary handling."
+    "mock_tools": false,
+    "description": "Tiny ResNet-like block to demonstrate boundary handling without overpromising full support."
   }
 }

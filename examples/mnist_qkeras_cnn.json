@@ -22,7 +22,7 @@
   "objective": "resource",
   "demo": {
     "expected_path": "hls4ml",
-    "mock_tools": true,
-    "description": "Quantized MNIST CNN demo for FPGA resource optimization."
+    "mock_tools": false,
+    "description": "Quantized MNIST CNN demo for FPGA resource optimization; requires a real Keras/QKeras frontend branch."
   }
 }

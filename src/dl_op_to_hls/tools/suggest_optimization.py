@@ -72,6 +72,43 @@ def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict],
     )
 
 
+def _is_placeholder_suggestion(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {"", "suggestion", "suggestions", "suggestion:", "n/a", "none", "todo"}
+
+
+def _normalize_llm_suggestions(llm_result: dict[str, Any]) -> tuple[list[str], list[dict[str, Any]]]:
+    suggestions: list[str] = []
+    invalid: list[dict[str, Any]] = []
+    for item in llm_result.get("suggestions", []):
+        if isinstance(item, dict):
+            title = str(item.get("title") or item.get("action") or item.get("recommendation") or "").strip()
+            reason = str(
+                item.get("reason")
+                or item.get("justification")
+                or item.get("rationale")
+                or item.get("description")
+                or ""
+            ).strip()
+            if _is_placeholder_suggestion(title) and reason:
+                title = "Optimization action"
+            text = f"{title}: {reason}".strip(": ")
+            if _is_placeholder_suggestion(title) and not reason:
+                invalid.append({"item": item, "reason": "placeholder_title_without_reason"})
+                continue
+            if _is_placeholder_suggestion(text):
+                invalid.append({"item": item, "reason": "placeholder_text"})
+                continue
+            suggestions.append(text)
+        else:
+            text = str(item).strip()
+            if _is_placeholder_suggestion(text):
+                invalid.append({"item": item, "reason": "placeholder_text"})
+                continue
+            suggestions.append(text)
+    return suggestions, invalid
+
+
 def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     state = arguments["state"]
     report = arguments["report"]
@@ -139,15 +176,34 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
                 )
             )
 
-    suggestions = []
-    for item in llm_result.get("suggestions", []):
-        if isinstance(item, dict):
-            title = item.get("title") or "Suggestion"
-            reason = item.get("reason") or ""
-            suggestions.append(f"{title}: {reason}".strip(": "))
-        else:
-            suggestions.append(str(item))
+    suggestions, invalid_suggestions = _normalize_llm_suggestions(llm_result)
+    if invalid_suggestions:
+        if not allow_rule_fallback:
+            return error_result(
+                build_error(
+                    "LLMGenerationError",
+                    "LLM optimization returned placeholder or empty suggestions in strict mode.",
+                    recoverable=True,
+                    source="suggestion.suggest_optimization",
+                    suggested_action="Improve the optimizer prompt/model response; do not accept placeholder suggestions as successful output.",
+                    details={"invalid_suggestions": invalid_suggestions[:5], "fallback_mode": fallback_mode},
+                )
+            )
+        llm_result = _rule_fallback()
+        llm_result["llm_fallback_used"] = True
+        suggestions, _ = _normalize_llm_suggestions(llm_result)
     if not suggestions:
+        if not allow_rule_fallback:
+            return error_result(
+                build_error(
+                    "LLMGenerationError",
+                    "LLM optimization returned no usable suggestions in strict mode.",
+                    recoverable=True,
+                    source="suggestion.suggest_optimization",
+                    suggested_action="Improve the optimizer prompt/model response or explicitly switch to demo fallback mode.",
+                    details={"fallback_mode": fallback_mode},
+                )
+            )
         suggestions = build_suggestions(report, rag_context, objective)
     markdown = render_suggestions_markdown(report, rag_context, objective, suggestions)
     artifact_manager = context.get("artifact_manager")

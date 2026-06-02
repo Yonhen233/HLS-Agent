@@ -77,11 +77,22 @@ class PermissionGate:
         return self._decision("deny", f"Command {command[0]} is not allow-listed.")
 
     def check_tool(self, tool_name: str, args: dict[str, Any]) -> dict[str, str]:
-        for key in ("path", "report_path", "log_path", "config_path", "output_dir", "work_dir", "hls_project_dir"):
+        for key in (
+            "path",
+            "report_path",
+            "log_path",
+            "config_path",
+            "output_dir",
+            "work_dir",
+            "hls_project_dir",
+            "candidate_dir",
+            "testbench_path",
+            "report_dir",
+        ):
             value = args.get(key)
             if not value:
                 continue
-            decision = self.check_write_path(value) if key in {"output_dir", "work_dir"} else self.check_read_path(value)
+            decision = self.check_write_path(value) if key in {"output_dir", "work_dir", "report_dir"} else self.check_read_path(value)
             if decision["decision"] != "allow":
                 return decision
         command = args.get("command")

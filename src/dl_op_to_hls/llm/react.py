@@ -40,6 +40,13 @@ class LLMReActDecider:
             if not action.get("tool_name") and allowed_tools:
                 action["tool_name"] = allowed_tools[0]
             result["action"] = action
+        if result.get("decision") == "delegate_to_specialist":
+            action = result.get("action")
+            if not isinstance(action, dict):
+                action = {}
+            if not action.get("specialist_name") and todo.get("assigned_specialist"):
+                action["specialist_name"] = todo["assigned_specialist"]
+            result["action"] = action
         emit_llm_event(
             client.context,
             "LLMReActDecision",

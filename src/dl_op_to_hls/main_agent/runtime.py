@@ -184,6 +184,7 @@ class PlanExecuteReactRuntime:
                 "todo_id": todo.id,
                 "specialist": specialist.name,
                 "max_context_tokens": envelope.max_context_tokens,
+                **(envelope.constraints.get("token_budget", {})),
             },
         )
         hooks.emit("SpecialistStarted", {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name})
@@ -231,10 +232,10 @@ class PlanExecuteReactRuntime:
             {
                 "run_id": state.run_id,
                 "todo_id": todo.id,
-                "specialist": specialist.name,
-                **result.context_usage,
-            },
-        )
+                    "specialist": specialist.name,
+                    **result.context_usage,
+                },
+            )
         state = self.executor.merge_specialist_result(state, todo, result)
         hooks.emit(
             "SpecialistResultMerged",
@@ -379,15 +380,9 @@ class PlanExecuteReactRuntime:
                 self._add_dependency_to_title(state, "Run Vivado HLS synthesis", fallback_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             else:
-                unsupported_todo = self.todo_manager.append_item(
-                    title="Generate unsupported report",
-                    description="Write actionable unsupported report.",
-                    priority=graph_todo.priority + 1,
-                    assigned_tool="report.write_unsupported",
-                    dependencies=[graph_todo.id],
-                    inputs={"reason": "hls4ml unsupported after inspection"},
-                )
-                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                self._add_dependency_to_title(state, "Generate hls4ml config", graph_todo.id)
+                self._add_dependency_to_title(state, "Convert with hls4ml", graph_todo.id)
+                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", graph_todo.id)
                 state.todos = self.todo_manager.todo_list.items
         elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "partially_supported":
             graph_todo = self.todo_manager.append_item(
@@ -458,6 +453,46 @@ class PlanExecuteReactRuntime:
             )
             self._add_dependency_to_title(state, "Run Vivado HLS synthesis", convert_todo.id)
             state.todos = self.todo_manager.todo_list.items
+        elif todo.title == "Try graph rewrite":
+            rewrite_result = observation.get("observation", {}) or {}
+            if rewrite_result.get("status") == "success" and rewrite_result.get("implemented") and rewrite_result.get("rewritten_model_path"):
+                state.task["original_model_path"] = state.task.get("original_model_path") or state.task.get("model_path")
+                state.task["model_path"] = rewrite_result["rewritten_model_path"]
+                state.artifacts["rewritten_model"] = rewrite_result["rewritten_model_path"]
+                retry_todo = self.todo_manager.append_item(
+                    title="Check hls4ml support",
+                    description="Re-check hls4ml support after graph rewrite.",
+                    priority=todo.priority + 1,
+                    assigned_tool="hls4ml.check_support",
+                    dependencies=[todo.id],
+                    inputs={"task": state.task},
+                )
+                self._add_dependency_to_title(state, "Generate hls4ml config", retry_todo.id)
+                self._add_dependency_to_title(state, "Convert with hls4ml", retry_todo.id)
+                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", retry_todo.id)
+                state.todos = self.todo_manager.todo_list.items
+            elif state.task["task_type"] == "model":
+                unsupported_todo = self.todo_manager.append_item(
+                    title="Generate unsupported report",
+                    description="Write actionable unsupported report after graph rewrite could not safely repair the model.",
+                    priority=todo.priority + 1,
+                    assigned_tool="report.write_unsupported",
+                    dependencies=[todo.id],
+                    inputs={
+                        "reason": rewrite_result.get("recommendation")
+                        or "hls4ml unsupported and no safe automatic graph rewrite was applied."
+                    },
+                )
+                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                for item in self.todo_manager.todo_list.items:
+                    if item.title in {"Generate hls4ml config", "Convert with hls4ml", "Run Vivado HLS synthesis", "Parse synthesis report"}:
+                        if item.status in {"pending", "blocked"}:
+                            self.todo_manager.mark_cancelled(item.id, "No safe graph rewrite was available.")
+                state.selected_path = "unsupported_path"
+                state.status = "partial_success"
+                if state.report is None:
+                    state.report = empty_report("missing")
+                state.todos = self.todo_manager.todo_list.items
         elif todo.title in {"Generate hls4ml config", "Convert with hls4ml"} and observation.get("error_type") in {
             "HLS4MLConversionError",
             "HLS4MLNotInstalledError",
@@ -470,22 +505,9 @@ class PlanExecuteReactRuntime:
                 dependencies=[todo.id],
                 inputs={"task": state.task},
             )
-            unsupported_todo = self.todo_manager.append_item(
-                title="Generate unsupported report",
-                description="Write actionable unsupported report after hls4ml conversion/config failure.",
-                priority=graph_todo.priority + 1,
-                assigned_tool="report.write_unsupported",
-                dependencies=[graph_todo.id],
-                inputs={
-                    "reason": (
-                        observation.get("observation", {})
-                        .get("errors", [{}])[0]
-                        .get("message")
-                        or "hls4ml conversion/config generation failed for this model."
-                    )
-                },
-            )
-            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            self._add_dependency_to_title(state, "Generate hls4ml config", graph_todo.id)
+            self._add_dependency_to_title(state, "Convert with hls4ml", graph_todo.id)
+            self._add_dependency_to_title(state, "Run Vivado HLS synthesis", graph_todo.id)
             for item in self.todo_manager.todo_list.items:
                 if item.id == todo.id:
                     continue
@@ -497,10 +519,8 @@ class PlanExecuteReactRuntime:
                 }:
                     self.todo_manager.mark_cancelled(
                         item.id,
-                        "hls4ml conversion path failed; switching to boundary/unsupported report path.",
+                        "hls4ml conversion path failed; waiting for graph rewrite recovery.",
                     )
-            state.selected_path = "unsupported_path"
-            state.status = "partial_success"
             if state.report is None:
                 state.report = empty_report("missing")
             state.todos = self.todo_manager.todo_list.items
@@ -696,6 +716,10 @@ class PlanExecuteReactRuntime:
 
         if todo.title == "Try graph rewrite":
             result = self._call_tool(state, "graph_rewrite.rewrite", {"task": state.task})
+            if result.get("status") == "success" and result.get("implemented") and result.get("rewritten_model_path"):
+                state.task["original_model_path"] = state.task.get("original_model_path") or state.task.get("model_path")
+                state.task["model_path"] = result["rewritten_model_path"]
+                state.artifacts["rewritten_model"] = result["rewritten_model_path"]
             self.todo_manager.mark_completed(todo.id, result)
             return {"status": "completed", "action": {"tool": "graph_rewrite.rewrite"}, "observation": result}
 

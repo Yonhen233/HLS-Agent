@@ -58,13 +58,28 @@ def test_verify_candidate_mock_success(tmp_path):
     manager = ArtifactManager("r1", run_dir, gate)
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
-    result = verify_candidate({"candidate_dir": str(candidate_dir), "report_dir": str(run_dir / "reports")}, {"artifact_manager": manager})
+    result = verify_candidate({"candidate_dir": str(candidate_dir), "report_dir": str(run_dir / "reports"), "mode": "mock"}, {"artifact_manager": manager})
     assert result["status"] == "verified"
+    assert result["mode"] == "mock"
 
 
 def test_verify_candidate_mock_failure(tmp_path):
     result = verify_candidate({"candidate_dir": str(tmp_path / "candidate"), "report_dir": str(tmp_path / "reports"), "force_fail": True}, {})
     assert result["status"] == "failed"
+
+
+def test_verify_candidate_real_mode_requires_testbench(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    candidate_dir = tmp_path / "candidate"
+    candidate_dir.mkdir()
+    (candidate_dir / "candidate.cpp").write_text("void candidate(float x[1], float y[1]) { y[0] = x[0]; }\n", encoding="utf-8")
+    result = verify_candidate(
+        {"candidate_dir": str(candidate_dir), "report_dir": str(tmp_path / "runs" / "r1" / "reports"), "mode": "real"},
+        {},
+    )
+    assert result["status"] == "failed"
+    assert result["error"]["error_type"] == "VerificationFailedError"
+    assert "testbench" in result["error"]["message"]
 
 
 def test_unsupported_report_generated(temp_workspace):

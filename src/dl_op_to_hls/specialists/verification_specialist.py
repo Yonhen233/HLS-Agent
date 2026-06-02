@@ -10,7 +10,7 @@ from .result import SpecialistResult
 
 class VerificationSpecialist(BaseSpecialist):
     name = "VerificationSpecialist"
-    description = "Verifies generated HLS candidates with mock csim/csynth-compatible tooling."
+    description = "Verifies generated HLS candidates through explicit mock or real Vivado-backed verification modes."
     allowed_tools = [
         "fallback.generate_testbench",
         "verify.generate_testbench",
@@ -62,7 +62,7 @@ class VerificationSpecialist(BaseSpecialist):
             specialist_name=self.name,
             todo_id=envelope.todo_id,
             status=status,
-            summary="Candidate passed csim and synthesis mock verification." if status == "success" else "Candidate verification failed.",
+            summary="Candidate passed configured verification." if status == "success" else "Candidate verification failed.",
             observations=[*observations, {"tool": "verify_candidate.run", "result": result}],
             metrics=metrics,
             errors=errors,

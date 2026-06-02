@@ -469,6 +469,33 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             title = new_todo.get("title")
             if not title:
                 continue
+            validation = self._validate_reflection_todo(new_todo)
+            if validation["status"] != "valid":
+                emit_llm_event(
+                    self.context,
+                    "LLMReflectionTodoRejected",
+                    {
+                        "run_id": state.run_id,
+                        "todo_id": todo.id,
+                        "title": title,
+                        "errors": validation["errors"],
+                    },
+                )
+                state.errors.append(
+                    build_error(
+                        "PermissionDeniedError",
+                        "LLM reflection proposed an invalid todo: " + "; ".join(validation["errors"]),
+                        recoverable=True,
+                        source="llm_runtime.reflect",
+                        suggested_action="Keep planner/reflection prompts aligned with ToolRegistry and Specialist allowlists.",
+                        details={
+                            "title": title,
+                            "assigned_tool": new_todo.get("assigned_tool"),
+                            "assigned_specialist": new_todo.get("assigned_specialist"),
+                        },
+                    ).to_dict()
+                )
+                continue
             self.todo_manager.append_item(
                 title=title,
                 description=new_todo.get("description", title),
@@ -481,3 +508,30 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         state.memory_candidates.extend(reflection.get("memory_candidates", []))
         state.todos = self.todo_manager.todo_list.items
         return super().reflect(state, todo, observation)
+
+    def _validate_reflection_todo(self, todo_spec: dict[str, Any]) -> dict[str, Any]:
+        errors: list[str] = []
+        tool_name = todo_spec.get("assigned_tool")
+        specialist_name = todo_spec.get("assigned_specialist")
+        tools = {spec.name for spec in self.agent.registry.list_tools()}
+        specialist_specs = {item["name"]: item for item in self.specialist_router.list_specialists()}
+        if tool_name and tool_name not in tools:
+            errors.append(f"Unknown tool: {tool_name}")
+        if specialist_name and specialist_name not in specialist_specs:
+            errors.append(f"Unknown specialist: {specialist_name}")
+
+        private_tool_owners: dict[str, list[str]] = {}
+        for name, spec in specialist_specs.items():
+            for allowed_tool in spec.get("allowed_tools", []):
+                private_tool_owners.setdefault(allowed_tool, []).append(name)
+        if tool_name in private_tool_owners and not specialist_name:
+            errors.append(
+                f"Specialist-private tool {tool_name} must be delegated to one of {private_tool_owners[tool_name]}."
+            )
+        if specialist_name and tool_name and specialist_name in specialist_specs:
+            allowed_tools = set(specialist_specs[specialist_name].get("allowed_tools", []))
+            if tool_name not in allowed_tools:
+                errors.append(
+                    f"Tool {tool_name} is outside allowed_tools for specialist {specialist_name}."
+                )
+        return {"status": "invalid" if errors else "valid", "errors": errors}
