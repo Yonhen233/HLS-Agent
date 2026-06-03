@@ -101,7 +101,16 @@ class LLMClient:
         )
         try:
             text = self.complete_text(system_prompt, user_prompt, temperature=temperature, force_json=True)
-            payload = self._parse_json_payload(text)
+            try:
+                payload = self._parse_json_payload(text)
+            except json.JSONDecodeError as parse_exc:
+                payload = self._repair_json_payload(
+                    original_text=text,
+                    parsed_payload={},
+                    schema=schema,
+                    validation_error=str(parse_exc),
+                    context_prompt=user_prompt,
+                )
             try:
                 payload = self._normalize_payload(payload, schema)
                 validate_required(payload, schema)
@@ -300,6 +309,7 @@ class LLMClient:
         parsed_payload: dict[str, Any],
         schema: dict[str, Any],
         validation_error: str,
+        context_prompt: str | None = None,
     ) -> dict[str, Any]:
         emit_llm_event(
             self.context,
@@ -315,6 +325,7 @@ class LLMClient:
             "validation_error": validation_error,
             "parsed_payload": parsed_payload,
             "raw_response_preview": self._redact_text(original_text)[:2000],
+            "context_prompt_preview": self._redact_text(context_prompt or "")[:2000],
             "repair_rules": [
                 "Preserve the original semantic intent.",
                 "Only add or rename fields required by the schema.",

@@ -28,6 +28,15 @@ def test_todo_dependency_blocked(tmp_path):
     assert manager.todo_list.items[1].status == "blocked"
 
 
+def test_todo_semantic_block_does_not_auto_unblock(tmp_path):
+    manager = _manager(tmp_path)
+    todo_list = manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
+    manager.mark_blocked("todo_001", "Model still has unsupported operators.")
+    ready = manager.get_next_ready_item(todo_list)
+    assert ready is None
+    assert manager.todo_list.items[0].status == "blocked"
+
+
 def test_todo_mark_started(tmp_path):
     manager = _manager(tmp_path)
     manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
@@ -68,4 +77,3 @@ def test_todo_saved_to_json(tmp_path):
     path = manager.save("r1")
     payload = json.loads(open(path, encoding="utf-8").read())
     assert payload["run_id"] == "r1"
-

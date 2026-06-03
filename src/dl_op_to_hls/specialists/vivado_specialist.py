@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..core.errors import build_error
 from ..schemas.report_schema import empty_report
 from .base import BaseSpecialist
 from .context import ContextEnvelope
@@ -39,6 +40,31 @@ class VivadoSpecialist(BaseSpecialist):
         errors: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         hls_project_dir = scoped.get("hls_project_dir")
+        if not hls_project_dir:
+            error = build_error(
+                "HLS4MLConversionError",
+                "Vivado synthesis requires an HLS project directory, but none is available.",
+                recoverable=True,
+                source="vivado.create_project",
+                suggested_action="Recover the hls4ml/fallback/candidate generation path before delegating to VivadoSpecialist.",
+                details={"todo_id": envelope.todo_id, "specialist": self.name},
+            ).to_dict()
+            result = SpecialistResult(
+                specialist_name=self.name,
+                todo_id=envelope.todo_id,
+                status="blocked",
+                summary=error["message"],
+                observations=observations,
+                errors=[error],
+                suggested_todos=[
+                    {
+                        "title": "Generate unsupported report",
+                        "assigned_tool": "report.write_unsupported",
+                        "assigned_specialist": None,
+                    }
+                ],
+            )
+            return self._finalize_result(envelope, result)
 
         run_dir = Path(self.runtime_context.get("run_dir", "."))
         work_dir = scoped.get("work_dir") or str(run_dir / "vivado_hls")

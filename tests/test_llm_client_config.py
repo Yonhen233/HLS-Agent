@@ -55,6 +55,22 @@ def test_llm_client_repairs_missing_react_decision():
     assert result["decision"] == "direct_tool_only_when_no_specialist"
 
 
+def test_llm_client_repairs_empty_json_response_with_context_prompt():
+    client = SequenceLLMClient(
+        [
+            "",
+            '{"reason_summary":"empty response repaired from context","decision":"direct_tool_only_when_no_specialist","action":{"tool_name":"graph_rewrite.rewrite","arguments":{}}}',
+        ]
+    )
+    result = client.complete_json(
+        "system",
+        '{"todo":{"assigned_tool":"graph_rewrite.rewrite"},"allowed_actions":["direct_tool_only_when_no_specialist"],"direct_tools":["graph_rewrite.rewrite"]}',
+        REACT_DECISION_SCHEMA,
+    )
+    assert result["decision"] == "direct_tool_only_when_no_specialist"
+    assert result["action"]["tool_name"] == "graph_rewrite.rewrite"
+
+
 def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_workspace):
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("llm_debug_test")

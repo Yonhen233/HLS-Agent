@@ -154,7 +154,8 @@ class TodoManager:
         if not self.todo_list:
             return
         for item in self.todo_list.items:
-            if item.status == "blocked" and self._deps_satisfied(item):
+            is_dependency_block = (item.error or {}).get("message") == "Dependencies are not completed yet."
+            if item.status == "blocked" and is_dependency_block and self._deps_satisfied(item):
                 item.status = "pending"
                 item.updated_at = _now()
 

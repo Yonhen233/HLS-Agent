@@ -20,7 +20,7 @@ SPECIALIST_REACT_ACTIONS = [
 
 @dataclass
 class SpecialistReActGuard:
-    def validate(self, decision: dict[str, Any], allowed_tools: list[str]) -> dict[str, Any]:
+    def validate(self, decision: dict[str, Any], allowed_tools: list[str], preferred_tool: str | None = None) -> dict[str, Any]:
         errors: list[str] = []
         decision_name = decision.get("decision")
         action = decision.get("action") or {}
@@ -30,6 +30,8 @@ class SpecialistReActGuard:
             tool_name = action.get("tool_name") or action.get("tool")
             if tool_name not in allowed_tools:
                 errors.append(f"Tool {tool_name} is outside specialist allowed_tools.")
+        if decision_name == "finish_with_result" and preferred_tool is not None:
+            errors.append(f"finish_with_result is not allowed while required tool {preferred_tool} still needs to be called.")
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
 
@@ -66,7 +68,8 @@ class SpecialistReActDecider:
         else:
             decision = self._deterministic_decision(preferred_tool, arguments, allowed_tools)
 
-        validation = self.guard.validate(decision, allowed_tools)
+        decision = self._enforce_preferred_tool_contract(decision, preferred_tool, arguments)
+        validation = self.guard.validate(decision, allowed_tools, preferred_tool=preferred_tool)
         if validation["status"] != "valid":
             raise AgentRuntimeError(
                 build_error(
@@ -77,6 +80,41 @@ class SpecialistReActDecider:
                     details={"decision": decision, "validation_errors": validation["errors"]},
                 )
             )
+        return decision
+
+    def _enforce_preferred_tool_contract(
+        self,
+        decision: dict[str, Any],
+        preferred_tool: str | None,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        if preferred_tool is None:
+            return decision
+        missing = sorted(key for key, value in arguments.items() if value is None)
+        if decision.get("decision") == "call_tool" and missing:
+            return {
+                "reason_summary": f"Required arguments are missing for {preferred_tool}: {', '.join(missing)}.",
+                "decision": "mark_blocked",
+                "action": {"missing_inputs": missing, "tool_name": preferred_tool},
+            }
+        if decision.get("decision") == "finish_with_result":
+            return {
+                "reason_summary": f"Specialist guard repaired invalid finish_with_result by calling required tool {preferred_tool}.",
+                "decision": "call_tool",
+                "action": {"tool_name": preferred_tool, "arguments": arguments},
+            }
+        if decision.get("decision") == "call_tool":
+            action = decision.get("action") or {}
+            tool_name = action.get("tool_name") or action.get("tool")
+            if tool_name != preferred_tool:
+                return {
+                    "reason_summary": f"Specialist guard repaired tool selection to required tool {preferred_tool}.",
+                    "decision": "call_tool",
+                    "action": {"tool_name": preferred_tool, "arguments": arguments},
+                }
+            repaired = dict(decision)
+            repaired["action"] = {"tool_name": preferred_tool, "arguments": arguments}
+            return repaired
         return decision
 
     def _deterministic_decision(

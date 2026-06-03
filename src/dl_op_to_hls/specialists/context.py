@@ -125,6 +125,11 @@ class ContextBuilder:
         target = task.get("target", {})
         if specialist_name == "HLS4MLSpecialist":
             hls4ml_cfg = task.get("hls4ml", {})
+            support = state.hls4ml_support
+            if support and support.get("model_path") and support.get("model_path") != task.get("model_path"):
+                support = None
+            if support and not support.get("model_path") and task.get("original_model_path"):
+                support = None
             return {
                 "task": task,
                 "assigned_tool": getattr(todo, "assigned_tool", None),
@@ -136,7 +141,7 @@ class ContextBuilder:
                 "precision": hls4ml_cfg.get("precision"),
                 "reuse_factor": hls4ml_cfg.get("reuse_factor"),
                 "strategy": hls4ml_cfg.get("strategy"),
-                "hls4ml_support": state.hls4ml_support,
+                "hls4ml_support": support,
                 "hls4ml_config_path": state.hls4ml_config_path,
                 "hls_project_dir": state.hls_project_dir,
                 "run_dir": str(self._run_dir_from_state(state)),

@@ -8,6 +8,44 @@ from dl_op_to_hls.main_agent.todo import TodoItem
 from dl_op_to_hls.specialists import ContextBuilder, SpecialistReActDecider, SpecialistReActGuard
 
 
+class _FinishClient:
+    context = {}
+
+    def is_enabled(self):
+        return True
+
+    def complete_json(self, **kwargs):
+        return {"reason_summary": "done without tool", "decision": "finish_with_result", "action": {}}
+
+
+class _WrongToolClient:
+    context = {}
+
+    def is_enabled(self):
+        return True
+
+    def complete_json(self, **kwargs):
+        return {
+            "reason_summary": "try a neighboring tool",
+            "decision": "call_tool",
+            "action": {"tool_name": "hls4ml.check_support", "arguments": {"task": {}}},
+        }
+
+
+class _BadArgsClient:
+    context = {}
+
+    def is_enabled(self):
+        return True
+
+    def complete_json(self, **kwargs):
+        return {
+            "reason_summary": "call required tool with incomplete args",
+            "decision": "call_tool",
+            "action": {"tool_name": "vivado.run_csynth", "arguments": {}},
+        }
+
+
 def _todo() -> TodoItem:
     return TodoItem(
         id="todo_001",
@@ -53,6 +91,16 @@ def test_specialist_react_guard_accepts_finish_with_result():
     assert result["status"] == "valid"
 
 
+def test_specialist_react_guard_rejects_finish_when_tool_required():
+    guard = SpecialistReActGuard()
+    result = guard.validate(
+        {"reason_summary": "done", "decision": "finish_with_result", "action": {}},
+        ["vivado.run_csynth"],
+        preferred_tool="vivado.run_csynth",
+    )
+    assert result["status"] == "invalid"
+
+
 def test_specialist_react_decider_blocks_missing_input():
     decision = SpecialistReActDecider().decide(
         envelope=_envelope(),
@@ -63,6 +111,47 @@ def test_specialist_react_decider_blocks_missing_input():
     )
     assert decision["decision"] == "mark_blocked"
     assert "work_dir" in decision["action"]["missing_inputs"]
+
+
+def test_specialist_react_decider_repairs_finish_when_tool_required():
+    decision = SpecialistReActDecider().decide(
+        envelope=_envelope(),
+        allowed_tools=["vivado.run_csynth"],
+        recent_observations=[],
+        preferred_tool="vivado.run_csynth",
+        arguments={"work_dir": "w", "tcl_path": "run_hls.tcl"},
+        client=_FinishClient(),
+    )
+    assert decision["decision"] == "call_tool"
+    assert decision["action"]["tool_name"] == "vivado.run_csynth"
+
+
+def test_specialist_react_decider_repairs_wrong_tool_when_tool_required():
+    decision = SpecialistReActDecider().decide(
+        envelope=_envelope(),
+        allowed_tools=["vivado.run_csynth", "hls4ml.check_support"],
+        recent_observations=[],
+        preferred_tool="vivado.run_csynth",
+        arguments={"work_dir": "w", "tcl_path": "run_hls.tcl"},
+        client=_WrongToolClient(),
+    )
+    assert decision["decision"] == "call_tool"
+    assert decision["action"]["tool_name"] == "vivado.run_csynth"
+    assert decision["action"]["arguments"] == {"work_dir": "w", "tcl_path": "run_hls.tcl"}
+
+
+def test_specialist_react_decider_preserves_canonical_arguments_when_tool_required():
+    decision = SpecialistReActDecider().decide(
+        envelope=_envelope(),
+        allowed_tools=["vivado.run_csynth"],
+        recent_observations=[],
+        preferred_tool="vivado.run_csynth",
+        arguments={"work_dir": "w", "tcl_path": "run_hls.tcl"},
+        client=_BadArgsClient(),
+    )
+    assert decision["decision"] == "call_tool"
+    assert decision["action"]["tool_name"] == "vivado.run_csynth"
+    assert decision["action"]["arguments"] == {"work_dir": "w", "tcl_path": "run_hls.tcl"}
 
 
 def test_specialist_react_decider_rejects_private_tool_escape():

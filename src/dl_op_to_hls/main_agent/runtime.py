@@ -269,7 +269,7 @@ class PlanExecuteReactRuntime:
                 {},
             )
             if support_observation:
-                state.hls4ml_support = support_observation
+                state.hls4ml_support = {**support_observation, "model_path": state.task.get("model_path")}
                 observation["hls4ml_status"] = support_observation.get("status")
             config_path = self._first_artifact_path(result, "hls4ml_config")
             if config_path:
@@ -359,16 +359,28 @@ class PlanExecuteReactRuntime:
 
     def reflect(self, state: AgentState, todo: TodoItem, observation: dict) -> AgentState:
         status = observation.get("status")
-        if todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "unsupported":
-            graph_todo = self.todo_manager.append_item(
-                title="Try graph rewrite",
-                description="Attempt simple graph rewrite rules for unsupported path.",
-                priority=todo.priority + 1,
-                assigned_tool="graph_rewrite.rewrite",
-                dependencies=[todo.id],
-                inputs={"task": state.task},
-            )
+        assigned_tool = todo.assigned_tool or ""
+        is_hls4ml_support = todo.title == "Check hls4ml support" or assigned_tool in {
+            "hls4ml.check_support",
+            "hls4ml.check_hls4ml_support",
+        }
+        is_hls4ml_config_or_convert = todo.title in {"Generate hls4ml config", "Convert with hls4ml"} or assigned_tool in {
+            "hls4ml.generate_config",
+            "hls4ml.generate_hls4ml_config",
+            "hls4ml.convert",
+            "hls4ml.convert_with_hls4ml",
+        }
+        is_graph_rewrite = todo.title == "Try graph rewrite" or assigned_tool == "graph_rewrite.rewrite"
+        if is_hls4ml_support and observation.get("hls4ml_status") == "unsupported":
             if state.task["task_type"] == "operator":
+                graph_todo = self.todo_manager.append_item(
+                    title="Try graph rewrite",
+                    description="Attempt simple graph rewrite rules for unsupported path.",
+                    priority=todo.priority + 1,
+                    assigned_tool="graph_rewrite.rewrite",
+                    dependencies=[todo.id],
+                    inputs={"task": state.task},
+                )
                 fallback_todo = self.todo_manager.append_item(
                     title="Generate fallback HLS template",
                     description="Generate fallback operator HLS template.",
@@ -380,11 +392,34 @@ class PlanExecuteReactRuntime:
                 self._add_dependency_to_title(state, "Run Vivado HLS synthesis", fallback_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             else:
-                self._add_dependency_to_title(state, "Generate hls4ml config", graph_todo.id)
-                self._add_dependency_to_title(state, "Convert with hls4ml", graph_todo.id)
-                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", graph_todo.id)
+                if state.task.get("original_model_path") or str(state.task.get("model_path", "")).endswith("_gemm_rewritten.onnx"):
+                    unsupported_todo = self.todo_manager.append_item(
+                        title="Generate unsupported report",
+                        description="Write actionable unsupported report after graph rewrite did not make the model hls4ml-compatible.",
+                        priority=todo.priority + 1,
+                        assigned_tool="report.write_unsupported",
+                        dependencies=[todo.id],
+                        inputs={"reason": "hls4ml still reports unsupported operators after graph rewrite."},
+                    )
+                    self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                    state.selected_path = "unsupported_path"
+                    state.status = "partial_success"
+                    if state.report is None:
+                        state.report = empty_report("missing")
+                else:
+                    graph_todo = self.todo_manager.append_item(
+                        title="Try graph rewrite",
+                        description="Attempt simple graph rewrite rules for unsupported hls4ml model path.",
+                        priority=todo.priority + 1,
+                        assigned_tool="graph_rewrite.rewrite",
+                        dependencies=[todo.id],
+                        inputs={"task": state.task},
+                    )
+                    self._add_dependency_to_tool(state, {"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"}, graph_todo.id)
+                    self._add_dependency_to_tool(state, {"hls4ml.convert", "hls4ml.convert_with_hls4ml"}, graph_todo.id)
+                    self._add_dependency_to_tool(state, {"vivado.create_project", "vivado.run_csynth"}, graph_todo.id)
                 state.todos = self.todo_manager.todo_list.items
-        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "partially_supported":
+        elif is_hls4ml_support and observation.get("hls4ml_status") == "partially_supported":
             graph_todo = self.todo_manager.append_item(
                 title="Try graph rewrite",
                 description="Attempt graph rewrite and folding rules for partial hls4ml support.",
@@ -408,7 +443,7 @@ class PlanExecuteReactRuntime:
             state.selected_path = "unsupported_path"
             state.status = "partial_success"
             state.todos = self.todo_manager.todo_list.items
-        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "not_recommended":
+        elif is_hls4ml_support and observation.get("hls4ml_status") == "not_recommended":
             recommendation = state.hls4ml_support.get("recommendation") if state.hls4ml_support else "Model is outside MVP scope."
             name = str(state.task.get("name", "")).lower()
             model_path = str(state.task.get("model_path", "")).lower()
@@ -434,26 +469,28 @@ class PlanExecuteReactRuntime:
             state.selected_path = "unsupported_path"
             state.status = "partial_success"
             state.todos = self.todo_manager.todo_list.items
-        elif todo.title == "Check hls4ml support" and observation.get("hls4ml_status") == "supported" and state.task["task_type"] == "model":
-            config_todo = self.todo_manager.append_item(
+        elif is_hls4ml_support and observation.get("hls4ml_status") == "supported" and state.task["task_type"] == "model":
+            config_todo = self._ensure_active_todo(
                 title="Generate hls4ml config",
                 description="Create hls4ml config for the supported model.",
                 priority=todo.priority + 1,
                 assigned_tool="hls4ml.generate_config",
                 dependencies=[todo.id],
                 inputs={"task": state.task},
+                tool_names={"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"},
             )
-            convert_todo = self.todo_manager.append_item(
+            convert_todo = self._ensure_active_todo(
                 title="Convert with hls4ml",
                 description="Convert model into an HLS project with hls4ml.",
                 priority=config_todo.priority + 1,
                 assigned_tool="hls4ml.convert",
                 dependencies=[config_todo.id],
                 inputs={"task": state.task},
+                tool_names={"hls4ml.convert", "hls4ml.convert_with_hls4ml"},
             )
-            self._add_dependency_to_title(state, "Run Vivado HLS synthesis", convert_todo.id)
+            self._add_dependency_to_tool(state, {"vivado.create_project", "vivado.run_csynth"}, convert_todo.id)
             state.todos = self.todo_manager.todo_list.items
-        elif todo.title == "Try graph rewrite":
+        elif is_graph_rewrite:
             rewrite_result = observation.get("observation", {}) or {}
             if rewrite_result.get("status") == "success" and rewrite_result.get("implemented") and rewrite_result.get("rewritten_model_path"):
                 state.task["original_model_path"] = state.task.get("original_model_path") or state.task.get("model_path")
@@ -467,9 +504,44 @@ class PlanExecuteReactRuntime:
                     dependencies=[todo.id],
                     inputs={"task": state.task},
                 )
-                self._add_dependency_to_title(state, "Generate hls4ml config", retry_todo.id)
-                self._add_dependency_to_title(state, "Convert with hls4ml", retry_todo.id)
-                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", retry_todo.id)
+                config_todo = self._ensure_active_todo(
+                    title="Generate hls4ml config",
+                    description="Create hls4ml config after graph rewrite.",
+                    priority=retry_todo.priority + 1,
+                    assigned_tool="hls4ml.generate_config",
+                    dependencies=[retry_todo.id],
+                    inputs={"task": state.task},
+                    tool_names={"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"},
+                )
+                convert_todo = self._ensure_active_todo(
+                    title="Convert with hls4ml",
+                    description="Convert rewritten model into an HLS project.",
+                    priority=config_todo.priority + 1,
+                    assigned_tool="hls4ml.convert",
+                    dependencies=[config_todo.id],
+                    inputs={"task": state.task},
+                    tool_names={"hls4ml.convert", "hls4ml.convert_with_hls4ml"},
+                )
+                vivado_todo = self._ensure_active_todo(
+                    title="Run Vivado HLS synthesis",
+                    description="Run synthesis on the recovered HLS project.",
+                    priority=convert_todo.priority + 1,
+                    assigned_tool="vivado.run_csynth",
+                    dependencies=[convert_todo.id],
+                    inputs={"task": state.task},
+                    tool_names={"vivado.create_project", "vivado.run_csynth"},
+                )
+                parse_todo = self._ensure_active_todo(
+                    title="Parse synthesis report",
+                    description="Parse synthesis report after recovered Vivado run.",
+                    priority=vivado_todo.priority + 1,
+                    assigned_tool="vivado.parse_report",
+                    dependencies=[vivado_todo.id],
+                    inputs={"task": state.task},
+                    tool_names={"vivado.parse_report", "vivado.parse_csynth_report"},
+                )
+                self._add_dependency_to_tool(state, {"suggestion.suggest_optimization", "suggestion.generate"}, parse_todo.id)
+                self._add_dependency_to_tool(state, {"memory.promote_to_long_term"}, parse_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             elif state.task["task_type"] == "model":
                 unsupported_todo = self.todo_manager.append_item(
@@ -493,34 +565,61 @@ class PlanExecuteReactRuntime:
                 if state.report is None:
                     state.report = empty_report("missing")
                 state.todos = self.todo_manager.todo_list.items
-        elif todo.title in {"Generate hls4ml config", "Convert with hls4ml"} and observation.get("error_type") in {
+        elif is_hls4ml_config_or_convert and observation.get("error_type") in {
             "HLS4MLConversionError",
             "HLS4MLNotInstalledError",
         }:
-            graph_todo = self.todo_manager.append_item(
-                title="Try graph rewrite",
-                description="Attempt graph rewrite rules for unsupported hls4ml model patterns.",
-                priority=todo.priority + 1,
-                assigned_tool="graph_rewrite.rewrite",
-                dependencies=[todo.id],
-                inputs={"task": state.task},
-            )
-            self._add_dependency_to_title(state, "Generate hls4ml config", graph_todo.id)
-            self._add_dependency_to_title(state, "Convert with hls4ml", graph_todo.id)
-            self._add_dependency_to_title(state, "Run Vivado HLS synthesis", graph_todo.id)
-            for item in self.todo_manager.todo_list.items:
-                if item.id == todo.id:
-                    continue
-                if item.status in {"pending", "blocked"} and item.title in {
-                    "Generate hls4ml config",
-                    "Convert with hls4ml",
-                    "Run Vivado HLS synthesis",
-                    "Parse synthesis report",
-                }:
-                    self.todo_manager.mark_cancelled(
-                        item.id,
-                        "hls4ml conversion path failed; waiting for graph rewrite recovery.",
-                    )
+            if state.task.get("original_model_path") or str(state.task.get("model_path", "")).endswith("_gemm_rewritten.onnx"):
+                unsupported_todo = self.todo_manager.append_item(
+                    title="Generate unsupported report",
+                    description="Write actionable unsupported report after recovered hls4ml path failed.",
+                    priority=todo.priority + 1,
+                    assigned_tool="report.write_unsupported",
+                    dependencies=[todo.id],
+                    inputs={
+                        "reason": (
+                            observation.get("observation", {})
+                            .get("errors", [{}])[0]
+                            .get("message")
+                            or "hls4ml config/conversion failed after graph rewrite."
+                        )
+                    },
+                )
+                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                for item in self.todo_manager.todo_list.items:
+                    if item.status in {"pending", "blocked"} and (item.assigned_tool or "").startswith("vivado."):
+                        self.todo_manager.mark_cancelled(item.id, "Recovered hls4ml path failed; switching to unsupported report.")
+                state.selected_path = "unsupported_path"
+                state.status = "partial_success"
+            else:
+                graph_todo = self.todo_manager.append_item(
+                    title="Try graph rewrite",
+                    description="Attempt graph rewrite rules for unsupported hls4ml model patterns.",
+                    priority=todo.priority + 1,
+                    assigned_tool="graph_rewrite.rewrite",
+                    dependencies=[todo.id],
+                    inputs={"task": state.task},
+                )
+                self._add_dependency_to_tool(state, {"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"}, graph_todo.id)
+                self._add_dependency_to_tool(state, {"hls4ml.convert", "hls4ml.convert_with_hls4ml"}, graph_todo.id)
+                self._add_dependency_to_tool(state, {"vivado.create_project", "vivado.run_csynth", "vivado.parse_report"}, graph_todo.id)
+                for item in self.todo_manager.todo_list.items:
+                    if item.id == todo.id:
+                        continue
+                    if item.status in {"pending", "blocked"} and item.assigned_tool in {
+                        "hls4ml.generate_config",
+                        "hls4ml.generate_hls4ml_config",
+                        "hls4ml.convert",
+                        "hls4ml.convert_with_hls4ml",
+                        "vivado.create_project",
+                        "vivado.run_csynth",
+                        "vivado.parse_report",
+                        "vivado.parse_csynth_report",
+                    }:
+                        self.todo_manager.mark_cancelled(
+                            item.id,
+                            "hls4ml conversion path failed; waiting for graph rewrite recovery.",
+                        )
             if state.report is None:
                 state.report = empty_report("missing")
             state.todos = self.todo_manager.todo_list.items
@@ -1037,6 +1136,37 @@ class PlanExecuteReactRuntime:
         state.short_term_memory = result.get("short_term", {}).get("entries", state.short_term_memory)
         if result.get("path"):
             state.artifacts["short_term_memory"] = result["path"]
+
+    def _ensure_active_todo(
+        self,
+        *,
+        title: str,
+        description: str,
+        priority: int,
+        assigned_tool: str,
+        dependencies: list[str],
+        inputs: dict[str, Any],
+        tool_names: set[str],
+    ) -> TodoItem:
+        for item in self.todo_manager.todo_list.items:
+            if item.assigned_tool in tool_names and item.status in {"pending", "blocked"}:
+                for dependency_id in dependencies:
+                    self.todo_manager.add_dependency(item.id, dependency_id)
+                return item
+        return self.todo_manager.append_item(
+            title=title,
+            description=description,
+            priority=priority,
+            assigned_tool=assigned_tool,
+            dependencies=dependencies,
+            inputs=inputs,
+        )
+
+    def _add_dependency_to_tool(self, state: AgentState, tool_names: set[str], dependency_id: str) -> None:
+        for item in self.todo_manager.todo_list.items:
+            if item.assigned_tool in tool_names and item.id != dependency_id and item.status in {"pending", "blocked"}:
+                self.todo_manager.add_dependency(item.id, dependency_id)
+        state.todos = self.todo_manager.todo_list.items
 
     def _add_dependency_to_title(self, state: AgentState, title: str, dependency_id: str) -> None:
         for item in self.todo_manager.todo_list.items:

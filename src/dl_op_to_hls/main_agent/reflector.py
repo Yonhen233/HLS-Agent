@@ -22,6 +22,16 @@ def update_status_from_todos(state) -> None:
         for item in state.todos
         if item.status == "skipped" and (item.title != "Promote memories" or (item.error or {}).get("message") != "Memory promotion is handled during runtime finalization.")
     ]
+    if (
+        not meaningful_skips
+        and not state.errors
+        and state.report
+        and state.report.get("status") == "success"
+        and state.selected_path in {"fallback_template_path", "hls4ml_path", "existing_hls_project_path", "llm_candidate_path"}
+        and statuses.issubset({"completed", "completed_with_warning", "skipped"})
+    ):
+        state.status = "success"
+        return
     if meaningful_skips or "completed_with_warning" in statuses or state.errors:
         state.status = "partial_success" if state.status != "failed" else state.status
         return

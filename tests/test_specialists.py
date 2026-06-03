@@ -53,6 +53,20 @@ def _dense_state(temp_workspace: Path) -> AgentState:
     return state
 
 
+class _BadHls4mlArgsClient:
+    context = {}
+
+    def is_enabled(self):
+        return True
+
+    def complete_json(self, **kwargs):
+        return {
+            "reason_summary": "call hls4ml support check with incomplete arguments",
+            "decision": "call_tool",
+            "action": {"tool_name": "hls4ml.check_support", "arguments": {}},
+        }
+
+
 def test_context_builder_scopes_hls4ml_context(temp_workspace):
     state = AgentState(
         run_id="r1",
@@ -63,6 +77,19 @@ def test_context_builder_scopes_hls4ml_context(temp_workspace):
     assert envelope.scoped_state["model_path"]
     assert "vivado_work_dir" not in envelope.scoped_state
     assert "full_trace" in envelope.constraints["exclude"]
+
+
+def test_context_builder_drops_stale_hls4ml_support_after_rewrite(temp_workspace):
+    state = AgentState(
+        run_id="r1",
+        task=json.loads((temp_workspace / "examples" / "mnist_mlp_hls4ml.json").read_text(encoding="utf-8")),
+        objective="latency",
+    )
+    state.hls4ml_support = {"status": "unsupported", "model_path": "models/generated/mnist_mlp.onnx"}
+    state.task["original_model_path"] = state.task["model_path"]
+    state.task["model_path"] = str(temp_workspace / "runs" / "r1" / "rewritten" / "mnist_mlp_gemm_rewritten.onnx")
+    envelope = ContextBuilder().build_for_specialist(state, _todo("Generate hls4ml config", "hls4ml.generate_config"), "HLS4MLSpecialist")
+    assert envelope.scoped_state["hls4ml_support"] is None
 
 
 def test_context_builder_scopes_vivado_context(temp_workspace):
@@ -167,6 +194,24 @@ def test_hls4ml_specialist_mock_success(temp_workspace):
     assert any(item.get("tool") == "hls4ml.check_support" for item in result.observations)
 
 
+def test_hls4ml_specialist_preserves_canonical_args_from_context(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    context["specialist_llm_decider_enabled"] = "1"
+    context["llm_client"] = _BadHls4mlArgsClient()
+    specialist = HLS4MLSpecialist(context)
+    state = AgentState(
+        run_id="r1",
+        task=json.loads((temp_workspace / "examples" / "dense_operator.json").read_text(encoding="utf-8")),
+        objective="latency",
+    )
+    envelope = ContextBuilder().build_for_specialist(state, _todo("Check hls4ml support", "hls4ml.check_support"), "HLS4MLSpecialist")
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+    assert result.status == "partial_success"
+    decision = next(item for item in result.observations if item.get("type") == "local_react")["decision"]
+    assert "task" in decision["action"]["arguments"]
+
+
 def test_vivado_specialist_mock_success(temp_workspace):
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
@@ -186,6 +231,19 @@ def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkey
     result = specialist.handle(envelope, agent.registry, agent.permission_gate)
     assert result.status == "partial_success"
     assert result.errors[0]["error_type"] == "VivadoNotFoundError"
+
+
+def test_vivado_specialist_blocks_without_hls_project_dir(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    state = _dense_state(temp_workspace)
+    state.hls_project_dir = None
+    specialist = VivadoSpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(state, _todo("Create Vivado HLS project", "vivado.create_project"), "VivadoSpecialist")
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+    assert result.status == "blocked"
+    assert result.errors[0]["error_type"] == "HLS4MLConversionError"
+    assert "HLS project directory" in result.summary
 
 
 def test_verification_specialist_mock_success(temp_workspace):

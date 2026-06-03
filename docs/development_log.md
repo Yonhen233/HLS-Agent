@@ -6,6 +6,104 @@
 
 ---
 
+## 2026-06-03 10:32:37 +08:00：Specialist 本地 ReAct 工具契约修复、真实 Vivado 状态语义修复
+### 1. 本次测试做了什么
+执行与验证：
+- 继续在独立目录 `D:\hls_agent\standalone_work\dl-op-to-hls-agent` 开发，未修改旧 `D:\hls_agent` 脚本。
+- 针对上一轮真实 DeepSeek + Vivado 暴露的 Demo2 / Demo3 失败继续排查：
+  - Demo2 rewritten model 重试时，`HLS4MLSpecialist` 的 local ReAct 输出空/坏 arguments，覆盖了 ContextEnvelope 生成的 canonical `task` 参数，触发 `KeyError: 'task'`。
+  - Demo3 inspect todo 中，local ReAct 选择了不匹配当前 todo 的动作，触发 `Specialist ReAct decision violated the local action/tool schema`。
+- 运行聚焦测试：
+  - `python -m pytest tests/test_specialist_react.py tests/test_specialists.py -q`
+  - `python -m pytest tests/test_runtime_hybrid.py tests/test_specialist_react.py tests/test_specialists.py -q`
+- 运行全量测试：
+  - `python -m pytest -q`
+- 运行非 LLM 的真实 hls4ml + Vivado Demo0-Demo6：
+  - `DL_OP_TO_HLS_MOCK_HLS4ML=0`
+  - `DL_OP_TO_HLS_MOCK_VIVADO=0`
+  - `DL_OP_TO_HLS_VIVADO_HLS_PATH=D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`
+  - `DL_OP_TO_HLS_RUNTIME_MODE=strict`
+  - `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=demo`
+- 尝试运行真实 DeepSeek + Vivado Demo0-Demo6：
+  - DeepSeek OpenAI-compatible。
+  - strict runtime。
+  - specialist LLM decider enabled。
+
+### 2. 当前测试结果
+已通过：
+- 聚焦测试通过：
+  - `tests/test_specialist_react.py`
+  - `tests/test_specialists.py`
+  - `tests/test_runtime_hybrid.py`
+- 全量测试通过：
+  - `python -m pytest -q`
+- 非 LLM 真实 hls4ml + Vivado Demo0-Demo6 跑完：
+  - Demo0：`dense_16x32_af6abf3c_03`，真实 Vivado csynth/report 成功，但修复前状态为 `partial_success`。
+  - Demo1：`matmul_16x16_resource_9ac8e2e8_06`，真实 Vivado csynth/report 成功，但修复前状态为 `partial_success`。
+  - Demo2：`mnist_mlp_demo_4ff92a59_06`，`partial_success`，`unsupported_path`，真实 hls4ml 仍报告 `HLS4MLConversionError`。
+  - Demo3：`mnist_tiny_cnn_188af60c_05`，`partial_success`，`unsupported_path`，真实 hls4ml 仍报告 `HLS4MLConversionError`。
+  - Demo4：`mnist_qkeras_cnn_a7e2cdc5_03`，`partial_success`，`unsupported_path`。
+  - Demo5：`tiny_residual_block_ad48a995_03`，`partial_success`，`unsupported_path`。
+  - Demo6：`resnet18_boundary_demo_cd40d797_05`，`partial_success`，`unsupported_path`。
+- 状态语义修复后，重新运行真实 Vivado Demo0/Demo1：
+  - Demo0：`dense_16x32_af6abf3c_04`，`success`，`fallback_template_path`，`report.status=success`。
+  - Demo1：`matmul_16x16_resource_9ac8e2e8_07`，`success`，`fallback_template_path`，`report.status=success`。
+
+真实 DeepSeek + Vivado Demo0-Demo6：
+- 本轮未能启动。
+- 原因：Codex 当前会话的外部执行审批器因 usage limit 拒绝联网/API执行请求：
+  - `You've hit your usage limit...`
+- 处理：没有绕过审批器，也没有用 mock 冒充真实 DeepSeek 结果。
+- 后续：额度恢复后，需要用相同 strict 配置重新运行 Demo0-Demo6，重点观察 Demo2/Demo3 是否从 `InvalidTaskError` 转为正常 graph rewrite / unsupported 边界处理。
+
+### 3. 发现的问题与根因
+1) Specialist local ReAct 仍能破坏工具输入契约
+- 现象：Demo2 rewritten model 重试时，`hls4ml.check_support` 被调用时缺少 `task`，报 `KeyError: 'task'`。
+- 根因：`HLS4MLSpecialist.handle()` 先从 ContextEnvelope 构造了 canonical args，但随后允许 LLM action 的 `arguments` 整体覆盖 canonical args。
+- 风险：即使 Main Agent 正确隔离了 ContextEnvelope，sub-agent 内部仍可能把结构化 tool input 退化成自由拼参。
+
+2) Specialist local ReAct 仍能偏离当前 Todo 的 assigned_tool
+- 现象：Demo3 的 inspect todo 被 local ReAct 判为 schema violation。
+- 根因：guard 只检查工具是否在 specialist allowed_tools 内，没有强制“当前 todo 的 preferred_tool 必须被执行”。
+- 风险：HLS4MLSpecialist 可见多个 hls4ml tool，LLM 可能在 inspect/config/check/convert 间跳转，导致 TodoList 的依赖语义被破坏。
+
+3) 成功的 fallback 路径被早期 hls4ml warning 错误降级为 partial_success
+- 现象：Demo0/Demo1 真实 Vivado csynth 和 report parse 都成功，但最终状态仍是 `partial_success`。
+- 根因：`update_status_from_todos()` 看到任意 `completed_with_warning` 就把 run 置为 partial，没有区分“主路径不适合但替代路径成功”和“最终目标未完成”。
+- 风险：演示和评估中会低估 fallback_template 路径的真实完成度。
+
+### 4. 已修复内容（含修复方式）
+- 收紧 Specialist local ReAct 契约：
+  - 如果 Todo 有 `assigned_tool` / preferred tool，local ReAct 可以决定 `call_tool`、`mark_blocked`、`mark_failed`。
+  - 但不允许改选其它 tool。
+  - 不允许用 LLM action arguments 覆盖 ContextEnvelope 生成的 canonical arguments。
+  - 如果 LLM 返回 `finish_with_result`，guard 会修复为调用 required tool。
+  - 如果 LLM 返回 wrong tool，guard 会修复为 preferred tool。
+  - 如果 canonical args 缺失，则标记 `mark_blocked`，不强行调用工具。
+- 增加回归测试：
+  - local ReAct 返回 wrong tool 时自动修复到 preferred tool。
+  - local ReAct 返回 bad args 时保留 canonical arguments。
+  - HLS4MLSpecialist 在 LLM 返回空 arguments 时仍使用 ContextEnvelope 中的 canonical `task`。
+- 修复 fallback 路径状态聚合：
+  - 当 `state.report.status == success` 且 selected path 为 `fallback_template_path` / `hls4ml_path` / `existing_hls_project_path` / `llm_candidate_path`，并且没有真实 error / blocked / meaningful skipped 时，最终 run 状态为 `success`。
+  - 早期 hls4ml support warning 仍保留在 Todo Execution Summary 中，但不再污染最终 run status。
+- 增加回归测试：
+  - `test_runtime_fallback_success_not_downgraded_by_hls4ml_warning`。
+
+### 5. 未修复 / 待继续验证
+- 真实 DeepSeek + Vivado Demo0-Demo6 尚未完成本轮复测。
+  - 原因不是项目代码，而是当前 Codex 会话 usage limit 阻止联网/API执行。
+  - 需要额度恢复后继续跑。
+- Demo2/Demo3 的真实 hls4ml 模型支持边界仍存在：
+  - Demo2 的 ONNX `Gemm` rewrite 已有实现，但仍需真实 DeepSeek strict loop 复测确认完整链路。
+  - Demo3 的 `Shape` / reshape / flatten 静态消除仍是后续重点。
+- MatMul Demo1 真实 Vivado report 显示 timing 未满足：
+  - `target_ns=8.0`
+  - `estimated_ns=9.634`
+  - synthesis 本身成功，因此 run status 为 success；优化建议应继续提示 timing/resource trade-off。
+
+---
+
 ## 2026-06-02 15:32:42 +08:00：Agent 框架契约收紧、真实 Graph Rewrite、上下文预算与沙箱补强
 ### 1. 本次测试做了什么
 执行与验证：
