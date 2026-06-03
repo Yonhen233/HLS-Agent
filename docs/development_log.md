@@ -6,6 +6,77 @@
 
 ---
 
+## 2026-06-04 06:33:44 +08:00：更换 Paratera DeepSeek 配置后的真实链路复核
+### 1. 本次测试做了什么
+执行与验证：
+- 继续在独立目录 `D:\hls_agent\standalone_work\dl-op-to-hls-agent` 开发，未修改旧 `D:\hls_agent` 脚本。
+- 先运行全量单元测试：
+  - `python -m pytest -q`
+- 尝试使用新的 OpenAI-compatible LLM 配置运行真实 LLM + hls4ml + Vivado Demo0-Demo6：
+  - Base URL：Paratera LLM endpoint。
+  - Model：`DeepSeekv4pro`。
+  - 真实 hls4ml：`DL_OP_TO_HLS_MOCK_HLS4ML=0`。
+  - 真实 Vivado HLS：`DL_OP_TO_HLS_MOCK_VIVADO=0`。
+  - Vivado HLS 路径：`D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。
+  - strict runtime。
+  - specialist LLM decider enabled。
+- 因真实 LLM 调用被安全审批器阻止，转而运行不出网的真实 hls4ml + Vivado Demo0-Demo6：
+  - `DL_OP_TO_HLS_RUNTIME_MODE=strict`
+  - `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=demo`
+
+### 2. 当前测试结果
+已通过：
+- 全量测试通过：
+  - `python -m pytest -q`
+- 非 LLM 的真实 hls4ml + Vivado Demo0-Demo6 跑完：
+  - Demo0：`dense_16x32_af6abf3c_05`，`success`，`fallback_template_path`，`report.status=success`。
+  - Demo1：`matmul_16x16_resource_9ac8e2e8_08`，`success`，`fallback_template_path`，`report.status=success`。
+  - Demo2：`mnist_mlp_demo_4ff92a59_07`，`partial_success`，`unsupported_path`，`report.status=missing`，`HLS4MLConversionError`。
+  - Demo3：`mnist_tiny_cnn_188af60c_06`，`partial_success`，`unsupported_path`，`report.status=missing`，`HLS4MLConversionError`。
+  - Demo4：`mnist_qkeras_cnn_a7e2cdc5_04`，`partial_success`，`unsupported_path`，`report.status=missing`。
+  - Demo5：`tiny_residual_block_ad48a995_04`，`partial_success`，`unsupported_path`，`report.status=missing`。
+  - Demo6：`resnet18_boundary_demo_cd40d797_06`，`partial_success`，`unsupported_path`，`report.status=missing`。
+
+真实 LLM + Vivado Demo0-Demo6：
+- 本轮未运行成功。
+- 原因：Codex 外部执行审批器拒绝向新的外部 LLM endpoint 发送本地 demo / 工程上下文。
+- 处理：没有绕过审批器，也没有用 mock 冒充真实 LLM 结果。
+- 后续：需要用户在了解“会向外部 LLM endpoint 发送本地任务与工程上下文”的风险后，明确批准继续执行。
+
+### 3. 发现的问题与根因
+1) 真实外部 LLM 调用涉及工作区上下文外发
+- 现象：真实 LLM Demo0-Demo6 命令被审批器拒绝。
+- 根因：`run-llm` 会把任务摘要、specialist context、RAG/memory 摘要等发送到 OpenAI-compatible endpoint；这属于本地项目上下文外发。
+- 风险：即使用户提供了 API key，仍需要明确确认对外发送上下文的安全边界。
+
+2) 本地真实 Vivado 路径稳定
+- 现象：Demo0/Demo1 均完成真实 Vivado csynth 和 report parse。
+- 根因：fallback template 生成的 HLS C++/TCL 能被 Vivado HLS 2018.3 执行。
+- 结论：本地 EDA toolchain 不再是当前阻塞点。
+
+3) 模型类 Demo 仍处于明确边界处理
+- 现象：Demo2/Demo3 真实 hls4ml 仍进入 unsupported path，并记录 `HLS4MLConversionError`。
+- 根因：当前 hls4ml 真实转换链路仍不能完整覆盖这些 ONNX 图中的边界算子。
+- 结论：这是当前模型支持范围问题，不应通过 mock 或静默 fallback 伪装成 hls4ml 主路径成功。
+
+### 4. 已修复内容（含修复方式）
+- 本轮没有修改代码。
+- 本轮确认了上一轮状态语义修复仍然有效：
+  - Demo0/Demo1 真实 Vivado 成功后最终状态为 `success`。
+  - hls4ml support warning 不再错误污染 fallback_template 路径最终状态。
+- 本轮新增开发日志记录，明确区分：
+  - 已完成的本地真实 hls4ml + Vivado 验证。
+  - 未完成的外部 LLM 真实验证。
+
+### 5. 未修复 / 待继续验证
+- 真实 LLM + Vivado Demo0-Demo6 尚未完成。
+  - 需要用户明确批准向 Paratera LLM endpoint 发送本地任务/工程上下文后继续执行。
+- Demo2/Demo3 的模型图 rewrite / 静态消除能力仍需继续增强：
+  - Demo2：继续验证 `Gemm -> MatMul + Add` 后是否能进入 hls4ml convert。
+  - Demo3：继续实现或强化 `Shape` / flatten / reshape 静态消除。
+
+---
+
 ## 2026-06-03 10:32:37 +08:00：Specialist 本地 ReAct 工具契约修复、真实 Vivado 状态语义修复
 ### 1. 本次测试做了什么
 执行与验证：
