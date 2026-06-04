@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 
+from .benchmarks.agent_quality_benchmark import main as benchmark_main
 from .main_agent.agent import MainAgent
 from .main_agent.workflow import run_task, run_task_llm
 
@@ -24,6 +25,24 @@ def build_parser() -> argparse.ArgumentParser:
     run_nl_parser.add_argument("prompt")
 
     subparsers.add_parser("llm-status")
+
+    benchmark_parser = subparsers.add_parser("benchmark")
+    benchmark_parser.add_argument("--runs-root", default="runs")
+    benchmark_parser.add_argument("--runs", nargs="*", default=[])
+    benchmark_parser.add_argument("--latest", type=int, default=0)
+    benchmark_parser.add_argument("--compare", nargs=2, metavar=("BEFORE", "AFTER"))
+    benchmark_parser.add_argument("--rag-eval-file")
+    benchmark_parser.add_argument("--rag-top-k", type=int, default=5)
+    benchmark_parser.add_argument("--output", default="runs/benchmarks/agent_quality_benchmark.json")
+    benchmark_parser.add_argument("--run-suite", action="store_true")
+    benchmark_parser.add_argument("--runner", choices=["deterministic", "llm"], default="deterministic")
+    benchmark_parser.add_argument("--mock-tools", action="store_true")
+    benchmark_parser.add_argument("--repeat", type=int, default=1)
+    benchmark_parser.add_argument(
+        "--tasks",
+        nargs="*",
+        default=["examples/dense_operator.json", "examples/matmul_resource.json", "examples/resnet18_boundary.json"],
+    )
 
     llm_trace_parser = subparsers.add_parser("llm-trace")
     llm_trace_parser.add_argument("run_id_or_path")
@@ -141,6 +160,31 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+    if args.command == "benchmark":
+        forwarded = [
+            "--runs-root",
+            args.runs_root,
+            "--output",
+            args.output,
+            "--rag-top-k",
+            str(args.rag_top_k),
+        ]
+        if args.runs:
+            forwarded.extend(["--runs", *args.runs])
+        if args.latest:
+            forwarded.extend(["--latest", str(args.latest)])
+        if args.compare:
+            forwarded.extend(["--compare", *args.compare])
+        if args.rag_eval_file:
+            forwarded.extend(["--rag-eval-file", args.rag_eval_file])
+        if args.run_suite:
+            forwarded.append("--run-suite")
+        if args.mock_tools:
+            forwarded.append("--mock-tools")
+        forwarded.extend(["--runner", args.runner, "--repeat", str(args.repeat)])
+        if args.tasks:
+            forwarded.extend(["--tasks", *args.tasks])
+        return benchmark_main(forwarded)
     if args.command == "llm-trace":
         agent = _build_agent()
         candidate = Path(args.run_id_or_path)

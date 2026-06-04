@@ -239,6 +239,24 @@ python -m dl_op_to_hls.cli specialists-list
 python -m dl_op_to_hls.cli specialist-show VivadoSpecialist
 ```
 
+## Benchmark / Quantitative Evaluation
+
+The project includes an Agent-quality benchmark for measuring workflow and RAG improvements:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m dl_op_to_hls.cli benchmark `
+  --runs dense_16x32_af6abf3c_10 matmul_16x16_resource_9ac8e2e8_13 resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
+  --compare resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
+  --rag-eval-file benchmarks\rag_eval_labels.json `
+  --rag-top-k 5 `
+  --output runs\benchmarks\agent_quality_benchmark_demo.json
+```
+
+Metrics include runtime, LLM decision count, tool calls, specialist events, artifact completeness, RAG pollution rate, unsupported semantics pass rate, Vivado report metrics, Precision@K, Recall@K, Hit@K, MRR, nDCG@K, relevant-term coverage, and pollution@K.
+
+See `docs/benchmark_metrics.md` for metric definitions and interview-ready interpretation.
+
 ## 测试
 
 ```powershell

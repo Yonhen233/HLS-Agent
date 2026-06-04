@@ -1,0 +1,33 @@
+{
+  "description": "Default lightweight RAG relevance labels for DL-Operator-to-HLS-Agent benchmark.",
+  "cases": [
+    {
+      "query": "Dense high DSP reuse factor",
+      "top_k": 5,
+      "relevant_terms": ["dense", "dsp", "reuse"],
+      "required_terms": ["dense"],
+      "irrelevant_terms": ["resnet18", "qkeras"]
+    },
+    {
+      "query": "MatMul resource reuse factor DSP",
+      "top_k": 5,
+      "relevant_terms": ["matmul", "resource", "reuse", "dsp"],
+      "required_terms": ["matmul"],
+      "irrelevant_terms": ["resnet18", "qkeras"]
+    },
+    {
+      "query": "ResNet18 boundary unsupported report",
+      "top_k": 5,
+      "relevant_terms": ["resnet18", "boundary", "unsupported"],
+      "required_terms": ["resnet18", "boundary"],
+      "irrelevant_terms": ["matmul", "reuse_factor", "array partition"]
+    },
+    {
+      "query": "VivadoNotFoundError recoverable skipped synthesis",
+      "top_k": 5,
+      "relevant_terms": ["vivadonotfounderror", "recoverable", "skipped"],
+      "required_terms": ["vivadonotfounderror"],
+      "irrelevant_terms": ["qkeras", "resnet18"]
+    }
+  ]
+}

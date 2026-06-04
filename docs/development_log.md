@@ -6,6 +6,112 @@
 
 ---
 
+## 2026-06-04 16:57:41 +08:00：新增 Agent 质量 Benchmark 与 RAG 评估指标
+### 1. 本次测试做了什么
+新增可复现的 benchmark 工具，用于量化 Agent 工程贡献，而不是只用“demo 能跑”描述效果。
+
+新增命令：
+- `dl-op-to-hls benchmark`
+- 也可直接运行：`python -m dl_op_to_hls.benchmarks.agent_quality_benchmark`
+
+新增默认 RAG 标签：
+- `benchmarks/rag_eval_labels.json`
+
+新增说明文档：
+- `docs/benchmark_metrics.md`
+
+实际执行：
+```powershell
+$env:PYTHONPATH='src'
+python -m dl_op_to_hls.cli benchmark `
+  --runs dense_16x32_af6abf3c_10 matmul_16x16_resource_9ac8e2e8_13 resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
+  --compare resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
+  --rag-eval-file benchmarks\rag_eval_labels.json `
+  --rag-top-k 5 `
+  --output runs\benchmarks\agent_quality_benchmark_demo.json
+```
+
+### 2. 新增量化指标
+Agent / workflow 指标：
+- `runtime_s`
+- `llm_decision_count`
+- `tool_call_count`
+- `specialist_event_count`
+- `artifact_completeness.rate`
+- `rag_pollution_rate`
+- `unsupported_semantics_pass_rate`
+- `vivado_metric_runs`
+- `latency / DSP / LUT / FF / timing_met`
+
+RAG 指标：
+- `Precision@K`
+- `Recall@K`
+- `Hit@K`
+- `MRR`
+- `nDCG@K`
+- `relevant_term_coverage@K`
+- `pollution@K`
+
+说明：
+- 当标签包含 `relevant_source_ids` 时，计算标准 IR 指标。
+- 当只有 `relevant_terms / irrelevant_terms` 时，计算 term coverage 与污染率，用于历史 runs source_id 不稳定的轻量评估。
+
+### 3. 当前 benchmark 观测结果
+基于已有真实 runs：
+- Demo0 Dense：真实 Vivado report 成功，latency 269 cycles，DSP 16，LUT 549，timing met。
+- Demo1 MatMul：真实 Vivado report 成功，latency 2052 cycles，DSP 16，LUT 624。
+- 对比 `resnet18_boundary_demo_cd40d797_13` -> `resnet18_boundary_demo_cd40d797_15`：
+  - runtime：184s -> 74s，单次观测下降 59.78%。
+  - RAG pollution：true -> false。
+  - unsupported status：`success` -> `partial_success`。
+  - unsupported metric suggestion error：true -> false。
+- Aggregated benchmark：
+  - analyzed runs：4
+  - artifact completeness avg：1.0
+  - Vivado metric runs：2
+  - RAG pollution rate：0.25（包含修复前 run）
+  - unsupported semantics pass rate：0.5（包含修复前 run）
+- RAG eval：
+  - macro Precision@K：0.55
+  - macro Hit@K：0.75
+  - macro MRR：0.625
+  - macro relevant-term coverage@K：0.8333
+  - macro pollution@K：0.1
+
+### 4. 遇到的问题与根因
+1) RAG Recall@K 需要 ground truth source ids
+- 现象：默认轻量标签没有 `relevant_source_ids`，因此 `recall_at_k` 和 `ndcg_at_k` 为 `null`。
+- 根因：历史 runs 的 source_id 多来自 artifact path 或 memory id，不适合直接写死为稳定标签。
+- 处理：benchmark 同时支持 source-id 标注和 term 标注；当前默认标签先用 term coverage / pollution，后续可为固定文档或 curated memory 增加稳定 source-id ground truth。
+
+2) RAG eval 暴露 Dense / VivadoNotFoundError 查询仍有噪声
+- 现象：Dense 查询出现 qkeras 相关污染；VivadoNotFoundError 查询 relevant-term coverage 偏低。
+- 根因：当前 RAG 是轻量 TF/term 检索，且历史 memory 中不同 demo summary 的通用词较多。
+- 处理：本轮不把 benchmark 结果美化；保留为后续改进证据。后续可以加 op_type/source_type filter、failure memory boost、curated eval corpus。
+
+3) runtime 不能直接当作严格性能结论
+- 现象：Demo6 单次观测下降 59.78%。
+- 根因：外部 LLM API 和 Vivado 工具链耗时存在波动。
+- 处理：日志和文档中明确使用 observed improvement；严格结论需要 `--repeat` 多次运行并报告 median/p95。
+
+### 5. 已修复内容
+- 新增 `src/dl_op_to_hls/benchmarks/agent_quality_benchmark.py`。
+- 新增 `dl-op-to-hls benchmark` CLI。
+- 新增 `benchmarks/rag_eval_labels.json`。
+- 新增 `docs/benchmark_metrics.md`。
+- 新增 `tests/test_agent_quality_benchmark.py`，覆盖 RAG 标准指标、term coverage、pollution、unsupported 语义和 before/after comparison。
+
+### 6. 当前测试结果
+- `python -m pytest tests\test_agent_quality_benchmark.py -q -p no:cacheprovider`：通过。
+- 由于 Windows 用户临时目录权限问题，测试时仍需设置 `TMP/TEMP/TMPDIR` 到工程内 `tmp_pytest`；这与之前日志中的环境问题一致。
+
+### 7. 未修复完成的问题与原因
+- 尚未建立 curated source-id RAG ground truth corpus；需要先固定一批稳定文档/source ids。
+- 尚未把 benchmark 输出加入 CI；当前先作为本地可复现评测工具。
+- 尚未做多轮真实 LLM/Vivado repeat benchmark；原因是运行成本较高，建议后续按候选简历指标做专项测试。
+
+---
+
 ## 2026-06-04 10:28:05 +08:00：LLM 速度、RAG 相关性与 unsupported 状态语义优化
 ### 1. 本次测试做了什么
 针对真实运行中暴露的四类问题做了小步优化：
