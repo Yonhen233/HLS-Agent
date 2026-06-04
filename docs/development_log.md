@@ -6,6 +6,101 @@
 
 ---
 
+## 2026-06-04 20:09:34 +08:00：建立 Agent 能力 Benchmark Suite
+### 1. 本次测试做了什么
+为项目新增一套面向 Agent 实习岗位展示的能力 benchmark，不再只用“demo 能跑”描述贡献。
+
+新增 benchmark suite：
+- `benchmarks/agent_capability_suite.json`
+
+新增 benchmark 专用任务：
+- `benchmarks/tasks/custom_unsupported_operator.json`
+- `benchmarks/tasks/dense_vivado_missing.json`
+
+新增文档：
+- `docs/agent_benchmark_suite.md`
+
+新增 CLI 能力：
+- `dl-op-to-hls benchmark --suite-file benchmarks\agent_capability_suite.json`
+
+### 2. Benchmark 覆盖内容
+当前 suite 包含 12 个 case，覆盖：
+- operator fallback：Dense / MatMul / ReLU / Add。
+- existing HLS project：已有工程路径。
+- hls4ml mock path：MNIST MLP / Tiny CNN / QKeras task。
+- unsupported recovery：自定义不支持算子 / residual block / ResNet18 boundary。
+- toolchain recovery：强制 Vivado 路径缺失，验证 `VivadoNotFoundError` 结构化恢复。
+
+评估指标包括：
+- status / selected_path / report_status 契约。
+- trace events：`TodoCreated`、`SpecialistSelected`、`SpecialistResultMerged` 等。
+- Specialist 使用情况。
+- artifact completeness。
+- forbidden error types。
+- Vivado metrics 是否存在。
+- unsupported path 是否保持 partial_success，是否避免编造 latency / DSP 建议。
+- RAG precision@k、recall@k、hit@k、MRR、nDCG、term coverage、pollution@k。
+
+### 3. 本轮运行结果
+运行命令：
+
+```powershell
+python -m dl_op_to_hls.cli benchmark --run-suite --suite-file benchmarks\agent_capability_suite.json --rag-eval-file benchmarks\rag_eval_labels.json --rag-top-k 5 --output runs\benchmarks\agent_capability_suite_smoke.json
+```
+
+复评结果：
+- suite case_count：12。
+- suite pass_count：12。
+- suite pass_rate：1.0。
+- suite average_score：1.0。
+- category_scores：operator_fallback / model_hls4ml / unsupported_recovery / existing_project / toolchain_recovery 全部 1.0。
+- artifact_completeness_avg：1.0。
+- unsupported_semantics_pass_rate：1.0。
+- rag_pollution_rate：0.0。
+- RAG macro_precision_at_k：0.65。
+- RAG macro_recall_at_k：1.0。
+- RAG macro_hit_at_k：1.0。
+- RAG macro_mrr：0.8。
+- RAG macro_ndcg_at_k：0.3869。
+- RAG macro_relevant_term_coverage_at_k：1.0。
+- RAG macro_pollution_at_k：0.05。
+
+### 4. 遇到的问题与根因
+1) 初版 benchmark 标注过于理想化
+- 现象：第一次 suite 运行时，部分 mock hls4ml 模型 case 被标注成 unsupported，但实际 mock adapter 走的是 hls4ml happy path。
+- 根因：benchmark 期望没有区分 mock contract suite 和真实 toolchain suite。
+- 修复：将 MNIST MLP / Tiny CNN / QKeras 的 mock suite 期望调整为 `hls4ml_path`，真实 hls4ml 边界继续由真实 demo benchmark 单独呈现。
+
+2) unsupported custom operator case 的语义需要更精确
+- 现象：自定义不支持算子会经历 LLM candidate 失败，然后生成 unsupported report；初版 benchmark 把内部 `LLMGenerationError` 视为禁止错误。
+- 根因：benchmark 没有区分“内部候选失败且被正确恢复”和“最终 run 失败”。
+- 修复：允许该 case 出现 1 个 failed todo 和 `LLMGenerationError`，但要求最终 `partial_success`、`unsupported_path`、`unsupported_report.md` 存在，并禁止 `PermissionDeniedError`。
+
+3) 1.0 分容易被误读为泛化满分
+- 现象：suite pass_rate 达到 1.0 后，容易让人误以为 Agent 已经全面泛化。
+- 根因：小规模 contract suite 和大规模 generalization benchmark 的定位不同。
+- 修复：新增 `docs/agent_benchmark_suite.md`，明确说明 1.0 只代表 12 个明确契约 case 全部通过，是稳定回归基线，不代表开放域泛化。
+
+### 5. 已修复内容
+- `src/dl_op_to_hls/benchmarks/agent_quality_benchmark.py`：增加 suite 文件加载、case 级契约评分、category score、per-case env/mock/runner 支持。
+- `src/dl_op_to_hls/cli.py`：新增 benchmark `--suite-file` 参数。
+- `tests/test_agent_quality_benchmark.py`：新增 suite 加载、case 评分、category 聚合测试。
+- `benchmarks/agent_capability_suite.json`：新增 12-case Agent 能力评估集。
+- `docs/agent_benchmark_suite.md`：新增 benchmark 设计、指标解释、运行方式和面试口径。
+
+### 6. 当前测试结果
+- `python -m pytest tests\test_agent_quality_benchmark.py -q -p no:cacheprovider`：通过。
+- `python -m pytest -q -p no:cacheprovider`：209 个测试通过。
+- `python -m dl_op_to_hls.cli benchmark --run-suite --suite-file benchmarks\agent_capability_suite.json ...`：12/12 case 通过。
+
+### 7. 未修复完成的问题与原因
+- 当前 suite 是 curated contract benchmark，case 数量仍偏少，不应声称泛化能力已经充分验证。
+- 当前 suite 主要使用 deterministic/mock 路径，因此 `llm_decision_count_total=0` 是预期结果；LLM planning 能力需要单独用 real LLM suite 评估。
+- RAG macro_precision@k 为 0.65、nDCG@k 为 0.3869，说明召回覆盖足够但排序质量仍有优化空间。
+- 后续应增加 hard-negative case、重复运行、p95、LLM JSON 合规率、tool selection accuracy、repair success rate 等指标。
+
+---
+
 ## 2026-06-04 18:24:00 +08:00：真实 DeepSeek-V4-Pro + Vivado Demo0-6 复测与 Agent 量化指标优化
 ### 1. 本次测试做了什么
 按真实环境重新运行 Demo0-Demo6：

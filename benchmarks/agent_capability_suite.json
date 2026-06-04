@@ -1,0 +1,253 @@
+{
+  "name": "agent_capability_suite_v1",
+  "description": "Curated Agent capability benchmark for DL-Operator-to-HLS-Agent internship evaluation. Cases emphasize planning, tool routing, specialist isolation, RAG hygiene, graceful failures, and artifact/trace completeness.",
+  "cases": [
+    {
+      "id": "op_dense_latency_fallback",
+      "title": "Dense latency fallback path",
+      "category": "operator_fallback",
+      "task": "examples/dense_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["operator", "fallback", "vivado", "artifact"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_artifacts": ["generated/testbench.cpp", "generated/run_hls.tcl", "summary.md", "suggestions.md"],
+        "required_trace_events": ["RunStarted", "TodoCreated", "SpecialistSelected", "SpecialistResultMerged", "RunFinished"],
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "max_tool_failures": 0,
+        "vivado_metrics_required": true,
+        "min_promoted_memories": 1
+      }
+    },
+    {
+      "id": "op_matmul_resource_tradeoff",
+      "title": "MatMul resource trade-off path",
+      "category": "operator_fallback",
+      "task": "examples/matmul_resource.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["operator", "matmul", "resource", "tradeoff"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_trace_events": ["SpecialistSelected", "SpecialistResultMerged"],
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true,
+        "min_promoted_memories": 1
+      }
+    },
+    {
+      "id": "op_relu_template_minimal",
+      "title": "ReLU fallback template minimal operator",
+      "category": "operator_fallback",
+      "task": "examples/relu_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["operator", "relu", "template"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_artifacts": ["generated/testbench.cpp", "generated/run_hls.tcl"],
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "op_add_template_resource",
+      "title": "Add fallback template resource objective",
+      "category": "operator_fallback",
+      "task": "examples/add_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["operator", "add", "resource"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "existing_hls_project_resource",
+      "title": "Existing HLS project synthesis path",
+      "category": "existing_project",
+      "task": "examples/existing_hls_project.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["existing_project", "vivado", "resource"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "existing_hls_project_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "custom_unsupported_candidate_to_report",
+      "title": "Unsupported custom operator falls through to actionable report",
+      "category": "unsupported_recovery",
+      "task": "benchmarks/tasks/custom_unsupported_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["unsupported", "candidate", "verification", "honesty"],
+      "expected": {
+        "allowed_statuses": ["partial_success"],
+        "selected_path": "unsupported_path",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "required_trace_events": ["TodoCompletedWithWarning", "TodoFailed", "RunFinished"],
+        "forbidden_error_types": ["PermissionDeniedError"],
+        "max_todo_failed": 1,
+        "unsupported_no_synthesis_metrics": true,
+        "min_promoted_memories": 1
+      }
+    },
+    {
+      "id": "model_mnist_mlp_hls4ml_path",
+      "title": "MNIST MLP hls4ml happy path in mock toolchain",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_mlp_hls4ml.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["model", "hls4ml", "happy_path"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_specialists": ["HLS4MLSpecialist", "VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "model_tiny_cnn_hls4ml_path",
+      "title": "Tiny CNN hls4ml happy path in mock toolchain",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_tiny_cnn.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["model", "cnn", "hls4ml", "happy_path"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_specialists": ["HLS4MLSpecialist", "VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "model_qkeras_mock_hls4ml_path",
+      "title": "QKeras model task follows hls4ml path under mock adapter",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_qkeras_cnn.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["model", "qkeras", "hls4ml", "mock"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "required_specialists": ["HLS4MLSpecialist", "VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "model_tiny_residual_boundary",
+      "title": "Tiny residual block boundary honesty",
+      "category": "unsupported_recovery",
+      "task": "examples/tiny_residual_block.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["model", "residual", "unsupported", "honesty"],
+      "expected": {
+        "allowed_statuses": ["partial_success"],
+        "selected_path": "unsupported_path",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "required_trace_events": ["TodoSkipped", "RunFinished"],
+        "forbidden_trace_events": ["ToolFailed"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "unsupported_no_synthesis_metrics": true
+      }
+    },
+    {
+      "id": "model_resnet18_boundary_honesty",
+      "title": "ResNet18 boundary honesty",
+      "category": "unsupported_recovery",
+      "task": "examples/resnet18_boundary.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["model", "resnet18", "unsupported", "honesty"],
+      "expected": {
+        "allowed_statuses": ["partial_success"],
+        "selected_path": "unsupported_path",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "required_trace_events": ["TodoSkipped", "RunFinished"],
+        "forbidden_trace_events": ["ToolFailed"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "unsupported_no_synthesis_metrics": true
+      }
+    },
+    {
+      "id": "toolchain_vivado_missing_recovery",
+      "title": "Vivado missing binary graceful recovery",
+      "category": "toolchain_recovery",
+      "task": "benchmarks/tasks/dense_vivado_missing.json",
+      "runner": "deterministic",
+      "mock_tools": false,
+      "env": {
+        "DL_OP_TO_HLS_MOCK_HLS4ML": "1",
+        "DL_OP_TO_HLS_MOCK_VIVADO": "0",
+        "DL_OP_TO_HLS_VIVADO_HLS_PATH": "Z:/definitely_missing/vivado_hls.bat"
+      },
+      "tags": ["toolchain", "vivado", "error_recovery"],
+      "expected": {
+        "allowed_statuses": ["partial_success"],
+        "selected_path": "fallback_template_path",
+        "artifact_completeness_min": 1.0,
+        "required_trace_events": ["SpecialistSelected", "SpecialistResultMerged", "TodoSkipped"],
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "unsupported_no_synthesis_metrics": false,
+        "min_promoted_memories": 1
+      }
+    }
+  ]
+}

@@ -6,6 +6,9 @@ from dl_op_to_hls.benchmarks.agent_quality_benchmark import (
     collect_run_metrics,
     compare_runs,
     evaluate_rag_case,
+    evaluate_suite_case,
+    evaluate_suite_results,
+    load_suite_cases,
 )
 
 
@@ -157,3 +160,129 @@ def test_aggregate_metrics_reports_common_rates():
     assert aggregate["rag_pollution_rate"] == 0.5
     assert aggregate["artifact_completeness_avg"] == 0.75
     assert aggregate["vivado_metric_runs"] == ["ok"]
+
+
+def test_default_agent_capability_suite_is_curated():
+    cases = load_suite_cases(Path("benchmarks/agent_capability_suite.json"))
+
+    assert len(cases) >= 10
+    assert {case["category"] for case in cases} >= {
+        "operator_fallback",
+        "model_hls4ml",
+        "unsupported_recovery",
+        "toolchain_recovery",
+    }
+    assert any(case["id"] == "toolchain_vivado_missing_recovery" for case in cases)
+
+
+def test_evaluate_suite_case_scores_expected_agent_contract(tmp_path):
+    run_dir = tmp_path / "runs" / "dense_eval"
+    (run_dir / "memory").mkdir(parents=True)
+    for artifact in [
+        "state.json",
+        "todos.json",
+        "trace.jsonl",
+        "artifacts.json",
+        "summary.md",
+        "suggestions.md",
+        "memory/short_term.json",
+        "memory/compressed_context.json",
+        "memory/memory_candidates.json",
+        "memory/promoted_memories.json",
+        "memory/retrieved_memories.json",
+    ]:
+        path = run_dir / artifact
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}", encoding="utf-8")
+    state = {
+        "run_id": "dense_eval",
+        "task": {"name": "dense_16x32", "task_type": "operator"},
+        "status": "success",
+        "selected_path": "fallback_template_path",
+        "report": {
+            "status": "success",
+            "latency": {"max_cycles": 45},
+            "resources": {"dsp": 32, "lut": 3500},
+        },
+        "todos": [
+            {"status": "completed", "specialist_result": {"specialist_name": "VivadoSpecialist"}},
+            {"status": "completed", "specialist_result": {"specialist_name": "MemorySpecialist"}},
+        ],
+        "errors": [],
+        "promoted_memories": [{"id": 1}],
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (run_dir / "trace.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"event": "RunStarted"}),
+                json.dumps({"event": "SpecialistSelected", "specialist": "VivadoSpecialist"}),
+                json.dumps({"event": "SpecialistResultMerged", "specialist": "VivadoSpecialist"}),
+                json.dumps({"event": "RunFinished"}),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "artifacts.json").write_text(json.dumps({"artifacts": []}), encoding="utf-8")
+    case = {
+        "id": "dense_case",
+        "category": "operator_fallback",
+        "task": "examples/dense_operator.json",
+        "expected": {
+            "allowed_statuses": ["success"],
+            "selected_path": "fallback_template_path",
+            "report_status": "success",
+            "artifact_completeness_min": 1.0,
+            "required_trace_events": ["RunStarted", "SpecialistSelected", "SpecialistResultMerged", "RunFinished"],
+            "required_specialists": ["VivadoSpecialist", "MemorySpecialist"],
+            "forbidden_error_types": ["PermissionDeniedError"],
+            "max_todo_failed": 0,
+            "vivado_metrics_required": True,
+            "min_promoted_memories": 1,
+        },
+    }
+
+    result = evaluate_suite_case(case, run_dir)
+
+    assert result["passed"] is True
+    assert result["score"] == 1.0
+
+
+def test_evaluate_suite_results_aggregates_category_scores(tmp_path):
+    run_dir = tmp_path / "runs" / "bad"
+    run_dir.mkdir(parents=True)
+    (run_dir / "benchmark_case.json").write_text(json.dumps({"case_id": "bad_case", "iteration": 1}), encoding="utf-8")
+    (run_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": "bad",
+                "task": {"name": "bad", "task_type": "operator"},
+                "status": "failed",
+                "selected_path": None,
+                "report": {"status": "missing"},
+                "todos": [{"status": "failed"}],
+                "errors": [{"error_type": "PermissionDeniedError"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "trace.jsonl").write_text("", encoding="utf-8")
+    suite = [
+        {
+            "id": "bad_case",
+            "category": "routing",
+            "task": "x.json",
+            "expected": {
+                "allowed_statuses": ["success"],
+                "selected_path": "fallback_template_path",
+                "forbidden_error_types": ["PermissionDeniedError"],
+            },
+        }
+    ]
+
+    result = evaluate_suite_results([run_dir], suite)
+
+    assert result["case_count"] == 1
+    assert result["pass_rate"] == 0.0
+    assert result["failed_cases"] == ["bad_case"]
+    assert result["category_scores"]["routing"] < 1.0

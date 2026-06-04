@@ -25,6 +25,8 @@ REQUIRED_RUN_ARTIFACTS = [
     "memory/retrieved_memories.json",
 ]
 
+DEFAULT_SUITE_FILE = Path("benchmarks/agent_capability_suite.json")
+
 METRIC_SUGGESTION_TERMS = {
     "array partition",
     "bram",
@@ -56,6 +58,11 @@ def _read_trace(path: Path) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     return events
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def _parse_ts(value: str | None) -> dt.datetime | None:
@@ -238,6 +245,172 @@ def aggregate_metrics(run_metrics: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def load_suite_cases(path: str | Path) -> list[dict[str, Any]]:
+    payload = _read_json(Path(path), {})
+    cases = payload.get("cases", []) if isinstance(payload, dict) else payload
+    if not isinstance(cases, list):
+        raise ValueError(f"Benchmark suite file has no cases list: {path}")
+    normalized = []
+    for index, case in enumerate(cases, start=1):
+        if not isinstance(case, dict) or not case.get("id") or not case.get("task"):
+            raise ValueError(f"Invalid benchmark suite case #{index}: every case needs id and task.")
+        normalized.append(case)
+    return normalized
+
+
+def _trace_event_names(events: list[dict[str, Any]]) -> list[str]:
+    return [str(event.get("event") or "") for event in events]
+
+
+def _artifact_paths_from_manifest(run_dir: Path) -> list[str]:
+    manifest = _read_json(run_dir / "artifacts.json", {})
+    return [str(item.get("path") or "") for item in manifest.get("artifacts", []) if isinstance(item, dict)]
+
+
+def _error_types(state: dict[str, Any]) -> set[str]:
+    return {str(item.get("error_type") or "") for item in state.get("errors", []) if isinstance(item, dict)}
+
+
+def _todo_status_counts(state: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for todo in state.get("todos", []):
+        status = str(todo.get("status") or "")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def _specialists_used(state: dict[str, Any], events: list[dict[str, Any]]) -> set[str]:
+    used = {str(event.get("specialist") or "") for event in events if event.get("event") == "SpecialistSelected"}
+    for todo in state.get("todos", []):
+        result = todo.get("specialist_result") or {}
+        if result.get("specialist_name"):
+            used.add(str(result["specialist_name"]))
+    return {item for item in used if item}
+
+
+def _check(condition: bool, name: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"name": name, "passed": bool(condition), "details": details or {}}
+
+
+def evaluate_suite_case(case: dict[str, Any], run_dir: str | Path, metrics: dict[str, Any] | None = None) -> dict[str, Any]:
+    run_dir = Path(run_dir)
+    state = _read_json(run_dir / "state.json", {})
+    events = _read_trace(run_dir / "trace.jsonl")
+    metrics = metrics or collect_run_metrics(run_dir)
+    expected = case.get("expected", {}) or {}
+    event_names = _trace_event_names(events)
+    artifact_paths = _artifact_paths_from_manifest(run_dir)
+    status_counts = _todo_status_counts(state)
+    errors = _error_types(state)
+    checks: list[dict[str, Any]] = []
+
+    allowed_statuses = set(expected.get("allowed_statuses") or [])
+    if allowed_statuses:
+        checks.append(_check(metrics.get("status") in allowed_statuses, "status_allowed", {"actual": metrics.get("status"), "allowed": sorted(allowed_statuses)}))
+    if expected.get("selected_path") is not None:
+        checks.append(_check(metrics.get("selected_path") == expected["selected_path"], "selected_path", {"actual": metrics.get("selected_path"), "expected": expected["selected_path"]}))
+    if expected.get("report_status") is not None:
+        checks.append(_check(metrics.get("report_status") == expected["report_status"], "report_status", {"actual": metrics.get("report_status"), "expected": expected["report_status"]}))
+    if "artifact_completeness_min" in expected:
+        checks.append(
+            _check(
+                metrics["artifact_completeness"]["rate"] >= float(expected["artifact_completeness_min"]),
+                "artifact_completeness_min",
+                {"actual": metrics["artifact_completeness"]["rate"], "expected_min": expected["artifact_completeness_min"]},
+            )
+        )
+    for artifact in expected.get("required_artifacts", []):
+        exists = (run_dir / artifact).exists() or any(str(artifact) in path for path in artifact_paths)
+        checks.append(_check(exists, f"artifact:{artifact}", {"artifact": artifact}))
+    for event_name in expected.get("required_trace_events", []):
+        checks.append(_check(event_name in event_names, f"trace_event:{event_name}", {"event": event_name}))
+    for event_name in expected.get("forbidden_trace_events", []):
+        checks.append(_check(event_name not in event_names, f"forbidden_trace_event:{event_name}", {"event": event_name}))
+    for specialist in expected.get("required_specialists", []):
+        checks.append(_check(specialist in _specialists_used(state, events), f"specialist:{specialist}", {"specialist": specialist}))
+    for error_type in expected.get("forbidden_error_types", []):
+        checks.append(_check(error_type not in errors, f"forbidden_error:{error_type}", {"error_type": error_type, "errors": sorted(errors)}))
+    if "max_todo_failed" in expected:
+        checks.append(_check(status_counts.get("failed", 0) <= int(expected["max_todo_failed"]), "max_todo_failed", {"actual": status_counts.get("failed", 0), "max": expected["max_todo_failed"]}))
+    if "max_tool_failures" in expected:
+        checks.append(_check(metrics.get("tool_failure_count", 0) <= int(expected["max_tool_failures"]), "max_tool_failures", {"actual": metrics.get("tool_failure_count", 0), "max": expected["max_tool_failures"]}))
+    if expected.get("vivado_metrics_required"):
+        synthesis = metrics.get("synthesis", {})
+        checks.append(
+            _check(
+                synthesis.get("latency_max_cycles") is not None and synthesis.get("dsp") is not None,
+                "vivado_metrics_required",
+                {"synthesis": synthesis},
+            )
+        )
+    if expected.get("unsupported_no_synthesis_metrics"):
+        synthesis = metrics.get("synthesis", {})
+        checks.append(
+            _check(
+                not any(synthesis.get(key) is not None for key in ["latency_max_cycles", "dsp", "lut", "ff"]),
+                "unsupported_no_synthesis_metrics",
+                {"synthesis": synthesis},
+            )
+        )
+        checks.append(
+            _check(
+                not metrics["semantic_quality"]["unsupported_metric_suggestion_error"],
+                "unsupported_no_metric_specific_suggestions",
+                {"suggestion_count": metrics["semantic_quality"].get("unsupported_suggestion_count")},
+            )
+        )
+    if "max_llm_decisions" in expected:
+        checks.append(_check(metrics.get("llm_decision_count", 0) <= int(expected["max_llm_decisions"]), "max_llm_decisions", {"actual": metrics.get("llm_decision_count", 0), "max": expected["max_llm_decisions"]}))
+    if "min_promoted_memories" in expected:
+        checks.append(_check(metrics["memory"].get("promoted_count", 0) >= int(expected["min_promoted_memories"]), "min_promoted_memories", {"actual": metrics["memory"].get("promoted_count", 0), "min": expected["min_promoted_memories"]}))
+
+    passed_count = sum(1 for item in checks if item["passed"])
+    score = round(passed_count / max(len(checks), 1), 4)
+    return {
+        "case_id": case["id"],
+        "title": case.get("title") or case["id"],
+        "category": case.get("category"),
+        "tags": case.get("tags", []),
+        "run_id": metrics.get("run_id"),
+        "score": score,
+        "passed": score == 1.0,
+        "checks_passed": passed_count,
+        "checks_total": len(checks),
+        "failed_checks": [item for item in checks if not item["passed"]],
+        "checks": checks,
+    }
+
+
+def evaluate_suite_results(run_dirs: list[Path], suite_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    case_by_id = {case["id"]: case for case in suite_cases}
+    case_results = []
+    for run_dir in run_dirs:
+        metadata = _read_json(run_dir / "benchmark_case.json", {})
+        case_id = metadata.get("case_id")
+        if not case_id or case_id not in case_by_id:
+            continue
+        metrics = collect_run_metrics(run_dir)
+        result = evaluate_suite_case(case_by_id[case_id], run_dir, metrics)
+        result["iteration"] = metadata.get("iteration")
+        result["wall_time_s"] = metadata.get("wall_time_s")
+        case_results.append(result)
+    category_scores: dict[str, list[float]] = {}
+    for result in case_results:
+        category = str(result.get("category") or "uncategorized")
+        category_scores.setdefault(category, []).append(float(result["score"]))
+    return {
+        "case_count": len(case_results),
+        "pass_count": sum(1 for item in case_results if item["passed"]),
+        "pass_rate": round(sum(1 for item in case_results if item["passed"]) / max(len(case_results), 1), 4),
+        "average_score": round(sum(float(item["score"]) for item in case_results) / max(len(case_results), 1), 4),
+        "category_scores": {
+            category: round(sum(scores) / max(len(scores), 1), 4) for category, scores in sorted(category_scores.items())
+        },
+        "failed_cases": [item["case_id"] for item in case_results if not item["passed"]],
+        "cases": case_results,
+    }
+
+
 def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     before_runtime = before.get("runtime_s")
     after_runtime = after.get("runtime_s")
@@ -408,39 +581,76 @@ def latest_run_dirs(runs_root: Path, count: int) -> list[Path]:
     return sorted([path for path in runs_root.iterdir() if path.is_dir()], key=lambda item: item.stat().st_mtime, reverse=True)[:count]
 
 
-def run_benchmark_suite(tasks: list[str], *, runner: str, mock_tools: bool, repeat: int) -> list[Path]:
+def _apply_case_environment(env: dict[str, Any]) -> dict[str, str | None]:
+    old_env: dict[str, str | None] = {key: os.environ.get(key) for key in env}
+    for key, value in env.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[str(key)] = str(value)
+    return old_env
+
+
+def _restore_environment(old_env: dict[str, str | None]) -> None:
+    for key, value in old_env.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
+def run_benchmark_suite(
+    tasks: list[str],
+    *,
+    runner: str,
+    mock_tools: bool,
+    repeat: int,
+    suite_file: str | Path | None = None,
+) -> list[Path]:
     from ..main_agent.agent import MainAgent
     from ..main_agent.workflow import run_task, run_task_llm
 
     run_dirs: list[Path] = []
-    old_env = {
-        "DL_OP_TO_HLS_MOCK_HLS4ML": os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML"),
-        "DL_OP_TO_HLS_MOCK_VIVADO": os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO"),
-    }
-    if mock_tools:
-        os.environ["DL_OP_TO_HLS_MOCK_HLS4ML"] = "1"
-        os.environ["DL_OP_TO_HLS_MOCK_VIVADO"] = "1"
-    try:
-        for _ in range(repeat):
-            for task in tasks:
+    if suite_file:
+        case_specs = load_suite_cases(suite_file)
+    else:
+        case_specs = [
+            {"id": Path(task).stem, "task": task, "runner": runner, "mock_tools": mock_tools}
+            for task in tasks
+        ]
+    for iteration in range(1, repeat + 1):
+        for case in case_specs:
+            case_env = dict(case.get("env", {}))
+            if bool(case.get("mock_tools", mock_tools)):
+                case_env.setdefault("DL_OP_TO_HLS_MOCK_HLS4ML", "1")
+                case_env.setdefault("DL_OP_TO_HLS_MOCK_VIVADO", "1")
+            old_env = _apply_case_environment(case_env)
+            try:
                 agent = MainAgent(console=False)
                 start = time.perf_counter()
-                if runner == "llm":
-                    state = run_task_llm(task, agent=agent)
+                case_runner = str(case.get("runner") or runner)
+                if case_runner == "llm":
+                    state = run_task_llm(str(case["task"]), agent=agent)
                 else:
-                    state = run_task(task, agent=agent)
+                    state = run_task(str(case["task"]), agent=agent)
                 wall_time_s = round(time.perf_counter() - start, 3)
                 run_dir = agent.config.runs_root / state.run_id
-                (run_dir / "benchmark_wall_time.json").write_text(
-                    json.dumps({"wall_time_s": wall_time_s}, indent=2), encoding="utf-8"
+                _write_json(
+                    run_dir / "benchmark_case.json",
+                    {
+                        "case_id": case["id"],
+                        "title": case.get("title"),
+                        "category": case.get("category"),
+                        "tags": case.get("tags", []),
+                        "iteration": iteration,
+                        "runner": case_runner,
+                        "mock_tools": bool(case.get("mock_tools", mock_tools)),
+                        "wall_time_s": wall_time_s,
+                    },
                 )
                 run_dirs.append(run_dir)
-    finally:
-        for key, value in old_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+            finally:
+                _restore_environment(old_env)
     return run_dirs
 
 
@@ -459,6 +669,7 @@ def build_payload(
     compare: tuple[str, str] | None = None,
     rag_eval_file: str | Path | None = None,
     rag_top_k: int = 5,
+    suite_file: str | Path | None = None,
 ) -> dict[str, Any]:
     run_metrics = [collect_run_metrics(path) for path in run_dirs]
     payload: dict[str, Any] = {
@@ -473,6 +684,8 @@ def build_payload(
         payload["comparison"] = compare_runs(before, after)
     if rag_eval_file:
         payload["rag_eval"] = evaluate_rag_file(rag_eval_file, top_k=rag_top_k)
+    if suite_file:
+        payload["suite_eval"] = evaluate_suite_results(run_dirs, load_suite_cases(suite_file))
     return payload
 
 
@@ -544,6 +757,25 @@ def write_outputs(payload: dict[str, Any], output: Path) -> None:
             lines.append(
                 f"| {case['query']} | {case['precision_at_k']} | {case['recall_at_k']} | {case['hit_at_k']} | {case['mrr']} | {case['ndcg_at_k']} | {case['relevant_term_coverage_at_k']} | {case['pollution_at_k']} |"
             )
+    if "suite_eval" in payload:
+        suite = payload["suite_eval"]
+        lines.extend(
+            [
+                "",
+                "## Agent Capability Suite",
+                f"- Cases evaluated: `{suite['case_count']}`",
+                f"- Pass rate: `{suite['pass_rate']}`",
+                f"- Average score: `{suite['average_score']}`",
+                f"- Category scores: `{suite['category_scores']}`",
+                f"- Failed cases: `{suite['failed_cases']}`",
+                "",
+                "| Case | Category | Score | Passed | Failed checks |",
+                "|---|---|---:|---|---|",
+            ]
+        )
+        for case in suite["cases"]:
+            failed = ", ".join(item["name"] for item in case["failed_checks"]) or "None"
+            lines.append(f"| {case['case_id']} | {case.get('category')} | {case['score']} | {case['passed']} | {failed} |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -557,6 +789,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rag-top-k", type=int, default=5)
     parser.add_argument("--output", default="runs/benchmarks/agent_quality_benchmark.json")
     parser.add_argument("--run-suite", action="store_true", help="Run tasks before collecting metrics.")
+    parser.add_argument("--suite-file", default=None, help="Agent capability suite JSON with case expectations.")
     parser.add_argument("--runner", choices=["deterministic", "llm"], default="deterministic")
     parser.add_argument("--mock-tools", action="store_true")
     parser.add_argument("--repeat", type=int, default=1)
@@ -572,7 +805,13 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     runs_root = Path(args.runs_root)
     if args.run_suite:
-        run_dirs = run_benchmark_suite(args.tasks, runner=args.runner, mock_tools=args.mock_tools, repeat=max(args.repeat, 1))
+        run_dirs = run_benchmark_suite(
+            args.tasks,
+            runner=args.runner,
+            mock_tools=args.mock_tools,
+            repeat=max(args.repeat, 1),
+            suite_file=args.suite_file,
+        )
     elif args.runs:
         run_dirs = resolve_run_dirs(runs_root, args.runs)
     else:
@@ -581,7 +820,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.compare:
         before, after = resolve_run_dirs(runs_root, list(args.compare))
         compare = (str(before), str(after))
-    payload = build_payload(run_dirs, compare=compare, rag_eval_file=args.rag_eval_file, rag_top_k=args.rag_top_k)
+    payload = build_payload(
+        run_dirs,
+        compare=compare,
+        rag_eval_file=args.rag_eval_file,
+        rag_top_k=args.rag_top_k,
+        suite_file=args.suite_file,
+    )
     write_outputs(payload, Path(args.output))
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0

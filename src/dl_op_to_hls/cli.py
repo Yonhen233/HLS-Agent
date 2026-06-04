@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark_parser.add_argument("--rag-top-k", type=int, default=5)
     benchmark_parser.add_argument("--output", default="runs/benchmarks/agent_quality_benchmark.json")
     benchmark_parser.add_argument("--run-suite", action="store_true")
+    benchmark_parser.add_argument("--suite-file")
     benchmark_parser.add_argument("--runner", choices=["deterministic", "llm"], default="deterministic")
     benchmark_parser.add_argument("--mock-tools", action="store_true")
     benchmark_parser.add_argument("--repeat", type=int, default=1)
@@ -177,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
             forwarded.extend(["--compare", *args.compare])
         if args.rag_eval_file:
             forwarded.extend(["--rag-eval-file", args.rag_eval_file])
+        if args.suite_file:
+            forwarded.extend(["--suite-file", args.suite_file])
         if args.run_suite:
             forwarded.append("--run-suite")
         if args.mock_tools:
