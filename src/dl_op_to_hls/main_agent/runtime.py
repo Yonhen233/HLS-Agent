@@ -1204,6 +1204,9 @@ class PlanExecuteReactRuntime:
             state.suggestions = result.get("suggestions", [])
             if result.get("path"):
                 state.artifacts["suggestions"] = result["path"]
+            if result.get("status") == "skipped":
+                self.todo_manager.mark_skipped(todo.id, result.get("reason", "Optimization suggestions were skipped."))
+                return {"status": "skipped", "action": {"tool": "suggestion.suggest_optimization"}, "observation": result}
             self.todo_manager.mark_completed(todo.id, result)
             return {"status": "completed", "action": {"tool": "suggestion.suggest_optimization"}, "observation": result}
 

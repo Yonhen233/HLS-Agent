@@ -6,6 +6,88 @@
 
 ---
 
+## 2026-06-04 10:28:05 +08:00：LLM 速度、RAG 相关性与 unsupported 状态语义优化
+### 1. 本次测试做了什么
+针对真实运行中暴露的四类问题做了小步优化：
+- LLM 响应速度慢，尤其 suggestion / memory 阶段。
+- RAG 检索相关性偏粗，ResNet boundary 场景会间接带出 MatMul 优化经验。
+- unsupported path 的 `success` / `partial_success` 语义不够精确。
+- Context token 预算、并行调度、skill 自动进化仍有提升空间，需要区分“本轮可安全落地”和“需要单独架构变更”的事项。
+
+验证动作：
+- 相关测试：`python -m pytest tests\test_memory.py tests\test_rag.py tests\test_llm_optimizer_fallback.py tests\test_runtime_hybrid.py -q -p no:cacheprovider`，通过。
+- 全量测试：`python -m pytest -q -p no:cacheprovider`，通过。
+- 真实复测：OpenAI-compatible `https://llmapi.paratera.com`，模型 `DeepSeek-V4-Pro`，真实 hls4ml / Vivado 配置下运行 `examples\resnet18_boundary.json`。
+- 真实复测结果：`resnet18_boundary_demo_cd40d797_15`，`status=partial_success`，`selected_path=unsupported_path`，`llm_decisions=5`。
+
+### 2. 遇到的问题与根因
+1) suggestion / memory 阶段仍会消耗不必要的 LLM 调用
+- 现象：某些路径已经是固定 playbook，例如 MemorySpecialist 的 compress / extract / promote，但仍会进入 local LLM decider。
+- 根因：Specialist ReAct 被统一设计成可 LLM 决策，但部分 specialist 子步骤实际上没有分支选择价值。
+- 修复：为 `BaseSpecialist._local_react_step` 增加 `force_deterministic` 参数；MemorySpecialist 和 OptimizationSpecialist 的固定工具序列使用确定性 local ReAct 记录，不再请求外部 LLM，但仍保留 ReAct observation 和 allowed_tools 校验。
+
+2) unsupported path 没有 synthesis report 时不应该生成“优化建议”
+- 现象：ResNet boundary 这类 demo 没有可综合 HLS/report，优化建议阶段容易产生无意义建议或消耗 LLM。
+- 根因：`suggestion.suggest_optimization` 没有区分“没有实现/report，所以优化不适用”和“有 report，需要优化”的状态。
+- 修复：当 `selected_path=unsupported_path` 且 report 为 `missing/skipped/report_missing` 时，直接写入 `suggestions.md` 并返回 `status=skipped`、`llm_skipped=True`，提示下一步应处理 unsupported report，而不是做 latency/resource 优化。
+
+3) RAG/Memory 出现二手经验递归污染
+- 现象：真实 Demo6 中不再直接召回 MatMul 源，但旧的 ResNet memory 文本里嵌套了 `Prior experience hint: optimization.matmul...`。
+- 根因：历史优化建议把“当时检索到的经验”作为 suggestions 内容保存进长期 memory，后续再检索 ResNet memory 时会间接带出 MatMul。
+- 修复：新增 memory hygiene 清洗层，保存长期 memory 前删除 `retrieved_memories/rag_context/memory_used` 等上下文字段，并移除 `Prior experience hint` 二手提示；RAG index/retrieve 和 suggestion 渲染也接入清洗，阻断旧污染继续扩散。
+
+4) unsupported boundary 流程状态语义需要更精确
+- 现象：边界 demo 的工程流程可以完成，但这不代表模型已成功转换/综合。
+- 根因：只看 Todo 是否完成会把 unsupported report 流程归为 `success`。
+- 修复：`selected_path=unsupported_path` 的完整流程最终保持 `partial_success`，表示“Agent 安全完成边界处理和报告生成，但未得到可综合 HLS 实现”。
+
+### 3. 本次代码修复
+- `src/dl_op_to_hls/core/memory_hygiene.py`
+  - 新增长期记忆/RAG 清洗工具，去除二手 retrieved context 和 `Prior experience hint`。
+- `src/dl_op_to_hls/memory/memory_manager.py`
+  - memory promotion 前清洗 candidate。
+  - retrieval 返回前清洗旧 memory 文本。
+  - 增强 anchor token 过滤，降低泛化词如 DSP/resource/reuse 导致的误召回。
+- `src/dl_op_to_hls/rag/indexer.py`
+  - RAG 建索引前清洗文本，避免 summary/suggestions 中的二手经验被索引。
+- `src/dl_op_to_hls/rag/retriever.py`
+  - RAG 检索时清洗旧 chunk，并使用 task anchor 过滤泛化词匹配。
+- `src/dl_op_to_hls/tools/suggest_optimization.py`
+  - unsupported + missing report 时跳过 LLM 优化，生成“优化不适用”的建议文件。
+  - 渲染历史经验提示时清洗旧 prior hint。
+- `src/dl_op_to_hls/specialists/base.py`
+  - 支持 deterministic local ReAct step。
+- `src/dl_op_to_hls/specialists/memory_specialist.py`
+  - 固定 memory playbook 改为 deterministic local ReAct，减少外部 LLM 调用。
+- `src/dl_op_to_hls/specialists/optimization_specialist.py`
+  - 固定 optimization playbook 改为 deterministic local ReAct。
+  - tool 返回 `skipped` 时 SpecialistResult 也返回 `skipped`。
+- `src/dl_op_to_hls/main_agent/runtime.py`
+  - direct optimization todo 遇到 skipped 结果时标记 TodoSkipped。
+- `src/dl_op_to_hls/main_agent/reflector.py`
+  - unsupported path 完成后保持 `partial_success`。
+- `tests/test_memory.py`、`tests/test_rag.py`、`tests/test_llm_optimizer_fallback.py`、`tests/test_runtime_hybrid.py`
+  - 增加 anchor 过滤、二手 memory 清洗、unsupported optimization skipped、unsupported partial_success 等回归测试。
+
+### 4. 当前测试结果
+- 相关测试通过。
+- 全量 pytest 通过。
+- 真实 Demo6 复测通过：`resnet18_boundary_demo_cd40d797_15`。
+- 真实复测关键检查：
+  - `status=partial_success`
+  - `selected_path=unsupported_path`
+  - suggestions 为“没有可综合实现/report，优化不适用”
+  - retrieved memory 中不再包含 `matmul`
+  - retrieved memory 中不再包含 `Prior experience hint`
+
+### 5. 未修复完成的问题与原因
+- 并行调度暂未实现：它会改变 Todo 执行顺序、trace 顺序、ArtifactManager 并发写入和 DB 写入一致性，需要单独引入 coordinator、锁或事务边界；本轮先不做高风险架构改动。
+- skill 自动进化暂未实现：当前已有 skill candidate / procedural memory 存储，但自动写 YAML 会影响长期行为策略，需要增加审核/approval 或至少 candidate/approved 两阶段，不适合在这次小修中直接启用。
+- Context token 预算仍可继续精细化：项目已有 `TokenBudgetManager` 和 specialist `context_usage` 的 token 估算，本轮重点修 RAG/memory hygiene；后续可以进一步把 token budget 做成按 specialist 类型的硬预算和截断报告。
+- Demo2/Demo3/Demo4 的真实 hls4ml/H5 链路仍需要后续专项修复，本轮没有改变真实模型转换能力。
+
+---
+
 ## 2026-06-04 09:39:33 +08:00：真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo0-Demo6 复测与框架修复
 ### 1. 本次测试做了什么
 执行环境：

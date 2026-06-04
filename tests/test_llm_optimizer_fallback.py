@@ -32,6 +32,16 @@ class JustificationSuggestionClient:
         }
 
 
+class ExplodingSuggestionClient:
+    context = {}
+
+    def is_enabled(self):
+        return True
+
+    def complete_json(self, **kwargs):
+        raise AssertionError("LLM should not be called when optimization is not applicable.")
+
+
 def test_llm_optimizer_falls_back_to_rules():
     result = suggest_optimization(
         {
@@ -107,3 +117,19 @@ def test_llm_optimizer_accepts_concrete_justification_field():
     )
     assert result["status"] == "success"
     assert "Increase reuse_factor" in result["suggestions"][0]
+
+
+def test_llm_optimizer_skips_unsupported_missing_report_without_calling_llm():
+    result = suggest_optimization(
+        {
+            "state": {"objective": "resource", "selected_path": "unsupported_path"},
+            "report": {"status": "missing"},
+            "rag_context": [{"summary": "MatMul DSP reuse factor hint"}],
+            "objective": "resource",
+            "fallback_mode": "strict",
+        },
+        context={"llm_client": ExplodingSuggestionClient()},
+    )
+    assert result["status"] == "skipped"
+    assert result["llm_skipped"] is True
+    assert "not applicable" in result["suggestions"][0]

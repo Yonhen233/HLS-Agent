@@ -26,7 +26,13 @@ class MemorySpecialist(BaseSpecialist):
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
         observations = []
         compress_args = {"run_id": envelope.run_id}
-        compress_decision = self._local_react_step(envelope, observations, "memory.compress_run_context", compress_args)
+        compress_decision = self._local_react_step(
+            envelope,
+            observations,
+            "memory.compress_run_context",
+            compress_args,
+            force_deterministic=True,
+        )
         if compress_decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, compress_decision))
         if compress_decision["decision"] == "mark_failed":
@@ -41,7 +47,13 @@ class MemorySpecialist(BaseSpecialist):
         )
         observations.append({"tool": "memory.compress_run_context", "result": compressed})
         extract_args = {"run_id": envelope.run_id}
-        extract_decision = self._local_react_step(envelope, observations, "memory.extract_memory_candidates", extract_args)
+        extract_decision = self._local_react_step(
+            envelope,
+            observations,
+            "memory.extract_memory_candidates",
+            extract_args,
+            force_deterministic=True,
+        )
         if extract_decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, extract_decision))
         if extract_decision["decision"] == "mark_failed":
@@ -57,7 +69,13 @@ class MemorySpecialist(BaseSpecialist):
         observations.append({"tool": "memory.extract_memory_candidates", "result": self._compress_result(extracted)})
         candidates = extracted.get("candidates", [])
         promote_args = {"run_id": envelope.run_id, "candidates": candidates}
-        promote_decision = self._local_react_step(envelope, observations, "memory.promote_to_long_term", promote_args)
+        promote_decision = self._local_react_step(
+            envelope,
+            observations,
+            "memory.promote_to_long_term",
+            promote_args,
+            force_deterministic=True,
+        )
         if promote_decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, promote_decision))
         if promote_decision["decision"] == "mark_failed":

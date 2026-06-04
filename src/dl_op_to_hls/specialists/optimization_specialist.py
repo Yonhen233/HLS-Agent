@@ -24,7 +24,13 @@ class OptimizationSpecialist(BaseSpecialist):
         observations: list[dict[str, Any]] = []
         query = f"{envelope.task_summary.get('name')} {envelope.task_summary.get('op_type') or ''} {scoped.get('objective')} optimization"
         memory_args = {"query": query, "top_k": 5}
-        memory_decision = self._local_react_step(envelope, observations, "memory.retrieve_optimization_rules", memory_args)
+        memory_decision = self._local_react_step(
+            envelope,
+            observations,
+            "memory.retrieve_optimization_rules",
+            memory_args,
+            force_deterministic=True,
+        )
         if memory_decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, memory_decision))
         if memory_decision["decision"] == "mark_failed":
@@ -46,7 +52,13 @@ class OptimizationSpecialist(BaseSpecialist):
             "rag_context": rag_context,
             "objective": scoped.get("objective"),
         }
-        suggest_decision = self._local_react_step(envelope, observations, "suggestion.suggest_optimization", suggest_args)
+        suggest_decision = self._local_react_step(
+            envelope,
+            observations,
+            "suggestion.suggest_optimization",
+            suggest_args,
+            force_deterministic=True,
+        )
         if suggest_decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, suggest_decision))
         if suggest_decision["decision"] == "mark_failed":
@@ -70,11 +82,17 @@ class OptimizationSpecialist(BaseSpecialist):
                 "value": {"suggestions": suggest_result.get("suggestions", []), "objective": scoped.get("objective")},
             }
         ]
+        result_status = suggest_result.get("status")
+        specialist_status = "success" if result_status == "success" else "skipped" if result_status == "skipped" else "failed"
         specialist_result = SpecialistResult(
             specialist_name=self.name,
             todo_id=envelope.todo_id,
-            status="success" if suggest_result.get("status") == "success" else "failed",
-            summary="Generated optimization suggestions based on current metrics and retrieved memories.",
+            status=specialist_status,
+            summary=(
+                suggest_result.get("reason")
+                if result_status == "skipped"
+                else "Generated optimization suggestions based on current metrics and retrieved memories."
+            ),
             observations=[
                 *observations,
                 {"tool": "memory.retrieve_optimization_rules", "result": self._compress_result(memory_result)},

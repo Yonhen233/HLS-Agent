@@ -64,6 +64,7 @@ class BaseSpecialist(ABC):
         observations: list[dict[str, Any]],
         preferred_tool: str | None,
         arguments: dict[str, Any] | None = None,
+        force_deterministic: bool = False,
     ) -> dict[str, Any]:
         llm_decider_enabled = str(
             self.runtime_context.get(
@@ -71,6 +72,8 @@ class BaseSpecialist(ABC):
                 os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED", "0"),
             )
         ).lower() in {"1", "true", "yes", "on"}
+        if force_deterministic:
+            llm_decider_enabled = False
         decision = self.local_react_decider.decide(
             envelope=envelope,
             allowed_tools=[tool for tool in envelope.allowed_tools if tool in self.allowed_tools],

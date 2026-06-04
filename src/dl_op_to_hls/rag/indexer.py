@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..core.memory_hygiene import sanitize_memory_text
 from .chunker import chunk_text
 
 
@@ -11,6 +12,9 @@ class RagIndexer:
         self.repository = repository
 
     def index_text(self, source_id: str, text: str, metadata: dict[str, Any] | None = None, source_type: str = "text") -> dict[str, Any]:
+        text = sanitize_memory_text(text)
+        if not text:
+            return {"status": "success", "chunks_indexed": 0}
         chunks = chunk_text(text)
         inserted = 0
         for chunk in chunks:
@@ -35,4 +39,3 @@ class RagIndexer:
             result = self.index_text(str(path), text, metadata=metadata, source_type=path.suffix.lstrip(".") or "file")
             total += result["chunks_indexed"]
         return {"status": "success", "chunks_indexed": total}
-

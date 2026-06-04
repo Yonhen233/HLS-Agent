@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from ..core.memory_hygiene import sanitize_memory_payload, sanitize_memory_text
 from .episodic_memory import build_episodic_candidate
 from .memory_policy import MemoryPolicy
 from .semantic_memory import build_semantic_candidates
@@ -14,10 +15,56 @@ from .skills import build_skill_candidates
 
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9_<>.-]+")
+GENERIC_QUERY_TOKENS = {
+    "agent",
+    "clock",
+    "cycles",
+    "demo",
+    "dsp",
+    "factor",
+    "hls",
+    "hls4ml",
+    "high",
+    "ii",
+    "latency",
+    "low",
+    "model",
+    "objective",
+    "optimization",
+    "operator",
+    "path",
+    "report",
+    "resource",
+    "reuse",
+    "run",
+    "suggestion",
+    "timing",
+    "vivado",
+}
 
 
 def _tokenize(text: str) -> list[str]:
-    return [token.lower() for token in TOKEN_RE.findall(text or "")]
+    tokens: list[str] = []
+    for token in TOKEN_RE.findall(text or ""):
+        lowered = token.lower()
+        tokens.append(lowered)
+        tokens.extend(part for part in re.split(r"[_<>.\-]+", lowered) if part)
+    return tokens
+
+
+def _anchor_tokens(query: str) -> set[str]:
+    return {
+        token
+        for token in _tokenize(query)
+        if len(token) >= 4 and token not in GENERIC_QUERY_TOKENS and not token.isdigit()
+    }
+
+
+def _matches_anchor(query_anchors: set[str], text: str) -> bool:
+    if not query_anchors:
+        return True
+    text_tokens = set(_tokenize(text))
+    return bool(query_anchors.intersection(text_tokens))
 
 
 def _score(query: str, text: str) -> float:
@@ -55,6 +102,24 @@ class MemoryManager:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
         return str(path)
+
+    def _sanitize_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+        sanitized = dict(candidate)
+        if "summary" in sanitized:
+            sanitized["summary"] = sanitize_memory_text(str(sanitized.get("summary") or ""))
+        if "fact" in sanitized:
+            sanitized["fact"] = sanitize_memory_text(str(sanitized.get("fact") or ""))
+        if "value" in sanitized:
+            sanitized["value"] = sanitize_memory_payload(sanitized.get("value"))
+        return sanitized
+
+    def _memory_item_text(self, item: dict[str, Any]) -> str:
+        try:
+            value = json.loads(item.get("value_json") or "{}")
+        except json.JSONDecodeError:
+            value = item.get("value_json") or ""
+        sanitized_value = sanitize_memory_payload(value)
+        return sanitize_memory_text(f"{item['key']} {json.dumps(sanitized_value, ensure_ascii=False)}")
 
     def write_short_term(self, run_id: str, key: str, value: dict) -> dict:
         path = self._memory_dir(run_id) / "short_term.json"
@@ -117,7 +182,8 @@ class MemoryManager:
 
     def promote_to_long_term(self, run_id: str, candidates: list[dict]) -> dict:
         promoted: list[dict[str, Any]] = []
-        for candidate in candidates:
+        for raw_candidate in candidates:
+            candidate = self._sanitize_candidate(raw_candidate)
             memory_type = self.policy.classify(candidate)
             if not self.policy.should_promote(candidate):
                 continue
@@ -162,7 +228,9 @@ class MemoryManager:
                 )
                 promoted_item["skill_id"] = skill_id
             if self.policy.should_index_to_rag({"memory_type": memory_type}):
-                text = candidate.get("fact") or candidate.get("summary") or json.dumps(candidate.get("value", {}), ensure_ascii=False)
+                text = sanitize_memory_text(
+                    candidate.get("fact") or candidate.get("summary") or json.dumps(candidate.get("value", {}), ensure_ascii=False)
+                )
                 self.rag_memory.index_text(
                     f"memory:{memory_id}",
                     text,
@@ -176,8 +244,11 @@ class MemoryManager:
     def retrieve_similar_experiences(self, query: str, top_k: int = 5) -> list[dict]:
         items = self.repository.list_memory_items(["episodic", "implementation", "optimization"])
         scored = []
+        anchors = _anchor_tokens(query)
         for item in items:
-            text = f"{item['key']} {item['value_json']}"
+            text = self._memory_item_text(item)
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "memory_type": item["memory_type"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
@@ -186,13 +257,18 @@ class MemoryManager:
 
     def retrieve_failure_cases(self, query: str, top_k: int = 5) -> list[dict]:
         scored = []
+        anchors = _anchor_tokens(query)
         for item in self.repository.list_failures():
             text = f"{item.get('error_type', '')} {item.get('error_message', '')} {item.get('log_summary', '')}"
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("run_id")})
         for item in self.repository.list_memory_items(["failure"]):
-            text = f"{item['key']} {item['value_json']}"
+            text = self._memory_item_text(item)
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
@@ -201,18 +277,25 @@ class MemoryManager:
 
     def retrieve_optimization_rules(self, query: str, top_k: int = 5) -> list[dict]:
         scored = []
+        anchors = _anchor_tokens(query)
         for item in self.repository.list_memory_facts():
             text = item["fact"]
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         for item in self.repository.list_memory_items(["optimization", "semantic"]):
-            text = f"{item['key']} {item['value_json']}"
+            text = self._memory_item_text(item)
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         for item in self.repository.list_skills():
             text = f"{item['name']} {item['description']} {item['steps_json']}"
+            if not _matches_anchor(anchors, text):
+                continue
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})

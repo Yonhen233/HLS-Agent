@@ -84,6 +84,53 @@ def test_memory_retrieve_similar_experiences(tmp_path):
     assert results
 
 
+def test_memory_retrieve_uses_task_anchors_to_filter_irrelevant_experiences(tmp_path):
+    manager = _manager(tmp_path)
+    manager.promote_to_long_term(
+        "matmul_run",
+        [
+            {
+                "kind": "optimization",
+                "key": "optimization.matmul_run",
+                "summary": "MatMul resource run increased reuse_factor to reduce DSP.",
+                "value": {"name": "matmul_16x16_resource", "objective": "resource", "suggestions": ["increase reuse"]},
+            }
+        ],
+    )
+
+    results = manager.retrieve_similar_experiences("resnet18_boundary_demo resource reuse factor DSP Vivado HLS", top_k=3)
+
+    assert results == []
+
+
+def test_memory_promotion_strips_second_order_prior_experience(tmp_path):
+    manager = _manager(tmp_path)
+    manager.promote_to_long_term(
+        "resnet_run",
+        [
+            {
+                "kind": "optimization",
+                "key": "optimization.resnet_run",
+                "summary": "ResNet boundary run recorded unsupported status.",
+                "value": {
+                    "name": "resnet18_boundary_demo",
+                    "suggestions": [
+                        "Optimization is not applicable yet.",
+                        "RuleSuggestion: Prior experience hint: optimization.matmul_run increased reuse_factor to reduce DSP.",
+                    ],
+                    "retrieved_memories": [{"text": "MatMul resource hint"}],
+                },
+            }
+        ],
+    )
+
+    results = manager.retrieve_similar_experiences("resnet18_boundary_demo resource", top_k=3)
+
+    assert results
+    assert "matmul" not in results[0]["text"].lower()
+    assert "prior experience hint" not in results[0]["text"].lower()
+
+
 def test_memory_retrieve_failure_cases(tmp_path):
     manager = _manager(tmp_path)
     manager.repository.save_failure({"run_id": "r1", "error_type": "VivadoNotFoundError", "error_message": "vivado missing"})
@@ -95,4 +142,3 @@ def test_memory_save_skill(tmp_path):
     manager = _manager(tmp_path)
     result = manager.save_skill("fallback_template_skill", ["Generate fallback"], {"op_type": "Dense"}, {"generated": True})
     assert result["status"] == "success"
-

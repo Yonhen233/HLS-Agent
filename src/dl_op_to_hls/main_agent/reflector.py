@@ -35,5 +35,8 @@ def update_status_from_todos(state) -> None:
     if meaningful_skips or "completed_with_warning" in statuses or state.errors:
         state.status = "partial_success" if state.status != "failed" else state.status
         return
+    if state.selected_path == "unsupported_path":
+        state.status = "partial_success"
+        return
     if statuses.issubset({"completed", "skipped"}):
         state.status = "success"

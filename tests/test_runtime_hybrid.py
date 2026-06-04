@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from dl_op_to_hls.main_agent.agent import MainAgent
+from dl_op_to_hls.main_agent.reflector import update_status_from_todos
 from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
+from dl_op_to_hls.main_agent.state import AgentState
+from dl_op_to_hls.main_agent.todo import TodoItem
 from dl_op_to_hls.main_agent.workflow import run_task
 
 
@@ -148,3 +151,28 @@ def test_runtime_reuses_existing_unsupported_report_todo_after_graph_rewrite(tem
     assert report_todos == [report_todo]
     assert graph_todo.id in report_todo.dependencies
     assert report_todo.inputs["reason"] == "No rewrite rule matched."
+
+
+def test_unsupported_path_completed_workflow_remains_partial_success():
+    state = AgentState(run_id="r1", task={"task_type": "model", "name": "resnet"}, status="initialized")
+    state.selected_path = "unsupported_path"
+    state.report = {"status": "missing"}
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Write Unsupported Report",
+            description="Write Unsupported Report",
+            status="completed",
+            priority=1,
+            dependencies=[],
+            assigned_tool="report.write_unsupported",
+            assigned_specialist=None,
+            inputs={},
+            outputs={"status": "success"},
+            error=None,
+        )
+    ]
+
+    update_status_from_todos(state)
+
+    assert state.status == "partial_success"

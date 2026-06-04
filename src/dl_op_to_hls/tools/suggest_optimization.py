@@ -4,6 +4,7 @@ import os
 from typing import Any
 
 from ..core.errors import build_error, error_result
+from ..core.memory_hygiene import sanitize_memory_text
 from ..llm.optimizer import LLMOptimizationEngine
 
 
@@ -41,7 +42,7 @@ def build_suggestions(report: dict[str, Any], rag_context: list[dict], objective
         suggestions.append("No strong issue stands out from the current report; compare reuse_factor and precision sweeps next.")
     if rag_context:
         first = rag_context[0]
-        summary = first.get("summary") or first.get("text", "")
+        summary = sanitize_memory_text(first.get("summary") or first.get("text", ""))
         if summary:
             suggestions.append(f"Prior experience hint: {summary}")
     return suggestions
@@ -52,7 +53,11 @@ def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict],
     interval = report.get("interval", {})
     resources = report.get("resources", {})
     timing = report.get("timing", {})
-    history_lines = "\n".join(f"- {item.get('summary') or item.get('text', '')}" for item in rag_context[:3]) or "- None"
+    history_lines = "\n".join(
+        f"- {cleaned}"
+        for item in rag_context[:3]
+        if (cleaned := sanitize_memory_text(item.get("summary") or item.get("text", "")))
+    ) or "- None"
     suggestion_lines = "\n".join(f"{idx}. {item}" for idx, item in enumerate(suggestions, start=1))
     return (
         "# Optimization Suggestions\n\n"
@@ -70,6 +75,13 @@ def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict],
         "## Suggestions\n"
         f"{suggestion_lines}\n"
     )
+
+
+def _write_suggestions_markdown(context: dict[str, Any], markdown: str):
+    artifact_manager = context.get("artifact_manager")
+    if artifact_manager:
+        return artifact_manager.write_text("suggestions.md", markdown, "suggestions")
+    return None
 
 
 def _is_placeholder_suggestion(text: str) -> bool:
@@ -114,6 +126,22 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
     report = arguments["report"]
     rag_context = arguments.get("rag_context", [])
     objective = arguments.get("objective") or state.get("objective")
+    if state.get("selected_path") == "unsupported_path" and report.get("status") in {"missing", "skipped", "report_missing"}:
+        suggestions = [
+            "Optimization is not applicable yet because no synthesizable HLS implementation/report is available.",
+            "Use the unsupported report to choose a safe next engineering step: graph rewrite, custom hls4ml layer, fallback template, or smaller subgraph.",
+        ]
+        markdown = render_suggestions_markdown(report, [], objective, suggestions)
+        path = _write_suggestions_markdown(context, markdown)
+        return {
+            "status": "skipped",
+            "reason": "No synthesis metrics are available for unsupported_path; LLM optimization was intentionally skipped.",
+            "suggestions": suggestions,
+            "markdown": markdown,
+            "path": str(path) if path else None,
+            "llm_skipped": True,
+            "fallback_mode": "not_applicable",
+        }
     llm_client = context.get("llm_client")
     llm_result = None
     fallback_mode = (
@@ -206,10 +234,7 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
             )
         suggestions = build_suggestions(report, rag_context, objective)
     markdown = render_suggestions_markdown(report, rag_context, objective, suggestions)
-    artifact_manager = context.get("artifact_manager")
-    path = None
-    if artifact_manager:
-        path = artifact_manager.write_text("suggestions.md", markdown, "suggestions")
+    path = _write_suggestions_markdown(context, markdown)
     return {
         "status": "success",
         "suggestions": suggestions,
