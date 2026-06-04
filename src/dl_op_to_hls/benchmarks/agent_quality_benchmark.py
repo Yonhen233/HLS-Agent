@@ -95,6 +95,10 @@ def _normalize_text(value: Any) -> str:
     return _flatten_text(value).lower()
 
 
+def _normalize_result_text(result: dict[str, Any]) -> str:
+    return str(result.get("text") or "").lower()
+
+
 def _artifact_completeness(run_dir: Path) -> dict[str, Any]:
     existing = [item for item in REQUIRED_RUN_ARTIFACTS if (run_dir / item).exists()]
     missing = [item for item in REQUIRED_RUN_ARTIFACTS if item not in existing]
@@ -342,7 +346,7 @@ def evaluate_rag_case(case: dict[str, Any], results: list[dict[str, Any]], defau
     polluted_results = [
         result
         for result in top_results
-        if any(_term_present(_normalize_text(result), term) for term in irrelevant_terms)
+        if any(_term_present(_normalize_result_text(result), term) for term in irrelevant_terms)
     ]
     return {
         "query": case["query"],

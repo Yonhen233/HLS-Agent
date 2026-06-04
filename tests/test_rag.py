@@ -8,6 +8,11 @@ def _memory(tmp_path):
     return RagMemory(MetadataRepository(database))
 
 
+def _memory_with_workspace(tmp_path):
+    database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
+    return RagMemory(MetadataRepository(database), workspace_root=tmp_path)
+
+
 def test_rag_index_text(tmp_path):
     memory = _memory(tmp_path)
     result = memory.index_text("doc1", "Dense DSP reuse factor hint", {"op_type": "Dense"})
@@ -49,3 +54,23 @@ def test_rag_index_run_artifacts(tmp_path):
     summary.write_text("Dense DSP reuse factor summary", encoding="utf-8")
     result = memory.index_run("r1", [str(summary)])
     assert result["chunks_indexed"] >= 1
+
+
+def test_rag_retrieves_static_vivado_failure_playbook(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True)
+    playbook = docs_dir / "vivado_failure_playbook.md"
+    playbook.write_text(
+        "VivadoNotFoundError is recoverable. Mark synthesis as skipped and keep partial_success.",
+        encoding="utf-8",
+    )
+    generic = tmp_path / "summary.md"
+    generic.write_text("Synthesis was skipped for an unrelated boundary demo.", encoding="utf-8")
+
+    memory = _memory_with_workspace(tmp_path)
+    memory.index_text(str(generic), generic.read_text(encoding="utf-8"), {"task_type": "model"})
+    results = memory.retrieve("VivadoNotFoundError recoverable skipped synthesis", top_k=3)
+
+    assert results
+    assert any("vivado_failure_playbook.md" in item["source_id"] for item in results)
+    assert all("summary.md" not in item["source_id"] for item in results)

@@ -99,3 +99,6 @@ def test_unsupported_report_generated(temp_workspace):
     state = run_task(str(task_path), agent=MainAgent(temp_workspace, console=False))
     unsupported = Path(temp_workspace / "runs" / state.run_id / "unsupported_report.md")
     assert unsupported.exists()
+    assert state.artifacts["unsupported_report"] == str(unsupported)
+    manifest = __import__("json").loads((unsupported.parent / "artifacts.json").read_text(encoding="utf-8"))
+    assert any(item["type"] == "unsupported_report" for item in manifest["artifacts"])

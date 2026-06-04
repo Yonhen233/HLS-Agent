@@ -6,6 +6,113 @@
 
 ---
 
+## 2026-06-04 18:24:00 +08:00：真实 DeepSeek-V4-Pro + Vivado Demo0-6 复测与 Agent 量化指标优化
+### 1. 本次测试做了什么
+按真实环境重新运行 Demo0-Demo6：
+- LLM：OpenAI-compatible API，模型 `DeepSeek-V4-Pro`。
+- HLS 工具：真实 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。
+- hls4ml / Vivado：`DL_OP_TO_HLS_MOCK_HLS4ML=0`、`DL_OP_TO_HLS_MOCK_VIVADO=0`。
+- runtime：strict 模式，未静默降级为确定性 planner。
+
+本轮真实 demo 日志目录：
+- `runs/real_demo_logs_20260604_174903/`
+
+最终纳入 benchmark 的 run：
+- Demo0 Dense：`dense_16x32_af6abf3c_12`
+- Demo1 MatMul：`matmul_16x16_resource_9ac8e2e8_15`
+- Demo2 MNIST MLP：`mnist_mlp_demo_4ff92a59_14`
+- Demo3 Tiny CNN：`mnist_tiny_cnn_188af60c_13`
+- Demo4 QKeras CNN：`mnist_qkeras_cnn_a7e2cdc5_11`
+- Demo5 Tiny residual block：`tiny_residual_block_ad48a995_11`
+- Demo6 ResNet18 boundary：`resnet18_boundary_demo_cd40d797_19`
+
+最终 benchmark 输出：
+- `runs/benchmarks/agent_quality_benchmark_real_20260604_174903_final.json`
+- `runs/benchmarks/agent_quality_benchmark_real_20260604_174903_final.md`
+
+### 2. 真实 Demo0-6 结果
+| Demo | run_id | 状态 | 路径 | 真实 Vivado report |
+|---|---|---|---|---|
+| Demo0 | `dense_16x32_af6abf3c_12` | success | fallback_template_path | latency 269 cycles, DSP 16, LUT 549, timing met |
+| Demo1 | `matmul_16x16_resource_9ac8e2e8_15` | success | fallback_template_path | latency 2052 cycles, DSP 16, LUT 624, timing not met |
+| Demo2 | `mnist_mlp_demo_4ff92a59_14` | partial_success | unsupported_path | hls4ml/ONNX 边界，未伪造 metrics |
+| Demo3 | `mnist_tiny_cnn_188af60c_13` | partial_success | unsupported_path | hls4ml/ONNX 边界，未伪造 metrics |
+| Demo4 | `mnist_qkeras_cnn_a7e2cdc5_11` | partial_success | unsupported_path | H5/QKeras frontend 边界，未伪造 metrics |
+| Demo5 | `tiny_residual_block_ad48a995_11` | partial_success | unsupported_path | residual boundary，生成可行动报告 |
+| Demo6 | `resnet18_boundary_demo_cd40d797_19` | partial_success | unsupported_path | ResNet18 boundary，生成 unsupported report |
+
+### 3. 量化指标提升
+对比上一轮真实 benchmark（`runs/real_demo_logs_20260604_171039`）与本轮最终 benchmark：
+- 成功 demo 数：1/7 -> 2/7，Demo1 MatMul 从 `partial_success` 修复为 `success`。
+- LLM decision 总数：52 -> 32，减少 20 次，下降约 38.5%。
+- ContextEnvelope 总数：37 -> 20，下降约 45.9%，说明不必要的 Main Agent 顶层 ReAct 被减少。
+- Artifact completeness avg：0.987 -> 1.0。
+- RAG Hit@K：0.75 -> 1.0。
+- RAG MRR：0.625 -> 1.0。
+- RAG relevant-term coverage@K：0.8333 -> 1.0。
+- RAG macro pollution@K：0.10 -> 0.05。
+- Unsupported 语义通过率：1.0，unsupported path 不再标成 full success，也不会为缺失综合报告编造 latency/DSP 建议。
+- 真实 Vivado metric runs：2 个，Demo0 和 Demo1 均解析到 latency/resource/timing。
+
+说明：
+- runtime 受外部 API 与 Vivado 进程波动影响，本轮仅作为 observed metric，不作为严格性能结论。
+- 本轮 median runtime：232s，max runtime：310s。
+
+### 4. 遇到的问题与根因
+1) Demo1 MemorySpecialist 阶段曾被顶层 LLM 空转卡住
+- 现象：上一轮 MatMul run 出现 `LLMGenerationError`，错误为 API 返回 `reasoning_content` 但没有最终 `message.content`。
+- 根因：Planner 已经把 todo 分派给 `MemorySpecialist`，但 Main Agent 又额外询问一次 LLM“是否 delegate”，这是冗余决策点。
+- 修复：对已显式 `assigned_specialist` 的 todo 增加 `LLMReActAutoDelegated` 路径；Main Agent 直接按协议委派，Specialist 内部仍保留 local ReAct 和 allowed_tools guard。
+
+2) Demo6 boundary skill allowlist 与实际计划不一致
+- 现象：真实 LLM 为 `unsupported_boundary_flow` 生成第一步 `task.validate_schema`，但 SkillPolicy 拒绝，导致 Demo6 failed。
+- 根因：`unsupported_boundary_flow.yaml` 的 `allowed_tools` 缺少公共入口 `task.validate_schema`。
+- 修复：将 `task.validate_schema` 加入 boundary skill 的 `recommended_todos` 与 `allowed_tools`，没有放宽 guard。
+
+3) unsupported report 产物可观测性不足
+- 现象：`unsupported_report.md` 已生成，但 artifact type 被注册为 `summary`，state 中没有 `unsupported_report` key。
+- 根因：`report.write_unsupported` tool 写文件时使用了通用 artifact 类型。
+- 修复：改为 `unsupported_report` artifact type，并在 runtime 中写入 `state.artifacts["unsupported_report"]`。
+
+4) RAG 对结构化错误查询召回不足
+- 现象：`VivadoNotFoundError recoverable skipped synthesis` 查询容易召回只有“skipped synthesis”的泛化结果。
+- 根因：轻量 term 检索只要求任意 anchor overlap，错误名这种强锚点没有被特殊处理。
+- 修复：RAG retriever 增加 strong anchor 规则，像 `VivadoNotFoundError` 这类长错误标识必须命中；同时加入 `docs/vivado_failure_playbook.md` 静态 playbook。
+
+5) RAG pollution 评测口径误伤
+- 现象：有效的 Vivado skill 由于 metadata/source_run_id 中出现 `resnet18` 被误判为污染。
+- 根因：benchmark 用整个 result dict 判断污染，包含 source_id 与 metadata。
+- 修复：pollution@K 只检查检索正文 `text`，source_id 仅用于 Recall/MRR/nDCG 可追踪性。
+
+### 5. 已修复内容
+- `src/dl_op_to_hls/main_agent/llm_runtime.py`：新增已分派 Specialist todo 的确定性 auto-delegate。
+- `skills/unsupported_boundary_flow.yaml`：补齐 `task.validate_schema`。
+- `src/dl_op_to_hls/main_agent/agent.py` 与 `runtime.py`：修复 unsupported report artifact 类型与 state 挂载。
+- `src/dl_op_to_hls/rag/retriever.py`：加入 memory_facts / skills / 静态 docs 混合检索与 strong anchor 过滤。
+- `src/dl_op_to_hls/rag/memory.py`：接入静态 playbook 检索路径。
+- `docs/vivado_failure_playbook.md`：新增 VivadoNotFoundError playbook。
+- `src/dl_op_to_hls/benchmarks/agent_quality_benchmark.py`：修正 RAG pollution 评测口径。
+- 新增/更新测试覆盖 auto-delegate、静态 playbook 检索、strong anchor 过滤、unsupported artifact 注册、benchmark pollution 口径。
+
+### 6. 当前测试结果
+- 真实 Demo0-Demo6：全部命令 exit=0，最终 2 个 success + 5 个 partial_success。
+- `python -m pytest -q -p no:cacheprovider`：206 个测试通过。
+- focused tests：
+  - `tests/test_rag.py`
+  - `tests/test_agent_quality_benchmark.py`
+  - `tests/test_llm_runtime_plan_validation.py`
+  - `tests/test_skill_registry.py`
+  - `tests/test_fallback_templates.py`
+  - `tests/test_demo_boundary_reports.py`
+
+### 7. 未修复完成的问题与原因
+- Demo2/Demo3 仍是 hls4ml/ONNX 图支持边界；需要后续继续做 Gemm/Shape/Flatten 静态 rewrite 或换更适配 hls4ml 的模型导出方式。
+- Demo4 仍是 H5/QKeras frontend 适配边界；需要新增 Keras/QKeras adapter 分支，不能用 ONNX parser 硬读 `.h5`。
+- Dense 查询仍存在少量 qkeras 内容污染；当前 macro pollution 已降至 0.05，后续可通过 op_type/source_type filter 或 curated eval corpus 继续优化。
+- runtime 仍受外部 API 和 Vivado 启动耗时影响；严格性能评测应增加 `--repeat`、median/p95 与分阶段耗时拆分。
+
+---
+
 ## 2026-06-04 16:57:41 +08:00：新增 Agent 质量 Benchmark 与 RAG 评估指标
 ### 1. 本次测试做了什么
 新增可复现的 benchmark 工具，用于量化 Agent 工程贡献，而不是只用“demo 能跑”描述效果。

@@ -333,6 +333,35 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             observation = {"status": "failed", "action": {"tool": todo.assigned_tool}, "observation": {"error": error}}
             self._write_short_term_for_todo(state, todo, observation)
             return observation
+        if specialist is not None and self._should_auto_delegate_specialist(todo, specialist):
+            emit_llm_event(
+                self.context,
+                "LLMReActAutoDelegated",
+                {
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "specialist": specialist.name,
+                    "assigned_tool": todo.assigned_tool,
+                },
+            )
+            observation = self._execute_todo_with_specialist(state, todo, specialist)
+            todo.react_steps.append(
+                {
+                    "reason_summary": "Planner already assigned a scoped specialist; deterministic delegation avoids a no-op Main Agent LLM call.",
+                    "action": {
+                        "type": "delegate_to_specialist",
+                        "tool_name": todo.assigned_tool,
+                    },
+                    "observation_summary": (
+                        observation.get("observation", {}).get("summary")
+                        or observation.get("observation", {}).get("status")
+                        or observation.get("status")
+                    ),
+                    "decision": self._decision_from_observation(state, todo, observation),
+                }
+            )
+            self._write_short_term_for_todo(state, todo, observation)
+            return observation
         envelope = None
         if specialist is not None:
             envelope = self.context_builder.build_for_specialist(state=state, todo=todo, specialist_name=specialist.name)
@@ -468,6 +497,10 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         )
         self._write_short_term_for_todo(state, todo, observation)
         return observation
+
+    def _should_auto_delegate_specialist(self, todo, specialist) -> bool:
+        """Avoid spending an external LLM call to rediscover an already-scoped delegation."""
+        return specialist is not None and bool(todo.assigned_specialist)
 
     def reflect(self, state: AgentState, todo, observation: dict) -> AgentState:
         if observation.get("status") in {"completed", "skipped"} and not observation.get("error_type"):

@@ -1187,6 +1187,8 @@ class PlanExecuteReactRuntime:
                 {"reason": todo.inputs.get("reason") or "No safe path was available for this task."},
             )
             state.selected_path = "unsupported_path"
+            if result.get("path"):
+                state.artifacts["unsupported_report"] = result["path"]
             self.todo_manager.mark_completed(todo.id, result)
             return {"status": "completed", "action": {"tool": "report.write_unsupported"}, "observation": result}
 

@@ -52,7 +52,7 @@ class MainAgent:
         schema_path = Path(__file__).resolve().parents[1] / "db" / "schema.sql"
         self.database = Database(self.config.db_path, schema_path)
         self.repository = MetadataRepository(self.database)
-        self.rag_memory = RagMemory(self.repository)
+        self.rag_memory = RagMemory(self.repository, self.config.workspace_root)
         self.memory_manager = MemoryManager(self.repository, self.rag_memory, self.config.workspace_root)
         self.registry = ToolRegistry()
         self.console = console
@@ -417,7 +417,7 @@ class MainAgent:
             "4. Synthesize one subgraph at a time.\n"
             "5. Reduce input size before full-model attempts.\n"
         )
-        path = artifact_manager.write_text("unsupported_report.md", content, "summary")
+        path = artifact_manager.write_text("unsupported_report.md", content, "unsupported_report")
         return {"status": "success", "path": str(path), "summary": reason}
 
     def _db_call(self, method_name: str, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:

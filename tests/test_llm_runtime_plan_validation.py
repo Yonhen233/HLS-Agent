@@ -1,6 +1,9 @@
+import json
+
 from dl_op_to_hls.llm.client import FakeLLMClient
 from dl_op_to_hls.main_agent.agent import MainAgent
 from dl_op_to_hls.main_agent.llm_runtime import LLMFirstRuntime
+from dl_op_to_hls.main_agent.todo import TodoItem, TodoList
 from dl_op_to_hls.main_agent.workflow import run_task_llm
 
 
@@ -135,3 +138,37 @@ def test_llm_plan_dependencies_are_normalized_for_hls4ml_flow(temp_workspace, mo
     assert by_tool["vivado.run_csynth"].dependencies == [by_tool["vivado.create_project"].id]
     assert by_tool["vivado.parse_report"].dependencies == [by_tool["vivado.run_csynth"].id]
     assert by_tool["suggestion.suggest_optimization"].dependencies == [by_tool["vivado.parse_report"].id]
+
+
+def test_llm_runtime_auto_delegates_preassigned_specialist_todo(temp_workspace, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = LLMFirstRuntime(agent, llm_client=FakeLLMClient(json_responses=[]))
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_operator.json"))
+    todo = TodoItem(
+        id="todo_001",
+        title="Promote memories",
+        description="Promote run context and memory candidates.",
+        status="pending",
+        priority=1,
+        dependencies=[],
+        assigned_tool="memory.promote_to_long_term",
+        assigned_specialist="MemorySpecialist",
+        inputs={},
+        outputs=None,
+        error=None,
+    )
+    runtime.todo_manager.todo_list = TodoList(run_id=state.run_id, items=[todo])
+    state.todos = [todo]
+
+    observation = runtime.execute_todo_with_react(state, todo)
+
+    assert observation["status"] == "completed"
+    assert todo.status == "completed"
+    assert todo.specialist_result["specialist_name"] == "MemorySpecialist"
+    assert todo.react_steps[-1]["action"]["type"] == "delegate_to_specialist"
+    trace_path = temp_workspace / "runs" / state.run_id / "trace.jsonl"
+    events = [json.loads(line)["event"] for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert "LLMReActAutoDelegated" in events
+    assert "LLMReActFailed" not in events

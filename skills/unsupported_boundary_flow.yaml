@@ -11,6 +11,11 @@
   ],
   "recommended_todos": [
     {
+      "title": "Validate task schema",
+      "assigned_tool": "task.validate_schema",
+      "assigned_specialist": null
+    },
+    {
       "title": "Try graph rewrite",
       "assigned_tool": "graph_rewrite.rewrite",
       "assigned_specialist": null
@@ -27,6 +32,7 @@
     }
   ],
   "allowed_tools": [
+    "task.validate_schema",
     "graph_rewrite.rewrite",
     "report.write_unsupported",
     "summary.write_summary",

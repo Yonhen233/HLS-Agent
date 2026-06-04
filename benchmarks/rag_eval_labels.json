@@ -25,6 +25,7 @@
     {
       "query": "VivadoNotFoundError recoverable skipped synthesis",
       "top_k": 5,
+      "relevant_source_ids": ["vivado_failure_playbook.md"],
       "relevant_terms": ["vivadonotfounderror", "recoverable", "skipped"],
       "required_terms": ["vivadonotfounderror"],
       "irrelevant_terms": ["qkeras", "resnet18"]

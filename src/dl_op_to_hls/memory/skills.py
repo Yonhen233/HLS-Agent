@@ -15,7 +15,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                     "Check hls4ml support.",
                     "Generate fallback HLS template.",
                     "Create Vivado HLS project.",
-                    "Run synthesis or gracefully skip if Vivado is unavailable.",
+                    "Run synthesis or gracefully skip with VivadoNotFoundError if Vivado is unavailable.",
                 ],
                 "trigger_conditions": {"selected_path": "fallback_template_path"},
                 "success_criteria": {"generated_hls_project": True},
@@ -30,7 +30,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                 "description": "Create a Vivado project, run csynth, and parse the report.",
                 "steps": [
                     "Create Vivado HLS project TCL.",
-                    "Run csynth.",
+                    "Run csynth, or mark skipped synthesis with partial_success on VivadoNotFoundError.",
                     "Parse report.",
                     "Record metrics and suggestions.",
                 ],
@@ -72,4 +72,3 @@ def build_skill_candidates(state: dict) -> list[dict]:
             }
         )
     return skills
-

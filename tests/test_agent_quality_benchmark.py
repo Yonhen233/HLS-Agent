@@ -46,6 +46,27 @@ def test_rag_eval_computes_term_coverage_and_pollution():
     assert metrics["precision_at_k"] == 0.5
 
 
+def test_rag_eval_pollution_uses_retrieved_text_not_source_id():
+    case = {
+        "query": "VivadoNotFoundError recoverable skipped synthesis",
+        "top_k": 2,
+        "relevant_source_ids": ["vivado_failure_playbook.md"],
+        "irrelevant_terms": ["resnet18"],
+    }
+    results = [
+        {
+            "source_id": "skill:1:vivado_synthesis_skill",
+            "text": "VivadoNotFoundError is recoverable and synthesis can be skipped.",
+            "metadata": {"run_id": "resnet18_boundary_demo"},
+        },
+        {"source_id": "docs/vivado_failure_playbook.md", "text": "VivadoNotFoundError playbook."},
+    ]
+
+    metrics = evaluate_rag_case(case, results)
+
+    assert metrics["pollution_at_k"] == 0.0
+
+
 def test_collect_run_metrics_flags_unsupported_semantic_errors(tmp_path):
     run_dir = tmp_path / "runs" / "resnet_run"
     run_dir.mkdir(parents=True)

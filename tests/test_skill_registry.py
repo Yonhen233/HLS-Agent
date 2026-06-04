@@ -28,3 +28,11 @@ def test_llm_candidate_verification_skill_exists():
     registry.load_all()
     skill = registry.get("llm_candidate_verification_flow")
     assert "llm.generate_hls_candidate" in skill.allowed_tools
+
+
+def test_unsupported_boundary_skill_allows_schema_validation():
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    skill = registry.get("unsupported_boundary_flow")
+    assert "task.validate_schema" in skill.allowed_tools
+    assert skill.recommended_todos[0]["assigned_tool"] == "task.validate_schema"
