@@ -4,6 +4,7 @@ import json
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -196,13 +197,14 @@ class LLMClient:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": temperature,
+            "max_tokens": self.config.max_output_tokens,
         }
         if force_json:
             body["response_format"] = {"type": "json_object"}
         request_raw = json.dumps(body).encode("utf-8")
         request_bytes = len(request_raw)
         request = urllib.request.Request(
-            f"{self.config.base_url.rstrip('/')}/chat/completions",
+            self._chat_completions_url(),
             data=request_raw,
             headers={
                 "Content-Type": "application/json",
@@ -270,7 +272,30 @@ class LLMClient:
             )
 
         try:
-            return payload["choices"][0]["message"]["content"]
+            choice = payload["choices"][0]
+            message = choice["message"]
+            content = message.get("content")
+            if content:
+                return content
+            reasoning_content = message.get("reasoning_content") or (message.get("provider_specific_fields") or {}).get("reasoning_content")
+            if reasoning_content:
+                raise AgentRuntimeError(
+                    build_error(
+                        "LLMGenerationError",
+                        "OpenAI response contained reasoning_content but no final message.content.",
+                        recoverable=True,
+                        source="llm.complete_text",
+                        suggested_action="Increase DL_OP_TO_HLS_LLM_MAX_TOKENS or simplify the prompt so the model can finish final JSON output.",
+                        details={
+                            "finish_reason": choice.get("finish_reason"),
+                            "reasoning_chars": len(str(reasoning_content)),
+                            "max_tokens": self.config.max_output_tokens,
+                        },
+                    )
+                )
+            return content or ""
+        except AgentRuntimeError:
+            raise
         except Exception as exc:
             raise AgentRuntimeError(
                 build_error(
@@ -281,6 +306,13 @@ class LLMClient:
                     details={"payload": payload},
                 )
             ) from exc
+
+    def _chat_completions_url(self) -> str:
+        base_url = self.config.base_url.rstrip("/")
+        parsed = urllib.parse.urlparse(base_url)
+        if parsed.path in {"", "/"}:
+            base_url = f"{base_url}/v1"
+        return f"{base_url}/chat/completions"
 
     def _parse_json_payload(self, text: str) -> dict[str, Any]:
         try:
@@ -457,6 +489,7 @@ class FakeLLMClient(LLMClient):
                 api_key="fake",
                 max_tool_calls=30,
                 max_repair_attempts=2,
+                max_output_tokens=4096,
                 rate_bytes_per_minute=10000,
                 min_request_interval_sec=0.0,
                 min_retry_429_seconds=0,

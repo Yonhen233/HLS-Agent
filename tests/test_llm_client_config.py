@@ -16,6 +16,7 @@ class SequenceLLMClient(LLMClient):
                 api_key="fake",
                 max_tool_calls=30,
                 max_repair_attempts=2,
+                max_output_tokens=4096,
                 rate_bytes_per_minute=10000,
                 min_request_interval_sec=0,
                 min_retry_429_seconds=0,
@@ -42,6 +43,21 @@ def test_llm_client_enabled(monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
     client = LLMClient()
     assert client.is_enabled() is True
+
+
+def test_llm_client_root_base_url_appends_v1(monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_BASE_URL", "https://llmapi.paratera.com")
+    client = LLMClient()
+    assert client._chat_completions_url() == "https://llmapi.paratera.com/v1/chat/completions"
+
+
+def test_llm_config_reads_max_tokens(monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_MAX_TOKENS", "8192")
+    assert LLMConfig.from_env().max_output_tokens == 8192
 
 
 def test_llm_client_repairs_missing_react_decision():

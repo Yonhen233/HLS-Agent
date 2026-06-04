@@ -9,6 +9,26 @@ from typing import Any
 
 DONE_STATUSES = {"completed", "completed_with_warning", "skipped"}
 
+WARNING_DEPENDENCY_OK_TOOLS = {
+    "graph_rewrite.rewrite",
+    "fallback.generate_operator_hls",
+    "llm.generate_candidate",
+    "report.write_unsupported",
+    "vivado.parse_report",
+    "vivado.parse_csynth_report",
+    "suggestion.suggest_optimization",
+    "summary.write_summary",
+    "memory.promote_to_long_term",
+}
+
+SKIPPED_DEPENDENCY_OK_TOOLS = {
+    "vivado.parse_report",
+    "vivado.parse_csynth_report",
+    "suggestion.suggest_optimization",
+    "summary.write_summary",
+    "memory.promote_to_long_term",
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -143,10 +163,19 @@ class TodoManager:
                 return item
         raise KeyError(todo_id)
 
+    def _dep_satisfied_for_item(self, item: TodoItem, dep: TodoItem) -> bool:
+        if dep.status == "completed":
+            return True
+        if dep.status == "completed_with_warning":
+            return item.assigned_tool in WARNING_DEPENDENCY_OK_TOOLS
+        if dep.status == "skipped":
+            return item.assigned_tool in SKIPPED_DEPENDENCY_OK_TOOLS
+        return False
+
     def _deps_satisfied(self, item: TodoItem) -> bool:
         for dep_id in item.dependencies:
             dep = self._find(dep_id)
-            if dep.status not in DONE_STATUSES:
+            if not self._dep_satisfied_for_item(item, dep):
                 return False
         return True
 

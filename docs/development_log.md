@@ -6,6 +6,85 @@
 
 ---
 
+## 2026-06-04 08:20:40 +08:00：DeepSeek-V4-Pro 真实批跑暴露 DAG 依赖问题后的框架修复
+### 1. 本次测试做了什么
+执行与验证：
+- 在独立目录 `D:\hls_agent\standalone_work\dl-op-to-hls-agent` 继续开发，未引用或修改旧 `D:\hls_agent` 脚本。
+- 使用用户指定的 OpenAI-compatible endpoint、模型名 `DeepSeek-V4-Pro`、真实 hls4ml、真实 Vivado HLS 2018.3 启动 Demo0-Demo6 分层真实验证。
+- 已完成的真实 LLM + Vivado 旧批跑结果：
+  - Demo0：单独运行成功，`dense_16x32_af6abf3c_09`，`success`，`fallback_template_path`，真实 Vivado csynth 成功，latency 269 cycles，DSP 16，LUT 549，timing met。
+  - Demo1：`matmul_16x16_resource_9ac8e2e8_12`，`success`，`fallback_template_path`，真实 Vivado csynth 成功。
+  - Demo2：`mnist_mlp_demo_4ff92a59_11`，`partial_success`，`unsupported_path`，暴露 graph rewrite 后 Todo 分支调度问题。
+  - Demo3：`mnist_tiny_cnn_188af60c_10`，`failed`，暴露 hls4ml unsupported 后旧下游 Todo 抢跑，以及 DeepSeek-V4-Pro 长优化调用返回 reasoning_content 但无最终 content 的问题。
+  - Demo4：`mnist_qkeras_cnn_a7e2cdc5_08`，`partial_success`，`unsupported_path`。
+  - Demo5：`tiny_residual_block_ad48a995_07`，`partial_success`，`unsupported_path`。
+  - Demo6：`resnet18_boundary_demo_cd40d797_09`，`partial_success`，`unsupported_path`。
+- 修复后执行：
+  - `python -m pytest tests\test_todo.py tests\test_llm_runtime_plan_validation.py tests\test_runtime_hybrid.py -q`
+  - `python -m pytest tests\test_fallback_templates.py::test_unsupported_report_generated tests\test_runtime_hybrid.py tests\test_todo.py -q`
+  - `python -m pytest -q`
+
+### 2. 当前测试结果
+已通过：
+- 相关回归测试通过。
+- 全量 pytest 通过。
+
+未完成：
+- 修复后的真实 DeepSeek-V4-Pro + Vivado Demo0-Demo6 复测尚未完成。
+- 原因不是 DeepSeek-V4-Pro 模型名不可用，而是本次新外网命令被 Codex 外部执行审批器以使用额度限制拦截，无法重新向 Paratera endpoint 发起 API 请求。
+- 处理：没有降级模型，没有切换到 mock，也没有用确定性流程冒充 LLM-first 真实复测。
+
+### 3. 发现的问题与根因
+1) Todo DAG 把 `completed_with_warning` 当作普通成功依赖
+- 现象：Demo2 中 hls4ml support 返回 unsupported 后，Agent 添加了 `Try graph rewrite`，但旧的 `Parse synthesis report`、`Generate optimization suggestions`、`Promote memories` 等下游 Todo 仍提前执行。
+- 根因：Todo 依赖判断把 `completed_with_warning` / `skipped` 统一视为 DONE，导致核心 HLS/Vivado 节点错误消费了 unsupported warning。
+
+2) LLM 计划依赖缺失没有被框架归一化
+- 现象：LLM 计划中部分 Todo dependencies 为空，runtime 按 priority 执行时允许后续 Todo 抢跑。
+- 根因：Main Agent guard 只校验工具/专家 allowlist，没有把 hls4ml model flow 的结构性边补齐为强 DAG。
+
+3) graph rewrite recovery 分支只追加依赖，没有替换旧依赖
+- 现象：rewrite 后新增了 retry support，但旧 config/convert/Vivado Todo 仍保留原始 unsupported support 依赖，可能永久 blocked 或走错路径。
+- 根因：动态分支切换没有“替换依赖链”的操作，只做 append dependency。
+
+4) fallback template 不支持时没有显式进入 candidate/unsupported 分支
+- 现象：`CustomUnsupported` 测试中 fallback template 返回 recoverable error 后，Vivado synthesis 等待失败的 fallback 节点，`unsupported_report.md` 未生成。
+- 根因：fallback warning 没有触发 LLM candidate / verification / unsupported report 的后续恢复链。
+
+5) DeepSeek-V4-Pro 长输出可能只有 reasoning_content
+- 现象：Demo3 的 OptimizationSpecialist 调用返回 reasoning_content 但没有最终 message.content，被客户端记录为真实 LLM 输出失败。
+- 根因：该模型在长推理/长建议场景可能把 token 用在 reasoning 阶段，没有产生最终 content；当前 strict 模式正确失败而不是规则兜底。
+
+### 4. 已修复内容（含修复方式）
+- 在 `TodoManager` 中引入依赖状态契约：
+  - 核心 HLS/Vivado 节点只接受 `completed` 依赖。
+  - `graph_rewrite.rewrite`、`fallback.generate_operator_hls`、`llm.generate_candidate`、`report.write_unsupported`、`summary/suggestion/memory` 等恢复/收尾节点可消费 warning。
+  - parse/summary/suggestion/memory 可消费 synthesis skipped，用于 Vivado 缺失时的 partial-success 收尾。
+- 在 `LLMFirstRuntime` 中增加 LLM plan dependency normalization：
+  - 自动补齐 `validate -> inspect -> support -> config -> convert -> Vivado -> parse -> suggest -> summary -> memory`。
+  - 即使 LLM 输出 dependencies 为空，也不会让下游 Todo 抢跑。
+- 在 runtime dynamic recovery 中增加依赖替换与终端分支切换：
+  - graph rewrite 成功后重写为 `retry support -> config -> convert -> Vivado -> parse -> finalization`。
+  - graph rewrite 后仍 unsupported 时取消旧 hls4ml/Vivado 分支，切到 `unsupported report -> suggestion -> summary -> memory`。
+  - fallback template 失败后显式进入 `Generate LLM candidate -> Verify LLM candidate`，并且 Vivado synthesis 必须等待 verification。
+- 新增回归测试：
+  - warning dependency 不会解锁 hls4ml config。
+  - warning dependency 会解锁 graph rewrite recovery。
+  - LLM plan 缺失 dependencies 时会被归一化为 hls4ml flow DAG。
+  - unsupported operator 能生成 `unsupported_report.md`。
+
+### 5. 未修复 / 待继续验证
+- 修复后的真实 DeepSeek-V4-Pro + Vivado Demo0-Demo6 需要在 Codex 外部执行额度恢复后重跑。
+- Demo2/Demo3 真实 hls4ml 支持边界仍然存在：
+  - Demo2：Gemm rewrite 后 hls4ml 仍可能因权重 shape 推断失败，需要继续增强 ONNX graph rewrite / initializer shape handling。
+  - Demo3：Shape/Concat/Reshape/Flatten 静态消除仍需增强。
+- DeepSeek-V4-Pro 的 reasoning-only 长输出需要继续验证：
+  - 可尝试提高 `DL_OP_TO_HLS_LLM_MAX_TOKENS`。
+  - 或对 OptimizationSpecialist prompt 进一步压缩，要求短 JSON suggestions。
+  - strict 模式下仍应保持“LLM 无最终 content 即失败”，不启用规则兜底冒充成功。
+
+---
+
 ## 2026-06-04 06:33:44 +08:00：更换 Paratera DeepSeek 配置后的真实链路复核
 ### 1. 本次测试做了什么
 执行与验证：

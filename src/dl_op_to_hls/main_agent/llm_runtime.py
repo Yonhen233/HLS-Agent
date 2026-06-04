@@ -249,9 +249,60 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     elif any(dep == todo.id for todo in todo_list.items):
                         normalized.append(dep)
                 item.dependencies = normalized
+        self._normalize_llm_plan_dependencies(todo_list, state.task)
         self.todo_manager.save(state.run_id, todo_list)
         state.todos = todo_list.items
         state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
+
+    def _normalize_llm_plan_dependencies(self, todo_list, task: dict[str, Any]) -> None:
+        """Repair missing edges in LLM plans without changing the selected skill semantics."""
+
+        def first_by_tool(*tool_names: str):
+            for item in todo_list.items:
+                if item.assigned_tool in tool_names:
+                    return item
+            return None
+
+        def require(item, dependency) -> None:
+            if item is None or dependency is None or item.id == dependency.id:
+                return
+            if dependency.id not in item.dependencies:
+                item.dependencies.append(dependency.id)
+
+        validate = first_by_tool("task.validate_schema")
+        inspect = first_by_tool("hls4ml.inspect_model")
+        support = first_by_tool("hls4ml.check_support", "hls4ml.check_hls4ml_support")
+        graph = first_by_tool("graph_rewrite.rewrite")
+        fallback = first_by_tool("fallback.generate_operator_hls")
+        config = first_by_tool("hls4ml.generate_config", "hls4ml.generate_hls4ml_config")
+        convert = first_by_tool("hls4ml.convert", "hls4ml.convert_with_hls4ml")
+        prepare_existing = first_by_tool("task.prepare_existing_project")
+        vivado_create = first_by_tool("vivado.create_project", "vivado.create_vivado_project")
+        vivado_synth = first_by_tool("vivado.run_csynth")
+        parse = first_by_tool("vivado.parse_report", "vivado.parse_csynth_report")
+        unsupported = first_by_tool("report.write_unsupported")
+        suggest = first_by_tool("suggestion.suggest_optimization", "suggestion.generate")
+        summary = first_by_tool("summary.write_summary")
+        memory = first_by_tool("memory.promote_to_long_term")
+
+        require(inspect, validate)
+        require(support, inspect or validate)
+        require(graph, support)
+        require(fallback, graph or support)
+        require(config, support)
+        require(convert, config)
+        require(prepare_existing, validate)
+
+        implementation_source = convert or fallback or prepare_existing
+        require(vivado_create, implementation_source)
+        require(vivado_synth, vivado_create or implementation_source)
+        require(parse, vivado_synth)
+        require(unsupported, graph or support)
+
+        terminal = unsupported or parse or vivado_synth or implementation_source
+        require(suggest, terminal)
+        require(summary, suggest or terminal)
+        require(memory, summary or suggest or terminal)
 
     def execute_todo_with_react(self, state: AgentState, todo) -> dict[str, Any]:
         state.current_todo_id = todo.id

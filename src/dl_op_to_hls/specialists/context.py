@@ -88,6 +88,8 @@ class ContextBuilder:
             "objective": state.objective,
             "target": task.get("target", {}),
             "todo_title": todo.title,
+            "assigned_tool": getattr(todo, "assigned_tool", None),
+            "assigned_specialist": getattr(todo, "assigned_specialist", None),
         }
         scoped_state = self._scoped_state(state, todo, specialist_name)
         artifact_refs = self._artifact_refs(state, specialist_name)
@@ -202,7 +204,7 @@ class ContextBuilder:
     def _artifact_relevant(self, artifact_type: str, specialist_name: str) -> bool:
         relevant = {
             "HLS4MLSpecialist": {"input_task", "normalized_task", "hls4ml_config"},
-            "VivadoSpecialist": {"hls_project", "tcl", "vivado_report", "report_json", "compressed_logs"},
+            "VivadoSpecialist": {"hls_project", "tcl", "vivado_log", "vivado_report", "report_json", "compressed_logs"},
             "VerificationSpecialist": {"hls_cpp", "hls_header", "testbench", "tcl", "report_json"},
             "OptimizationSpecialist": {"report_json", "summary", "suggestions"},
             "MemorySpecialist": {"summary", "suggestions", "compressed_context", "report_json", "unsupported_report"},

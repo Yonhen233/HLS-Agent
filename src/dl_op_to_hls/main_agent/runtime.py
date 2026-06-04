@@ -371,6 +371,7 @@ class PlanExecuteReactRuntime:
             "hls4ml.convert_with_hls4ml",
         }
         is_graph_rewrite = todo.title == "Try graph rewrite" or assigned_tool == "graph_rewrite.rewrite"
+        is_fallback_template = todo.title == "Generate fallback HLS template" or assigned_tool == "fallback.generate_operator_hls"
         if is_hls4ml_support and observation.get("hls4ml_status") == "unsupported":
             if state.task["task_type"] == "operator":
                 graph_todo = self.todo_manager.append_item(
@@ -389,7 +390,7 @@ class PlanExecuteReactRuntime:
                     dependencies=[graph_todo.id],
                     inputs={"task": state.task},
                 )
-                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", fallback_todo.id)
+                self._rewire_vivado_chain_after_implementation(state, fallback_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             else:
                 if state.task.get("original_model_path") or str(state.task.get("model_path", "")).endswith("_gemm_rewritten.onnx"):
@@ -402,6 +403,26 @@ class PlanExecuteReactRuntime:
                         inputs={"reason": "hls4ml still reports unsupported operators after graph rewrite."},
                     )
                     self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                    self._switch_finalization_to_terminal(state, unsupported_todo.id)
+                    self._add_dependency_to_tool(
+                        state,
+                        {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                        unsupported_todo.id,
+                    )
+                    self._cancel_pending_tools(
+                        {
+                            "hls4ml.generate_config",
+                            "hls4ml.generate_hls4ml_config",
+                            "hls4ml.convert",
+                            "hls4ml.convert_with_hls4ml",
+                            "vivado.create_project",
+                            "vivado.create_vivado_project",
+                            "vivado.run_csynth",
+                            "vivado.parse_report",
+                            "vivado.parse_csynth_report",
+                        },
+                        "Graph rewrite did not produce a hls4ml-compatible model; switching to unsupported report.",
+                    )
                     state.selected_path = "unsupported_path"
                     state.status = "partial_success"
                     if state.report is None:
@@ -417,7 +438,21 @@ class PlanExecuteReactRuntime:
                     )
                     self._add_dependency_to_tool(state, {"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"}, graph_todo.id)
                     self._add_dependency_to_tool(state, {"hls4ml.convert", "hls4ml.convert_with_hls4ml"}, graph_todo.id)
-                    self._add_dependency_to_tool(state, {"vivado.create_project", "vivado.run_csynth"}, graph_todo.id)
+                    self._add_dependency_to_tool(
+                        state,
+                        {
+                            "vivado.create_project",
+                            "vivado.create_vivado_project",
+                            "vivado.run_csynth",
+                            "vivado.parse_report",
+                            "vivado.parse_csynth_report",
+                            "suggestion.suggest_optimization",
+                            "summary.write_summary",
+                            "memory.promote_to_long_term",
+                        },
+                        graph_todo.id,
+                    )
+                    self._switch_finalization_to_terminal(state, graph_todo.id)
                 state.todos = self.todo_manager.todo_list.items
         elif is_hls4ml_support and observation.get("hls4ml_status") == "partially_supported":
             graph_todo = self.todo_manager.append_item(
@@ -437,6 +472,12 @@ class PlanExecuteReactRuntime:
                 inputs={"reason": state.hls4ml_support.get("recommendation") if state.hls4ml_support else "Model is only partially supported by hls4ml."},
             )
             self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            self._add_dependency_to_tool(
+                state,
+                {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                unsupported_todo.id,
+            )
             for item in self.todo_manager.todo_list.items:
                 if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                     self.todo_manager.mark_skipped(item.id, "Boundary demo selected: skip full synthesis and emit boundary report.")
@@ -463,6 +504,12 @@ class PlanExecuteReactRuntime:
                 inputs={"reason": reason},
             )
             self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            self._add_dependency_to_tool(
+                state,
+                {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                unsupported_todo.id,
+            )
             for item in self.todo_manager.todo_list.items:
                 if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                     self.todo_manager.mark_skipped(item.id, "Not recommended boundary demo: skip full synthesis.")
@@ -513,6 +560,7 @@ class PlanExecuteReactRuntime:
                     inputs={"task": state.task},
                     tool_names={"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"},
                 )
+                self._replace_dependencies(config_todo.id, [retry_todo.id])
                 convert_todo = self._ensure_active_todo(
                     title="Convert with hls4ml",
                     description="Convert rewritten model into an HLS project.",
@@ -522,6 +570,7 @@ class PlanExecuteReactRuntime:
                     inputs={"task": state.task},
                     tool_names={"hls4ml.convert", "hls4ml.convert_with_hls4ml"},
                 )
+                self._replace_dependencies(convert_todo.id, [config_todo.id])
                 vivado_todo = self._ensure_active_todo(
                     title="Run Vivado HLS synthesis",
                     description="Run synthesis on the recovered HLS project.",
@@ -531,6 +580,7 @@ class PlanExecuteReactRuntime:
                     inputs={"task": state.task},
                     tool_names={"vivado.create_project", "vivado.run_csynth"},
                 )
+                self._replace_dependencies(vivado_todo.id, [convert_todo.id])
                 parse_todo = self._ensure_active_todo(
                     title="Parse synthesis report",
                     description="Parse synthesis report after recovered Vivado run.",
@@ -540,8 +590,8 @@ class PlanExecuteReactRuntime:
                     inputs={"task": state.task},
                     tool_names={"vivado.parse_report", "vivado.parse_csynth_report"},
                 )
-                self._add_dependency_to_tool(state, {"suggestion.suggest_optimization", "suggestion.generate"}, parse_todo.id)
-                self._add_dependency_to_tool(state, {"memory.promote_to_long_term"}, parse_todo.id)
+                self._replace_dependencies(parse_todo.id, [vivado_todo.id])
+                self._switch_finalization_to_terminal(state, parse_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             elif state.task["task_type"] == "model":
                 unsupported_todo = self.todo_manager.append_item(
@@ -556,6 +606,12 @@ class PlanExecuteReactRuntime:
                     },
                 )
                 self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                self._switch_finalization_to_terminal(state, unsupported_todo.id)
+                self._add_dependency_to_tool(
+                    state,
+                    {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                    unsupported_todo.id,
+                )
                 for item in self.todo_manager.todo_list.items:
                     if item.title in {"Generate hls4ml config", "Convert with hls4ml", "Run Vivado HLS synthesis", "Parse synthesis report"}:
                         if item.status in {"pending", "blocked"}:
@@ -586,8 +642,23 @@ class PlanExecuteReactRuntime:
                     },
                 )
                 self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                self._switch_finalization_to_terminal(state, unsupported_todo.id)
+                self._add_dependency_to_tool(
+                    state,
+                    {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                    unsupported_todo.id,
+                )
                 for item in self.todo_manager.todo_list.items:
-                    if item.status in {"pending", "blocked"} and (item.assigned_tool or "").startswith("vivado."):
+                    if item.status in {"pending", "blocked"} and (
+                        (item.assigned_tool or "").startswith("vivado.")
+                        or item.assigned_tool
+                        in {
+                            "hls4ml.generate_config",
+                            "hls4ml.generate_hls4ml_config",
+                            "hls4ml.convert",
+                            "hls4ml.convert_with_hls4ml",
+                        }
+                    ):
                         self.todo_manager.mark_cancelled(item.id, "Recovered hls4ml path failed; switching to unsupported report.")
                 state.selected_path = "unsupported_path"
                 state.status = "partial_success"
@@ -622,6 +693,26 @@ class PlanExecuteReactRuntime:
                         )
             if state.report is None:
                 state.report = empty_report("missing")
+            state.todos = self.todo_manager.todo_list.items
+        elif is_fallback_template and status == "completed_with_warning":
+            existing = next(
+                (
+                    item
+                    for item in self.todo_manager.todo_list.items
+                    if item.assigned_tool == "llm.generate_candidate" and item.status in {"pending", "blocked", "in_progress", "completed"}
+                ),
+                None,
+            )
+            if existing is None:
+                llm_todo = self.todo_manager.append_item(
+                    title="Generate LLM candidate",
+                    description="Fallback template is unavailable; generate a candidate implementation for verification.",
+                    priority=todo.priority + 1,
+                    assigned_tool="llm.generate_candidate",
+                    dependencies=[todo.id],
+                    inputs={"task": state.task},
+                )
+                self._replace_dependencies(llm_todo.id, [todo.id])
             state.todos = self.todo_manager.todo_list.items
         elif todo.title == "Run Vivado HLS synthesis" and observation.get("status") == "blocked" and not state.hls_project_dir:
             existing = next(
@@ -673,6 +764,12 @@ class PlanExecuteReactRuntime:
                     inputs={"reason": "LLM candidate failed verification after max repair attempts."},
                 )
                 self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+                self._switch_finalization_to_terminal(state, unsupported_todo.id)
+                self._add_dependency_to_tool(
+                    state,
+                    {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                    unsupported_todo.id,
+                )
                 for item in self.todo_manager.todo_list.items:
                     if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                         self.todo_manager.mark_cancelled(item.id, "Verification failed and the runtime switched to unsupported report generation.")
@@ -687,6 +784,12 @@ class PlanExecuteReactRuntime:
                 inputs={"reason": "LLM candidate generation failed and no verified fallback implementation is available."},
             )
             self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            self._add_dependency_to_tool(
+                state,
+                {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
+                unsupported_todo.id,
+            )
             for item in self.todo_manager.todo_list.items:
                 if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                     self.todo_manager.mark_cancelled(item.id, "No valid HLS candidate was available.")
@@ -913,7 +1016,7 @@ class PlanExecuteReactRuntime:
                     dependencies=[todo.id],
                     inputs={"candidate_dir": str(candidate_dir)},
                 )
-                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", verify_todo.id)
+                self._rewire_vivado_chain_after_implementation(state, verify_todo.id)
                 state.todos = self.todo_manager.todo_list.items
                 return {"status": "completed", "action": {"tool": "llm.generate_candidate"}, "observation": result}
             self.todo_manager.mark_failed(todo.id, result.get("error", {}))
@@ -1173,6 +1276,56 @@ class PlanExecuteReactRuntime:
             if item.title == title and item.id != dependency_id:
                 self.todo_manager.add_dependency(item.id, dependency_id)
         state.todos = self.todo_manager.todo_list.items
+
+    def _replace_dependencies(self, todo_id: str, dependency_ids: list[str]) -> None:
+        item = self.todo_manager._find(todo_id)
+        item.dependencies = list(dict.fromkeys(dep for dep in dependency_ids if dep != todo_id))
+        if item.status == "blocked" and (item.error or {}).get("message") == "Dependencies are not completed yet.":
+            item.status = "pending"
+            item.error = None
+        self.todo_manager.save(self.todo_manager.todo_list.run_id, self.todo_manager.todo_list)
+
+    def _first_active_tool(self, tool_names: set[str]):
+        for item in self.todo_manager.todo_list.items:
+            if item.assigned_tool in tool_names and item.status in {"pending", "blocked"}:
+                return item
+        return None
+
+    def _switch_finalization_to_terminal(self, state: AgentState, terminal_id: str) -> None:
+        suggest = self._first_active_tool({"suggestion.suggest_optimization", "suggestion.generate"})
+        summary = self._first_active_tool({"summary.write_summary"})
+        memory = self._first_active_tool({"memory.promote_to_long_term"})
+        tail_id = terminal_id
+        if suggest is not None:
+            self._replace_dependencies(suggest.id, [tail_id])
+            tail_id = suggest.id
+        if summary is not None:
+            self._replace_dependencies(summary.id, [tail_id])
+            tail_id = summary.id
+        if memory is not None:
+            self._replace_dependencies(memory.id, [tail_id])
+        state.todos = self.todo_manager.todo_list.items
+
+    def _rewire_vivado_chain_after_implementation(self, state: AgentState, implementation_todo_id: str) -> None:
+        create = self._first_active_tool({"vivado.create_project", "vivado.create_vivado_project"})
+        synth = self._first_active_tool({"vivado.run_csynth"})
+        parse = self._first_active_tool({"vivado.parse_report", "vivado.parse_csynth_report"})
+        terminal_id = implementation_todo_id
+        if create is not None:
+            self._replace_dependencies(create.id, [implementation_todo_id])
+            terminal_id = create.id
+        if synth is not None:
+            self._replace_dependencies(synth.id, [terminal_id])
+            terminal_id = synth.id
+        if parse is not None:
+            self._replace_dependencies(parse.id, [terminal_id])
+            terminal_id = parse.id
+        self._switch_finalization_to_terminal(state, terminal_id)
+
+    def _cancel_pending_tools(self, tool_names: set[str], reason: str) -> None:
+        for item in self.todo_manager.todo_list.items:
+            if item.status in {"pending", "blocked"} and item.assigned_tool in tool_names:
+                self.todo_manager.mark_cancelled(item.id, reason)
 
     def _compress_outputs(self, state: AgentState) -> dict[str, Any]:
         compressed = {"logs": [], "reports": []}

@@ -19,6 +19,7 @@ class LLMConfig:
     api_key: str | None
     max_tool_calls: int
     max_repair_attempts: int
+    max_output_tokens: int
     rate_bytes_per_minute: int
     min_request_interval_sec: float
     min_retry_429_seconds: int
@@ -33,6 +34,7 @@ class LLMConfig:
             api_key=os.environ.get("DL_OP_TO_HLS_LLM_API_KEY"),
             max_tool_calls=int(os.environ.get("DL_OP_TO_HLS_LLM_MAX_TOOL_CALLS", "30")),
             max_repair_attempts=int(os.environ.get("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS", "2")),
+            max_output_tokens=int(os.environ.get("DL_OP_TO_HLS_LLM_MAX_TOKENS", "4096")),
             rate_bytes_per_minute=int(os.environ.get("DL_OP_TO_HLS_LLM_RATE_BYTES_PER_MIN", "10000")),
             min_request_interval_sec=float(os.environ.get("DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC", "0")),
             min_retry_429_seconds=int(os.environ.get("DL_OP_TO_HLS_LLM_MIN_RETRY_429_SECONDS", "65")),

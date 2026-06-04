@@ -222,6 +222,34 @@ def test_vivado_specialist_mock_success(temp_workspace):
     assert result.metrics["latency"]["min_cycles"] == 45
 
 
+def test_vivado_specialist_create_project_respects_assigned_tool(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    specialist = VivadoSpecialist(context)
+    state = _dense_state(temp_workspace)
+    todo = _todo("Create Vivado HLS project", "vivado.create_project", "VivadoSpecialist")
+    envelope = ContextBuilder().build_for_specialist(state, todo, "VivadoSpecialist")
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+    assert result.status == "success"
+    assert any(item.get("tool") == "vivado.create_project" for item in result.observations)
+    assert not any(item.get("tool") == "vivado.run_csynth" for item in result.observations)
+    assert any(item.get("type") == "tcl" for item in result.artifacts)
+
+
+def test_vivado_specialist_parse_report_uses_assigned_tool_not_title_case(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    specialist = VivadoSpecialist(context)
+    state = _dense_state(temp_workspace)
+    todo = _todo("Parse Synthesis Report", "vivado.parse_report", "VivadoSpecialist")
+    envelope = ContextBuilder().build_for_specialist(state, todo, "VivadoSpecialist")
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+    assert result.status == "success"
+    assert result.summary == "Synthesis report metrics were already available."
+    assert result.metrics["latency"]["min_cycles"] == 45
+    assert not any(item.get("tool") == "vivado.run_csynth" for item in result.observations)
+
+
 def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     agent = MainAgent(temp_workspace, console=False)
