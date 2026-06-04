@@ -594,17 +594,23 @@ class PlanExecuteReactRuntime:
                 self._switch_finalization_to_terminal(state, parse_todo.id)
                 state.todos = self.todo_manager.todo_list.items
             elif state.task["task_type"] == "model":
-                unsupported_todo = self.todo_manager.append_item(
+                reason = (
+                    rewrite_result.get("recommendation")
+                    or "hls4ml unsupported and no safe automatic graph rewrite was applied."
+                )
+                unsupported_todo = self._ensure_active_todo(
                     title="Generate unsupported report",
                     description="Write actionable unsupported report after graph rewrite could not safely repair the model.",
                     priority=todo.priority + 1,
                     assigned_tool="report.write_unsupported",
                     dependencies=[todo.id],
-                    inputs={
-                        "reason": rewrite_result.get("recommendation")
-                        or "hls4ml unsupported and no safe automatic graph rewrite was applied."
-                    },
+                    inputs={"reason": reason},
+                    tool_names={"report.write_unsupported"},
                 )
+                if not isinstance(unsupported_todo.inputs, dict):
+                    unsupported_todo.inputs = {}
+                unsupported_todo.inputs.setdefault("reason", reason)
+                self.todo_manager.save(state.run_id, self.todo_manager.todo_list)
                 self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
                 self._switch_finalization_to_terminal(state, unsupported_todo.id)
                 self._add_dependency_to_tool(
@@ -626,21 +632,25 @@ class PlanExecuteReactRuntime:
             "HLS4MLNotInstalledError",
         }:
             if state.task.get("original_model_path") or str(state.task.get("model_path", "")).endswith("_gemm_rewritten.onnx"):
-                unsupported_todo = self.todo_manager.append_item(
+                reason = (
+                    observation.get("observation", {})
+                    .get("errors", [{}])[0]
+                    .get("message")
+                    or "hls4ml config/conversion failed after graph rewrite."
+                )
+                unsupported_todo = self._ensure_active_todo(
                     title="Generate unsupported report",
                     description="Write actionable unsupported report after recovered hls4ml path failed.",
                     priority=todo.priority + 1,
                     assigned_tool="report.write_unsupported",
                     dependencies=[todo.id],
-                    inputs={
-                        "reason": (
-                            observation.get("observation", {})
-                            .get("errors", [{}])[0]
-                            .get("message")
-                            or "hls4ml config/conversion failed after graph rewrite."
-                        )
-                    },
+                    inputs={"reason": reason},
+                    tool_names={"report.write_unsupported"},
                 )
+                if not isinstance(unsupported_todo.inputs, dict):
+                    unsupported_todo.inputs = {}
+                unsupported_todo.inputs.setdefault("reason", reason)
+                self.todo_manager.save(state.run_id, self.todo_manager.todo_list)
                 self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
                 self._switch_finalization_to_terminal(state, unsupported_todo.id)
                 self._add_dependency_to_tool(
@@ -916,7 +926,7 @@ class PlanExecuteReactRuntime:
             self.todo_manager.mark_completed_with_warning(todo.id, result, {"message": result.get("recommendation")})
             return {"status": "completed_with_warning", "hls4ml_status": "unsupported", "action": {"tool": "hls4ml.check_support"}, "observation": result}
 
-        if todo.title == "Try graph rewrite":
+        if todo.title == "Try graph rewrite" or todo.assigned_tool == "graph_rewrite.rewrite":
             result = self._call_tool(state, "graph_rewrite.rewrite", {"task": state.task})
             if result.get("status") == "success" and result.get("implemented") and result.get("rewritten_model_path"):
                 state.task["original_model_path"] = state.task.get("original_model_path") or state.task.get("model_path")

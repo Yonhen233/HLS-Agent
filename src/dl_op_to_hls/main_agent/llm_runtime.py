@@ -239,7 +239,8 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             item.assigned_tool = spec.get("assigned_tool", item.assigned_tool)
             item.assigned_specialist = spec.get("assigned_specialist", item.assigned_specialist)
             item.description = spec.get("description", item.description)
-            item.inputs = spec.get("inputs", item.inputs)
+            raw_inputs = spec.get("inputs", item.inputs)
+            item.inputs = raw_inputs if isinstance(raw_inputs, dict) else {}
             raw_dependencies = spec.get("dependencies")
             if isinstance(raw_dependencies, list):
                 normalized: list[str] = []

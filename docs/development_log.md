@@ -6,6 +6,120 @@
 
 ---
 
+## 2026-06-04 09:39:33 +08:00：真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo0-Demo6 复测与框架修复
+### 1. 本次测试做了什么
+执行环境：
+- 工作目录：`D:\hls_agent\standalone_work\dl-op-to-hls-agent`。
+- LLM：OpenAI-compatible，Base URL `https://llmapi.paratera.com`，模型 `DeepSeek-V4-Pro`，API key 仅通过环境变量注入，未写入仓库。
+- 真实工具：`DL_OP_TO_HLS_MOCK_HLS4ML=0`，`DL_OP_TO_HLS_MOCK_VIVADO=0`，Vivado HLS 路径 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。
+- 运行模式：`strict`，未在真实测试中用 mock 或确定性流程冒充 LLM-first。
+
+执行结果：
+- Demo0 `dense_operator.json`：`dense_16x32_af6abf3c_10`，`success`，`fallback_template_path`，真实 Vivado csynth/report 成功。
+- Demo1 `matmul_resource.json`：`matmul_16x16_resource_9ac8e2e8_13`，`success`，`fallback_template_path`，真实 Vivado csynth/report 成功。
+- Demo2 `mnist_mlp_hls4ml.json`：`mnist_mlp_demo_4ff92a59_12`，`partial_success`，`unsupported_path`；真实 hls4ml 对原始 Gemm 不支持，graph rewrite 后仍因 shape 信息问题不能安全进入 hls4ml。
+- Demo3 `mnist_tiny_cnn.json`：`mnist_tiny_cnn_188af60c_11`，`partial_success`，`unsupported_path`；真实 hls4ml 报 `Shape` 不支持，Agent 生成 unsupported report。
+- Demo4 `mnist_qkeras_cnn.json`：`mnist_qkeras_cnn_a7e2cdc5_09`，`partial_success`，`unsupported_path`；H5/QKeras frontend 已被识别，但真实 H5 conversion branch 仍未启用。
+- Demo5 `tiny_residual_block.json`：`tiny_residual_block_ad48a995_09`，`partial_success`，`unsupported_path`；符合 residual boundary demo 预期。
+- Demo6 `resnet18_boundary.json`：首轮 `resnet18_boundary_demo_cd40d797_11` 暴露 graph rewrite 未执行问题；修复后 `resnet18_boundary_demo_cd40d797_13` 为 `success`，按 boundary playbook 执行 graph rewrite、unsupported report、summary、MemorySpecialist。
+
+验证命令：
+- `python -m pytest tests\test_runtime_hybrid.py -q -p no:cacheprovider`
+- `python -m pytest -q -p no:cacheprovider`
+
+### 2. 遇到的问题与根因
+1) LLM 计划标题变体导致 graph rewrite 没执行
+- 现象：Demo6 首轮 trace 中 LLM 选择 `unsupported_boundary_flow`，todo 的 `assigned_tool` 是 `graph_rewrite.rewrite`，但执行层标记 `No action mapped for this todo`。
+- 根因：`runtime._execute_todo_actions` 对 graph rewrite 只匹配标题 `Try graph rewrite`，没有以 `assigned_tool` 作为稳定 contract。
+- 修复：执行层改为优先/同时按 `assigned_tool == "graph_rewrite.rewrite"` 映射工具。
+
+2) graph rewrite 后重复生成 unsupported report todo
+- 现象：Demo6 修复 graph rewrite 后，又追加了新的 `Generate unsupported report`，而 LLM 原计划已经有 `report.write_unsupported` todo。
+- 根因：Reflector 在 graph rewrite 未修复模型时直接 append 新 todo，没有复用现有 active `report.write_unsupported` todo。
+- 修复：改用 `_ensure_active_todo(..., tool_names={"report.write_unsupported"})` 复用已有 pending/blocked report todo，并只在缺失时新增。
+
+3) LLM plan 的 `inputs` 可能不是 dict
+- 现象：真实 LLM 有时会把 inputs 写成字符串说明，如 `graph_rewrite output`。
+- 根因：`_create_todos_from_llm_plan` 直接赋值，执行层默认 `todo.inputs` 是 dict。
+- 修复：LLM plan 入库时做类型归一化，非 dict inputs 置为空 dict，避免把自然语言说明误当工具参数。
+
+4) 本地 pytest 临时目录权限问题
+- 现象：`C:\Users\IC\AppData\Local\Temp\pytest-of-IC` 和 `.pytest_cache` 出现 WinError 5。
+- 根因：当前 Windows 用户与部分目录权限/所有权不一致。
+- 处理：测试时设置 `TMP/TEMP/TMPDIR` 到工程内 `tmp_pytest`，并使用 `-p no:cacheprovider`。这是测试环境问题，不是项目代码问题。
+
+5) API 配置差异
+- 本次 Paratera endpoint 可以访问，模型名 `DeepSeek-V4-Pro` 可用，未再出现外部 API 审批拦截。
+- 未遇到新的 base URL 拼接问题；之前的 root base URL 自动补 `/v1` 修复有效。
+- `run-llm` 命令没有 `--json` 参数，但命令本身默认输出 state JSON；这是 CLI 使用差异，不影响真实测试。
+
+### 3. 本次代码修复
+- `src/dl_op_to_hls/main_agent/runtime.py`
+  - graph rewrite 执行映射按 `assigned_tool` 生效。
+  - graph rewrite 失败后复用现有 `report.write_unsupported` todo，避免重复 todo。
+- `src/dl_op_to_hls/main_agent/llm_runtime.py`
+  - LLM plan inputs 做 dict 类型归一化。
+- `tests/test_runtime_hybrid.py`
+  - 新增 `test_runtime_executes_graph_rewrite_by_assigned_tool_not_title`。
+  - 新增 `test_runtime_reuses_existing_unsupported_report_todo_after_graph_rewrite`。
+
+### 4. 当前测试结果
+- `tests/test_runtime_hybrid.py`：9 个用例通过。
+- 全量 pytest：通过。
+- 真实 Demo6 修复后复跑：`resnet18_boundary_demo_cd40d797_13`，graph rewrite 已真实执行，unsupported report 未重复生成，MemorySpecialist 成功执行。
+
+### 5. 未修复完成的问题与原因
+- Demo2/Demo3 仍不能完整走 hls4ml 主路径：真实 hls4ml 对当前 ONNX 图的 Gemm/Shape 静态形状链路仍不兼容。已能生成 rewritten ONNX 和 unsupported report，但要完全通过需要更强的 ONNX shape/static rewrite 或重新导出更适合 hls4ml 的模型。
+- Demo4 仍不能完整走 QKeras/H5 主路径：adapter 已识别 H5/QKeras frontend，但真实 H5 conversion branch 尚未接入。需要后续补 Keras/QKeras loader、依赖检查和 hls4ml Keras convert 分支。
+- unsupported boundary demo 的状态语义需要继续打磨：Demo6 修复后为 `success`，表示“边界处理流程成功完成”，不是表示 ResNet18 被综合成功。summary/unsupported report 中已说明未做综合。
+
+---
+
+## 2026-06-04 08:42:45 +08:00：补充记录 Paratera DeepSeek API 配置差异
+### 1. 本次补充记录的原因
+上一次真实 LLM 验证耗时较长，中间经历了多次 API endpoint / model 配置切换。为了后续复现不再浪费 Codex 额度和 API token，本条专门补充 API 配置差异、遇到的问题和当前推荐配置。
+
+### 2. API 配置差异与已遇到的问题
+1) Base URL 形式不同
+- 现象：用户提供的 Paratera Base URL 是根地址形式，而不是标准 OpenAI SDK 常见的 `/v1` 完整地址。
+- 根因：项目 LLMClient 最初直接拼接 `base_url + /chat/completions`，根地址会导致请求路径不兼容。
+- 修复：已在 LLMClient 中兼容 root base URL，若路径为空或 `/`，自动补 `/v1/chat/completions`。
+
+2) 模型名必须严格匹配
+- 现象：`DeepSeekv4pro` 与 `DeepSeek-V4-Pro` 表现不同。
+- 根因：Paratera endpoint 对模型名大小写和连接符敏感。
+- 当前策略：严格使用用户指定的 `DeepSeek-V4-Pro`，不降级、不替换模型。
+
+3) DeepSeek-V4-Pro 可能返回 reasoning_content 但没有最终 content
+- 现象：长输出场景中模型可能把 token 用在 reasoning 阶段，最终 `message.content` 为空。
+- 根因：OpenAI-compatible 返回结构中存在 reasoning_content，但主流程需要最终 JSON/content。
+- 修复：LLMClient 已识别该情况并返回结构化 `LLMGenerationError`，提示提高 `DL_OP_TO_HLS_LLM_MAX_TOKENS` 或缩短 prompt；strict 模式不启用规则兜底冒充成功。
+
+4) 旧 API 曾有字节级限流
+- 现象：之前的 endpoint 疑似存在每分钟约一万字节限制，导致 demo 执行极慢。
+- 当前策略：Paratera endpoint 不再沿用该低速率限制，真实复测中设置 `DL_OP_TO_HLS_LLM_RATE_BYTES_PER_MIN=0` 和 `DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC=0`。
+
+### 3. 当前真实测试推荐环境变量
+- `DL_OP_TO_HLS_LLM_ENABLED=1`
+- `DL_OP_TO_HLS_LLM_PROVIDER=openai-compatible`
+- `DL_OP_TO_HLS_LLM_BASE_URL=https://llmapi.paratera.com`
+- `DL_OP_TO_HLS_LLM_MODEL=DeepSeek-V4-Pro`
+- `DL_OP_TO_HLS_LLM_MAX_TOKENS=4096`
+- `DL_OP_TO_HLS_LLM_RATE_BYTES_PER_MIN=0`
+- `DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC=0`
+- `DL_OP_TO_HLS_MOCK_HLS4ML=0`
+- `DL_OP_TO_HLS_MOCK_VIVADO=0`
+- `DL_OP_TO_HLS_VIVADO_HLS_PATH=D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`
+- `DL_OP_TO_HLS_RUNTIME_MODE=strict`
+- `DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE=strict`
+- `DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED=1`
+
+### 4. 未完成 / 下一步
+- 继续执行修复后的真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo0-Demo6。
+- 后续外部 API 测试默认直接运行，不再额外请求人工确认；如底层平台强制拦截，则只记录平台限制，不进行 mock 替代。
+
+---
+
 ## 2026-06-04 08:20:40 +08:00：DeepSeek-V4-Pro 真实批跑暴露 DAG 依赖问题后的框架修复
 ### 1. 本次测试做了什么
 执行与验证：
