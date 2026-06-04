@@ -4,7 +4,7 @@
   "intent": "model_to_hls_hls4ml",
   "trigger": {
     "task_type": "model",
-    "frontends": ["onnx", "keras", "qkeras"]
+    "frontends": ["onnx", "qonnx", "keras", "qkeras"]
   },
   "preconditions": [
     "model_path_exists",

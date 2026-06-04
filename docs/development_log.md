@@ -6,6 +6,104 @@
 
 ---
 
+## 2026-06-04 22:35:34 +08:00：Demo4 改造为 Torch/QONNX 量化演示，并跑通真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo2-4
+### 1. 本次测试做了什么
+按开发期真实链路重新验证 Demo2-Demo4：
+- LLM：OpenAI-compatible API，Base URL `https://llmapi.paratera.com`，模型名严格使用 `DeepSeek-V4-Pro`。
+- LLM 可用性：先用极小请求确认 `DeepSeek-V4-Pro` 返回 `OK`，避免大小写或模型名误配。
+- hls4ml：真实库路径，`DL_OP_TO_HLS_MOCK_HLS4ML=0`。
+- Vivado HLS：真实 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`，`DL_OP_TO_HLS_MOCK_VIVADO=0`。
+- runtime：LLM-first / strict 模式，未静默降级为 deterministic planner。
+
+本轮真实 LLM + Vivado 日志目录：
+- `runs/real_demo_logs_20260604_221416_llm_deepseek_demo2_4_final/`
+
+最终真实 run：
+- Demo2 MNIST MLP：`mnist_mlp_demo_aba95cc1_02`
+- Demo3 Tiny CNN：`mnist_tiny_cnn_6d3a1cb8_02`
+- Demo4 Torch/QONNX CNN：`mnist_qonnx_cnn_bc625576_02`
+
+### 2. 本轮真实运行结果
+Demo2 `examples/mnist_mlp_hls4ml.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：209-212 cycles
+- resources：BRAM 1609、DSP 933、FF 1864080、LUT 610956
+- elapsed：492 秒
+
+Demo3 `examples/mnist_tiny_cnn.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：761-763 cycles
+- resources：BRAM 14、DSP 29、FF 16390、LUT 58161
+- elapsed：375 秒
+
+Demo4 `examples/mnist_qonnx_cnn.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：775-777 cycles
+- resources：BRAM 8、DSP 0、FF 9888、LUT 49459
+- elapsed：390 秒
+
+### 3. 遇到的问题与根因
+1) Demo4 原 QKeras/H5 输入链路不适合作为当前主线 demo
+- 现象：旧 Demo4 依赖 QKeras/H5，而当前真实 adapter 主线主要围绕 ONNX/QONNX 静态图。
+- 根因：QKeras/H5 和 Torch/PyTorch 是不同生态的输入前端；若强行用 H5 会继续把重点卡在 Keras/QKeras frontend 兼容，而不是验证 Agent 的主路径能力。
+- 修复：新增 `scripts/make_mnist_qonnx_cnn.py`，从 Torch 生成静态量化风格 ONNX/QONNX demo；新增 `examples/mnist_qonnx_cnn.json`，将 Demo4 改为 Torch/QONNX FPGA-aware 量化演示。
+
+2) 真实 hls4ml 1.3 默认 ONNX parser 对当前 Torch 导出图不够稳
+- 现象：MLP/CNN 模型中出现 `Gemm`、`Reshape`、NCHW Conv 等 hls4ml 默认 parser 不稳定或不直接支持的模式。
+- 根因：PyTorch 导出的 ONNX 与 hls4ml 期望的 Keras-like layer 表达存在前端语义差异。
+- 修复：在 `hls4ml_adapter.py` 增加窄范围真实 ONNX/QONNX layer-list adapter：`Gemm -> Dense`、`Relu -> Activation`、`Conv NCHW -> channels_last Conv2D`、`MaxPool -> MaxPooling2D`、`Flatten/Reshape -> static Reshape`，并跳过 `Shape/Concat/Constant` 等静态 shape 辅助节点。
+
+3) Vivado HLS 2018.3 Windows 对 hls4ml 新生成源码的 STL/debug include 兼容性差
+- 现象：真实 Vivado 2018.3 在综合 hls4ml firmware 时会被 `<iostream>`、`<fstream>`、`std::vector` 等 debug/CSim 相关 include 或 helper 代码卡住。
+- 根因：旧 Vivado HLS 自带 clang/libstdc++ 环境对现代 hls4ml 生成的部分非综合辅助代码兼容性不好。
+- 修复：在 `vivado_hls_adapter.py` 增加只作用于 copied Vivado work dir 的 legacy sanitizer：对 `nnet_helpers.h`、`nnet_mult.h`、`nnet_pooling.h` 和 top source 中的非综合 STL/debug 片段做 `__SYNTHESIS__` 保护或移除，不修改原 hls4ml project。
+
+4) Demo2 初始 latency 配置导致资源/展开过激
+- 现象：初始低 reuse 配置下 Vivado 在 Dense Product unroll 处失败。
+- 根因：MNIST MLP 784 输入维度对旧 Vivado 2018.3 + `Strategy=Latency` + 低 reuse 过于激进。
+- 修复：Demo2 改为 `Strategy=Resource`、`reuse_factor=64`，以优先验证主路径可综合性。当前资源报告仍显示该 MLP 对 `xc7z020` 很重，但真实 report 已可生成。
+
+5) Demo3 / Demo4 初始 28x28 CNN 触发 Vivado partition 阈值
+- 现象：真实 Vivado 报 `layer2_out.V` 分区元素数超过阈值。
+- 根因：28x28 输入下中间 feature map 过大，hls4ml 默认 array partition 对 Vivado 2018.3 过重。
+- 修复：Demo3/Demo4 改为 14x14 静态输入，用于面试 demo 的 tiny CNN/QONNX CNN 路径验证；后续更大模型应进入 boundary/unsupported 或优化 sweep。
+
+6) LLM planner 曾把 Demo4 resource objective 错选为 optimization-only skill
+- 现象：Demo4 只生成 suggestion，没有先执行 hls4ml 模型转换。
+- 根因：skill precondition 没有明确要求 optimization flow 必须已有 report metrics。
+- 修复：`skills/policy.py` 增加 task-aware skill precondition 校验；`prompt_context.py` 明确初始 model-to-HLS 任务应优先 `hls4ml_model_flow`，optimization-only skill 只能用于已有 report 的二次优化。
+
+### 4. 已修复内容
+- `examples/mnist_qonnx_cnn.json`：新增 Torch/QONNX Demo4 任务。
+- `scripts/make_mnist_qonnx_cnn.py`：新增 Torch 生成 QONNX 风格静态量化 ONNX 脚本。
+- `scripts/make_mnist_mlp_onnx.py`、`scripts/make_mnist_tiny_cnn_onnx.py`：改为静态 shape，更适配 hls4ml/Vivado 2018.3。
+- `models/generated/*.onnx`：重新生成 MLP、Tiny CNN、QONNX CNN 模型。
+- `src/dl_op_to_hls/adapters/hls4ml_adapter.py`：增加真实 ONNX/QONNX layer-list adapter 和 fallback parser。
+- `src/dl_op_to_hls/adapters/vivado_hls_adapter.py`：增加 Vivado 2018.3 legacy sanitizer。
+- `skills/hls4ml_model_flow.yaml`：加入 `qonnx` frontend。
+- `src/dl_op_to_hls/skills/policy.py`：增加 optimization-only skill 的 report metrics precondition。
+- `src/dl_op_to_hls/main_agent/reflector.py`：修正缺少 selected path 或 report missing 时的 success / partial_success 语义。
+- `README.md`、`docs/demo_examples.md`、`docs/model_generation.md`、`docs/agent_benchmark_suite.md`：同步 Demo4 改造说明。
+
+### 5. 当前测试结果
+- 真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo2-Demo4：全部成功。
+- Demo2/Demo3/Demo4 的 trace 均包含 specialist routing、context envelope、Vivado specialist、Optimization specialist、memory 写入等关键事件。
+- Context isolation 在真实 report 上生效：Vivado specialist 只向 Main Agent 返回压缩 metrics/summary，不把完整 `csynth.log` / `csynth.rpt` 放进 AgentState。
+
+### 6. 未修复完成的问题与原因
+- Demo4 当前是 Torch 生成的 QONNX 风格静态量化演示，重点验证 Torch -> ONNX/QONNX -> hls4ml -> Vivado 主路径；尚未引入 Brevitas/QONNX 标准量化算子图，也未做精度/准确率 benchmark。
+- ONNX/QONNX layer-list adapter 是面向本项目 demo 的窄范围实现，不承诺支持任意 PyTorch/ONNX 模型。
+- Demo2 MLP 虽然真实 csynth 成功，但资源明显超过 `xc7z020` 的实际可用规模；这应作为后续 optimization sweep / boundary demo 的素材，而不是宣称可直接部署。
+- 当前真实测试验证了 HLS project generation 和 csynth report parsing，尚未完成 PyTorch reference output 与 hls4ml csim 输出的数值一致性验证。
+
+---
+
 ## 2026-06-04 20:09:34 +08:00：建立 Agent 能力 Benchmark Suite
 ### 1. 本次测试做了什么
 为项目新增一套面向 Agent 实习岗位展示的能力 benchmark，不再只用“demo 能跑”描述贡献。

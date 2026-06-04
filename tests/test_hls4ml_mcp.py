@@ -45,6 +45,53 @@ def test_hls4ml_convert_mock(tmp_path):
     assert (tmp_path / "myproject.cpp").exists()
 
 
+def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch):
+    onnx = __import__("onnx")
+    numpy = __import__("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    model_path = tmp_path / "mlp_gemm.onnx"
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 4])
+    y = helper.make_tensor_value_info("logits", TensorProto.FLOAT, [1, 2])
+    weights = numpy_helper.from_array(numpy.ones((2, 4), dtype=numpy.float32), name="fc.weight")
+    bias = numpy_helper.from_array(numpy.zeros((2,), dtype=numpy.float32), name="fc.bias")
+    gemm = helper.make_node("Gemm", inputs=["model_input", "fc.weight", "fc.bias"], outputs=["logits"], name="fc", transB=1)
+    graph = helper.make_graph([gemm], "gemm_graph", [x], [y], initializer=[weights, bias])
+    onnx.save(helper.make_model(graph), str(model_path))
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    monkeypatch.setattr(adapter, "_installed", lambda: True)
+
+    support = adapter.check_support({"task_type": "model", "name": "gemm_demo", "model_path": str(model_path), "frontend": "onnx"})
+    config = adapter.generate_config(
+        {
+            "model_path": str(model_path),
+            "frontend": "onnx",
+            "backend": "Vivado",
+            "part": "xc7z020clg400-1",
+            "clock_period": 5,
+            "precision": "fixed<16,6>",
+            "reuse_factor": 1,
+            "strategy": "Latency",
+            "output_dir": str(tmp_path / "cfg"),
+        }
+    )
+    converted = adapter.convert(
+        {
+            "model_path": str(model_path),
+            "frontend": "onnx",
+            "config_path": config["config_path"],
+            "output_dir": str(tmp_path / "hls_project"),
+        }
+    )
+
+    assert support["status"] == "supported"
+    assert support["frontend_adapter"] == "onnx_layer_list"
+    assert config["status"] == "success"
+    assert converted["status"] == "success"
+    assert (tmp_path / "hls_project" / "firmware").exists()
+
+
 def test_hls4ml_run_csim_real_mode_does_not_mock_success(tmp_path):
     project_dir = tmp_path / "hls_project"
     project_dir.mkdir()

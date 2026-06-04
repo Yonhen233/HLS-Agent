@@ -39,4 +39,14 @@ def update_status_from_todos(state) -> None:
         state.status = "partial_success"
         return
     if statuses.issubset({"completed", "skipped"}):
+        if state.task.get("task_type") in {"model", "operator", "hls_project"} and not state.selected_path:
+            state.status = "partial_success"
+            return
+        if (
+            state.selected_path in {"fallback_template_path", "hls4ml_path", "existing_hls_project_path", "llm_candidate_path"}
+            and state.report
+            and state.report.get("status") in {"missing", "skipped", "report_missing"}
+        ):
+            state.status = "partial_success"
+            return
         state.status = "success"

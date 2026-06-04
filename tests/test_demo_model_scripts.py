@@ -14,6 +14,7 @@ SCRIPTS = ROOT / "scripts"
 SCRIPT_CASES = [
     ("make_mnist_mlp_onnx.py", "torch"),
     ("make_mnist_tiny_cnn_onnx.py", "torch"),
+    ("make_mnist_qonnx_cnn.py", "torch"),
     ("make_qkeras_mnist_cnn.py", "tensorflow"),
     ("make_tiny_residual_block_onnx.py", "torch"),
 ]

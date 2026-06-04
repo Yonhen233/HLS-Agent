@@ -44,7 +44,7 @@
 
 - `operator_fallback`：Dense、MatMul、ReLU、Add，测试 fallback template、Vivado specialist、优化建议和 memory promotion。
 - `existing_project`：已有 HLS 工程路径，测试已有工程综合与 artifact 管理。
-- `model_hls4ml`：MNIST MLP、Tiny CNN、QKeras mock 路径，测试 hls4ml specialist 主路径。
+- `model_hls4ml`：MNIST MLP、Tiny CNN、Torch/QONNX quantized CNN 路径，测试 hls4ml specialist 主路径。
 - `unsupported_recovery`：自定义不支持算子、residual block、ResNet18 boundary，测试诚实 unsupported report。
 - `toolchain_recovery`：强制 Vivado 路径缺失，测试 `VivadoNotFoundError` 是否被结构化处理。
 
@@ -114,7 +114,7 @@ python -m dl_op_to_hls.cli benchmark `
 更强的下一步 benchmark 应包含：
 
 - 30 到 50 个 hard-negative case。
-- 多种真实模型导出格式：ONNX、Keras、QKeras、手写 C++。
+- 多种真实模型导出格式：ONNX、QONNX、Keras/QKeras、手写 C++。
 - repeat 运行，报告 median、p95、失败率。
 - LLM-first suite，单独统计 JSON 合规率、tool selection accuracy、repair success rate。
 - RAG curated corpus，标注更完整的 relevance labels。

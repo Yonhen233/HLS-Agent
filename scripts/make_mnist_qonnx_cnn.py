@@ -6,9 +6,10 @@ from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a tiny MNIST CNN ONNX model for demo usage.")
-    parser.add_argument("--output", default="models/generated/mnist_tiny_cnn.onnx", help="Output ONNX path.")
+    parser = argparse.ArgumentParser(description="Generate a tiny Torch/QONNX-style quantized MNIST CNN ONNX model.")
+    parser.add_argument("--output", default="models/generated/mnist_qonnx_cnn.onnx", help="Output ONNX path.")
     parser.add_argument("--opset", type=int, default=18, help="ONNX opset version.")
+    parser.add_argument("--quant-step", type=float, default=1.0 / 32.0, help="Static weight quantization step.")
     return parser
 
 
@@ -29,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    class TinyMNISTCNN(nn.Module):
+    class QuantizedTinyMNISTCNN(nn.Module):
         def __init__(self) -> None:
             super().__init__()
             self.conv1 = nn.Conv2d(1, 4, kernel_size=3)
@@ -46,7 +47,12 @@ def main(argv: list[str] | None = None) -> int:
             x = self.act(self.fc1(x))
             return self.fc2(x)
 
-    model = TinyMNISTCNN().eval()
+    model = QuantizedTinyMNISTCNN().eval()
+    step = float(args.quant_step)
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.copy_(torch.round(parameter / step) * step)
+
     sample = torch.randn(1, 1, 14, 14)
     try:
         torch.onnx.export(
@@ -61,8 +67,28 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # pragma: no cover - environment dependent
         print(f"[skip] ONNX export failed in this environment: {exc}")
         return 0
+
+    try:
+        import onnx
+
+        model_proto = onnx.load(str(output_path))
+        props = {
+            "demo_frontend": "qonnx",
+            "source_framework": "torch",
+            "quantization": f"static_weight_rounding_step_{step}",
+            "note": "QONNX-style demo artifact for hls4ml agent toolchain validation, not an accuracy benchmark.",
+        }
+        del model_proto.metadata_props[:]
+        for key, value in props.items():
+            item = model_proto.metadata_props.add()
+            item.key = key
+            item.value = value
+        onnx.save(model_proto, str(output_path))
+    except Exception as exc:  # pragma: no cover - optional metadata
+        print(f"[warn] wrote ONNX but could not attach metadata: {exc}")
+
     print(f"[ok] wrote {output_path}")
-    print("[note] Model is exported in PyTorch default NCHW. Layout cleanup/conversion may be needed for some hls4ml flows.")
+    print("[note] Weights are statically rounded to mimic a quantized Torch/QONNX path for FPGA toolchain validation.")
     return 0
 
 

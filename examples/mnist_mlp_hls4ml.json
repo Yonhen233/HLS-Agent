@@ -13,10 +13,10 @@
   },
   "hls4ml": {
     "precision": "fixed<16,6>",
-    "reuse_factor": 4,
-    "strategy": "Latency"
+    "reuse_factor": 64,
+    "strategy": "Resource"
   },
-  "objective": "latency",
+  "objective": "balanced",
   "demo": {
     "expected_path": "hls4ml",
     "mock_tools": false,

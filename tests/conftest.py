@@ -42,6 +42,7 @@ def temp_workspace(tmp_path: Path) -> Path:
         "mlp_onnx_example.json",
         "mnist_mlp_hls4ml.json",
         "mnist_tiny_cnn.json",
+        "mnist_qonnx_cnn.json",
         "mnist_qkeras_cnn.json",
         "tiny_residual_block.json",
         "resnet18_boundary.json",

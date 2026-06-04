@@ -1,8 +1,8 @@
 {
   "task_type": "model",
-  "name": "mnist_tiny_cnn",
-  "model_path": "models/generated/mnist_tiny_cnn.onnx",
-  "frontend": "onnx",
+  "name": "mnist_qonnx_cnn",
+  "model_path": "models/generated/mnist_qonnx_cnn.onnx",
+  "frontend": "qonnx",
   "input_shape": [
     14,
     14,
@@ -15,14 +15,14 @@
     "clock_period": 10
   },
   "hls4ml": {
-    "precision": "fixed<16,6>",
+    "precision": "fixed<8,3>",
     "reuse_factor": 32,
     "strategy": "Resource"
   },
-  "objective": "balanced",
+  "objective": "resource",
   "demo": {
     "expected_path": "hls4ml",
     "mock_tools": false,
-    "description": "Tiny MNIST CNN demo using hls4ml path when the real frontend supports the graph."
+    "description": "Torch-generated QONNX-style quantized MNIST CNN demo for FPGA-aware resource optimization."
   }
 }

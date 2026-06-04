@@ -18,13 +18,23 @@ class SkillPolicy:
                 errors.append(f"Unknown specialist in skill {skill.name}: {specialist}")
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
-    def validate_llm_plan_against_skill(self, plan: dict[str, Any], selected_skill: Skill | None) -> dict[str, Any]:
+    def validate_llm_plan_against_skill(
+        self,
+        plan: dict[str, Any],
+        selected_skill: Skill | None,
+        task: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         errors: list[str] = []
         todos = plan.get("todos", [])
         if not isinstance(todos, list) or not todos:
             errors.append("Todo plan must include at least one todo item.")
         if selected_skill is None:
             return {"status": "invalid" if errors else "valid", "errors": errors}
+        if "report_metrics_available" in selected_skill.preconditions and not self._task_has_report_metrics(task or {}):
+            errors.append(
+                f"Skill {selected_skill.name} requires existing report metrics; "
+                "use an end-to-end conversion/synthesis skill before optimization-only skills."
+            )
         allowed_tools = set(selected_skill.allowed_tools)
         allowed_specialists = set(selected_skill.allowed_specialists)
         verification_required = bool(selected_skill.verification_policy.get("generated_code_requires_verification"))
@@ -50,6 +60,12 @@ class SkillPolicy:
         ):
             errors.append("LLM candidate generation must include a verification todo.")
         return {"status": "invalid" if errors else "valid", "errors": errors}
+
+    def _task_has_report_metrics(self, task: dict[str, Any]) -> bool:
+        report = task.get("report")
+        if isinstance(report, dict) and report.get("status") == "success":
+            return True
+        return bool(task.get("report_path") or task.get("csynth_report_path") or task.get("synthesis_report_path"))
 
     def validate_skill_modification(self, modification: dict[str, Any], selected_skill: Skill) -> dict[str, Any]:
         errors: list[str] = []

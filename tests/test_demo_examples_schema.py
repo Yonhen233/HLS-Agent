@@ -52,6 +52,12 @@ def test_mnist_qkeras_schema_valid():
     assert data["frontend"] == "qkeras"
 
 
+def test_mnist_qonnx_schema_valid():
+    data = _validate_example("mnist_qonnx_cnn.json")
+    assert data["task_type"] == "model"
+    assert data["frontend"] == "qonnx"
+
+
 def test_tiny_residual_schema_valid():
     data = _validate_example("tiny_residual_block.json")
     assert data["task_type"] == "model"

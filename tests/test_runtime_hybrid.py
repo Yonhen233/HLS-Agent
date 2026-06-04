@@ -176,3 +176,52 @@ def test_unsupported_path_completed_workflow_remains_partial_success():
     update_status_from_todos(state)
 
     assert state.status == "partial_success"
+
+
+def test_completed_model_without_selected_path_is_not_success():
+    state = AgentState(run_id="r1", task={"task_type": "model", "name": "qonnx"}, status="initialized")
+    state.report = {"status": "missing"}
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Generate suggestions only",
+            description="Invalid shortcut plan.",
+            status="completed",
+            priority=1,
+            dependencies=[],
+            assigned_tool="suggestion.suggest_optimization",
+            assigned_specialist="OptimizationSpecialist",
+            inputs={},
+            outputs={"status": "success"},
+            error=None,
+        )
+    ]
+
+    update_status_from_todos(state)
+
+    assert state.status == "partial_success"
+
+
+def test_hls4ml_path_with_missing_report_is_partial_success():
+    state = AgentState(run_id="r1", task={"task_type": "model", "name": "mlp"}, status="initialized")
+    state.selected_path = "hls4ml_path"
+    state.report = {"status": "missing"}
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Convert with hls4ml",
+            description="Converted model.",
+            status="completed",
+            priority=1,
+            dependencies=[],
+            assigned_tool="hls4ml.convert",
+            assigned_specialist="HLS4MLSpecialist",
+            inputs={},
+            outputs={"status": "success"},
+            error=None,
+        )
+    ]
+
+    update_status_from_todos(state)
+
+    assert state.status == "partial_success"

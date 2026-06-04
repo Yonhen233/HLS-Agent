@@ -28,3 +28,30 @@ def test_validate_skill_references_existing_tools(temp_workspace):
     skill = registry.get("hls4ml_model_flow")
     result = SkillPolicy().validate_skill(skill, agent.registry, build_default_router())
     assert result["status"] == "valid"
+
+
+def test_skill_policy_rejects_optimization_skill_without_report_metrics(temp_workspace):
+    registry = SkillRegistry(temp_workspace / "skills")
+    registry.load_all()
+    skill = registry.get("resource_optimization_flow")
+    plan = {
+        "selected_skill": "resource_optimization_flow",
+        "skill_usage": "bad initial shortcut",
+        "reason_summary": "test",
+        "todos": [
+            {
+                "title": "Suggest only",
+                "assigned_tool": "suggestion.suggest_optimization",
+                "assigned_specialist": "OptimizationSpecialist",
+                "dependencies": [],
+                "inputs": {},
+            }
+        ],
+    }
+    result = SkillPolicy().validate_llm_plan_against_skill(
+        plan,
+        skill,
+        {"task_type": "model", "name": "mnist_qonnx_cnn", "frontend": "qonnx", "objective": "resource"},
+    )
+    assert result["status"] == "invalid"
+    assert "requires existing report metrics" in result["errors"][0]

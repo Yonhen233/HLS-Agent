@@ -25,6 +25,7 @@ MOCK_REPORT_BY_TOP = {
     "matmul_16x16_resource": "matmul_resource_csynth.rpt",
     "mnist_mlp_demo": "mnist_mlp_csynth.rpt",
     "mnist_tiny_cnn": "mnist_tiny_cnn_csynth.rpt",
+    "mnist_qonnx_cnn": "qkeras_cnn_resource_csynth.rpt",
     "mnist_qkeras_cnn": "qkeras_cnn_resource_csynth.rpt",
 }
 
@@ -39,6 +40,102 @@ class VivadoHLSAdapter:
 
     def _binary_available(self) -> bool:
         return bool(self.vivado_hls_path and Path(self.vivado_hls_path).exists()) or shutil.which("vivado_hls") is not None or shutil.which("vivado_hls.bat") is not None
+
+    def _sanitize_hls4ml_sources_for_legacy_vivado(self, work_dir: Path, top_source: Path) -> list[str]:
+        """Trim non-synthesis stdio includes that break Vivado HLS 2018.3 on Windows.
+
+        hls4ml emits a few debug/CSim oriented includes in firmware files. Vivado HLS
+        2018.3's bundled clang/libstdc++ can fail during preprocessing before
+        __SYNTHESIS__ removes the debug code. Keep the generated project intact and
+        only sanitize the copied Vivado work directory.
+        """
+
+        changed: list[str] = []
+
+        def write_if_changed(path: Path, text: str, new_text: str) -> None:
+            if new_text != text:
+                path.write_text(new_text, encoding="utf-8")
+                changed.append(str(path))
+
+        if top_source.exists():
+            text = top_source.read_text(encoding="utf-8", errors="ignore")
+            new_text = re.sub(r"^\s*#include\s+<iostream>\s*\r?\n", "", text, flags=re.MULTILINE)
+            new_text = re.sub(r"^\s*#include\s+<fstream>\s*\r?\n", "", new_text, flags=re.MULTILINE)
+            write_if_changed(top_source, text, new_text)
+
+        helpers = work_dir / "nnet_utils" / "nnet_helpers.h"
+        if helpers.exists():
+            text = helpers.read_text(encoding="utf-8", errors="ignore")
+            old_block = (
+                "#include \"hls_stream.h\"\n"
+                "#include <algorithm>\n"
+                "#include <fstream>\n"
+                "#include <iostream>\n"
+                "#include <map>\n"
+                "#include <math.h>\n"
+                "#include <stdio.h>\n"
+                "#include <stdlib.h>\n"
+                "#include <vector>"
+            )
+            new_block = (
+                "#include \"hls_stream.h\"\n"
+                "#ifndef __SYNTHESIS__\n"
+                "#include <algorithm>\n"
+                "#include <fstream>\n"
+                "#include <iostream>\n"
+                "#include <map>\n"
+                "#include <vector>\n"
+                "#endif\n"
+                "#include <math.h>\n"
+                "#include <stdio.h>\n"
+                "#include <stdlib.h>"
+            )
+            new_text = text.replace(old_block, new_block)
+            if new_text == text:
+                short_block = "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <map>\n#include <math.h>"
+                short_new_block = (
+                    "#ifndef __SYNTHESIS__\n"
+                    "#include <algorithm>\n"
+                    "#include <fstream>\n"
+                    "#include <iostream>\n"
+                    "#include <map>\n"
+                    "#include <vector>\n"
+                    "#endif\n"
+                    "#include <math.h>"
+                )
+                new_text = text.replace(short_block, short_new_block)
+            copy_data_anchor = "\n#endif\n\ntemplate <class src_T, class dst_T, size_t OFFSET, size_t SIZE> void copy_data"
+            if copy_data_anchor in new_text and "#ifndef __SYNTHESIS__\ntemplate <class src_T, class dst_T, size_t OFFSET, size_t SIZE> void copy_data" not in new_text:
+                new_text = new_text.replace(
+                    copy_data_anchor,
+                    "\n#endif\n\n#ifndef __SYNTHESIS__\ntemplate <class src_T, class dst_T, size_t OFFSET, size_t SIZE> void copy_data",
+                    1,
+                )
+            read_file_anchor = "\ntemplate <class dataType, unsigned int nrows> int read_file_1D"
+            if read_file_anchor in new_text and "#endif\n\ntemplate <class dataType, unsigned int nrows> int read_file_1D" not in new_text:
+                new_text = new_text.replace(
+                    read_file_anchor,
+                    "\n#endif\n\ntemplate <class dataType, unsigned int nrows> int read_file_1D",
+                    1,
+                )
+            debug_anchor = "\ntemplate <class data_T, int N_IN> void hls_stream_debug"
+            if debug_anchor in new_text and "#ifndef __SYNTHESIS__\ntemplate <class data_T, int N_IN> void hls_stream_debug" not in new_text:
+                new_text = new_text.replace(
+                    debug_anchor,
+                    "\n#ifndef __SYNTHESIS__\ntemplate <class data_T, int N_IN> void hls_stream_debug",
+                    1,
+                )
+                new_text = new_text.replace("\n}\n\nconstexpr int ceillog2", "\n}\n#endif\n\nconstexpr int ceillog2", 1)
+            write_if_changed(helpers, text, new_text)
+
+        for relative in ["nnet_utils/nnet_mult.h", "nnet_utils/nnet_pooling.h"]:
+            path = work_dir / relative
+            if path.exists():
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                new_text = re.sub(r"^\s*#include\s+<iostream>\s*\r?\n", "", text, flags=re.MULTILINE)
+                write_if_changed(path, text, new_text)
+
+        return changed
 
     def create_project(self, arguments: dict[str, Any]) -> dict[str, Any]:
         hls_project_dir = Path(arguments["hls_project_dir"])
@@ -77,6 +174,7 @@ class VivadoHLSAdapter:
             if not top_function:
                 detected_top = bridge.extract_top_function(copied_code.read_text(encoding="utf-8", errors="ignore"))
                 top_function = detected_top or copied_code.stem
+            sanitized_files = self._sanitize_hls4ml_sources_for_legacy_vivado(work_dir, copied_code)
             tcl_path = bridge.create_project_tcl(
                 project_dir=str(work_dir),
                 project_name=Path(arguments.get("work_dir", work_dir)).name,
@@ -86,7 +184,13 @@ class VivadoHLSAdapter:
                 target_device=arguments.get("part", "xc7z020clg400-1"),
                 clock_period=str(arguments.get("clock_period", 5)),
             )
-            return {"status": "success", "tcl_path": str(tcl_path), "work_dir": str(work_dir), "top_function": top_function}
+            return {
+                "status": "success",
+                "tcl_path": str(tcl_path),
+                "work_dir": str(work_dir),
+                "top_function": top_function,
+                "sanitized_files": sanitized_files,
+            }
 
         files = bridge.discover_design_files(str(hls_project_dir))
         code_file = files["code_file"]

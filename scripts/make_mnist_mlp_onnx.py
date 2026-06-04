@@ -50,10 +50,9 @@ def main(argv: list[str] | None = None) -> int:
             sample,
             str(output_path),
             export_params=True,
-            input_names=["input"],
+            input_names=["model_input"],
             output_names=["logits"],
             opset_version=args.opset,
-            dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
         )
     except Exception as exc:  # pragma: no cover - environment dependent
         print(f"[skip] ONNX export failed in this environment: {exc}")

@@ -13,7 +13,7 @@
 - 本项目是深度学习算子/小模型到 HLS 的 Agent 原型。
 - 不生成 bitstream。
 - 不做上板验证。
-- 不承诺支持任意 PyTorch/ONNX/QKeras 模型。
+- 不承诺支持任意 PyTorch/ONNX/QONNX/QKeras 模型。
 - LLM 生成的 HLS 代码必须经过验证，不能直接作为最终实现。
 - SQLite 是结构化事实源；RAG 只是检索层，不替代数据库。
 - `run` 是确定性基线流程；`run-llm` 是 LLM-first Agent 流程，不会在 LLM 不可用时静默退回确定性 planner。
@@ -193,7 +193,7 @@ python -m dl_op_to_hls.cli run examples/dense_operator.json --mock-tools
 | Demo 1 | `examples/matmul_resource.json` | operator | fallback_template | 展示 latency/resource trade-off |
 | Demo 2 | `examples/mnist_mlp_hls4ml.json` | model | hls4ml | 展示 hls4ml 主路径 |
 | Demo 3 | `examples/mnist_tiny_cnn.json` | model | hls4ml | 展示经典 CNN |
-| Demo 4 | `examples/mnist_qkeras_cnn.json` | model | hls4ml / qkeras | 展示 FPGA-aware 量化边界 |
+| Demo 4 | `examples/mnist_qonnx_cnn.json` | model | hls4ml / qonnx | 展示 Torch/QONNX FPGA-aware 量化路径 |
 | Demo 5 | `examples/tiny_residual_block.json` | model | partial / rewrite / boundary | 展示 residual block 边界处理 |
 | Demo 6 | `examples/resnet18_boundary.json` | model | unsupported_report | 展示 Agent 不盲目承诺 |
 
@@ -205,7 +205,7 @@ python -m dl_op_to_hls.cli run examples/dense_operator.json --mock-tools
 python -m dl_op_to_hls.cli run examples/matmul_resource.json --mock-tools
 python -m dl_op_to_hls.cli run examples/mnist_mlp_hls4ml.json --mock-tools
 python -m dl_op_to_hls.cli run examples/mnist_tiny_cnn.json --mock-tools
-python -m dl_op_to_hls.cli run examples/mnist_qkeras_cnn.json --mock-tools
+python -m dl_op_to_hls.cli run examples/mnist_qonnx_cnn.json --mock-tools
 python -m dl_op_to_hls.cli run examples/tiny_residual_block.json --mock-tools
 python -m dl_op_to_hls.cli run examples/resnet18_boundary.json --mock-tools
 ```
@@ -312,7 +312,7 @@ runs/                本地运行产物，默认不进入 git
 
 当前限制：
 
-- hls4ml 对 ONNX/QKeras 的真实支持取决于本地库版本和模型图结构。
+- hls4ml 对 ONNX/QONNX/QKeras 的真实支持取决于本地库版本和模型图结构。
 - Vivado HLS 真实综合取决于本机安装、license、环境变量和 Windows batch 调用。
 - boundary demo 设计目标是展示“安全拒绝/边界处理”，不是 full synthesis success。
 - LLM API 有速率限制时需要配置请求节流。

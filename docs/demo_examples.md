@@ -10,7 +10,7 @@ This document describes the 7 interview-oriented demos for `dl-op-to-hls`.
 | Demo 1 | `examples/matmul_resource.json` | operator | fallback template | No | No |
 | Demo 2 | `examples/mnist_mlp_hls4ml.json` | model | hls4ml | No (mock by default) | No (mock by default) |
 | Demo 3 | `examples/mnist_tiny_cnn.json` | model | hls4ml | No (mock by default) | No (mock by default) |
-| Demo 4 | `examples/mnist_qkeras_cnn.json` | model | hls4ml / qkeras frontend | No (mock by default) | No (mock by default) |
+| Demo 4 | `examples/mnist_qonnx_cnn.json` | model | hls4ml / qonnx frontend | No (mock by default) | No (mock by default) |
 | Demo 5 | `examples/tiny_residual_block.json` | model | partial support boundary | No | No |
 | Demo 6 | `examples/resnet18_boundary.json` | model | unsupported/not-recommended report | No | No |
 
@@ -43,15 +43,15 @@ This document describes the 7 interview-oriented demos for `dl-op-to-hls`.
 
 - Input JSON: `examples/mnist_tiny_cnn.json`
 - Expected path: `hls4ml_path`
-- Expected behavior: similar to Demo 2 with CNN-flavored mock metrics.
+- Expected behavior: 14x14 downsampled MNIST-like CNN enters the ONNX layer-list adapter, hls4ml conversion, Vivado synthesis, and report parsing.
 - Interview focus: classic CNN path, report parsing, optimization suggestions.
 
-## Demo 4: QKeras CNN resource path
+## Demo 4: Torch/QONNX quantized CNN resource path
 
-- Input JSON: `examples/mnist_qkeras_cnn.json`
-- Expected path: `hls4ml_path` (frontend = `qkeras`)
-- Expected behavior: mock flow still runs even if local qkeras is unavailable.
-- Interview focus: quantization as a resource optimization strategy.
+- Input JSON: `examples/mnist_qonnx_cnn.json`
+- Expected path: `hls4ml_path` (frontend = `qonnx`)
+- Expected behavior: Torch-generated 14x14 ONNX/QONNX-style CNN with statically rounded weights enters the ONNX/QONNX layer-list adapter and then hls4ml.
+- Interview focus: PyTorch-compatible quantization path, static shape/layout cleanup, and resource-oriented precision.
 
 ## Demo 5: Tiny residual block boundary
 

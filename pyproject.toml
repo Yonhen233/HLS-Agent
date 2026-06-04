@@ -11,6 +11,17 @@ requires-python = ">=3.11"
 authors = [{ name = "OpenAI Codex" }]
 dependencies = []
 
+[project.optional-dependencies]
+real-toolchain = [
+  "hls4ml",
+  "onnx",
+  "qonnx",
+]
+model-generation = [
+  "torch",
+  "onnx",
+]
+
 [project.scripts]
 dl-op-to-hls = "dl_op_to_hls.cli:main"
 
@@ -24,4 +35,3 @@ where = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
-

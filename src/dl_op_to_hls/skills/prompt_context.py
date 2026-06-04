@@ -11,5 +11,7 @@ class SkillPromptContextBuilder:
             "selection_notes": [
                 "Skills are playbook priors, not strict deterministic plans.",
                 "LLM may adapt or reorder recommended_todos under guardrails.",
+                "For initial model-to-HLS tasks, choose the end-to-end hls4ml_model_flow even when the objective is resource or latency.",
+                "Optimization-only skills require existing report metrics and must not replace conversion/synthesis steps.",
             ],
         }

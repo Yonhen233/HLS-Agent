@@ -19,6 +19,32 @@ def test_vivado_create_project_mock(tmp_path):
     assert Path(result["tcl_path"]).exists()
 
 
+def test_vivado_create_project_sanitizes_hls4ml_legacy_stdio_includes(tmp_path):
+    firmware = tmp_path / "hls_project" / "firmware"
+    nnet_utils = firmware / "nnet_utils"
+    nnet_utils.mkdir(parents=True)
+    (firmware / "myproject.cpp").write_text('#include <iostream>\n#include "myproject.h"\nvoid myproject(float x[1]) {}\n', encoding="utf-8")
+    (firmware / "myproject.h").write_text("void myproject(float x[1]);\n", encoding="utf-8")
+    (nnet_utils / "nnet_helpers.h").write_text(
+        "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <map>\n#include <math.h>\n",
+        encoding="utf-8",
+    )
+    (nnet_utils / "nnet_mult.h").write_text("#include <iostream>\n#include <math.h>\n", encoding="utf-8")
+    (nnet_utils / "nnet_pooling.h").write_text("#include <iostream>\n", encoding="utf-8")
+
+    adapter = VivadoHLSAdapter(mock_mode=True)
+    result = adapter.create_project(
+        {"hls_project_dir": str(tmp_path / "hls_project"), "top_function": "myproject", "work_dir": str(tmp_path / "vivado")}
+    )
+
+    assert result["status"] == "success"
+    copied_top = (tmp_path / "vivado" / "myproject.cpp").read_text(encoding="utf-8")
+    copied_helpers = (tmp_path / "vivado" / "nnet_utils" / "nnet_helpers.h").read_text(encoding="utf-8")
+    assert "#include <iostream>" not in copied_top
+    assert "#ifndef __SYNTHESIS__" in copied_helpers
+    assert result["sanitized_files"]
+
+
 def test_vivado_run_csynth_mock(tmp_path):
     project_dir = tmp_path / "project"
     _write_design(project_dir)
@@ -47,4 +73,3 @@ def test_vivado_parse_log(sample_vivado_log_path):
     adapter = VivadoHLSAdapter(mock_mode=True)
     result = adapter.parse_log({"log_path": str(sample_vivado_log_path)})
     assert result["warnings"]
-

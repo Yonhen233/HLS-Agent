@@ -187,7 +187,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     selected_skill = self.skill_registry.get(plan["selected_skill"])
                 except KeyError:
                     pass
-            skill_policy_result = self.skill_policy.validate_llm_plan_against_skill(plan, selected_skill)
+            skill_policy_result = self.skill_policy.validate_llm_plan_against_skill(plan, selected_skill, state.task)
             errors = guard["errors"] + skill_policy_result["errors"]
             if not errors:
                 emit_llm_event(

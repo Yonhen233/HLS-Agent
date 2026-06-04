@@ -68,6 +68,15 @@ def test_qkeras_cnn_mock_run(temp_workspace):
     assert "hls4ml_path" in summary
 
 
+def test_qonnx_cnn_mock_run(temp_workspace):
+    state, run_dir = _run_demo(temp_workspace, "mnist_qonnx_cnn.json")
+    _assert_common_outputs(run_dir)
+    assert (run_dir / "suggestions.md").exists()
+    assert state.selected_path == "hls4ml_path"
+    summary = (run_dir / "summary.md").read_text(encoding="utf-8")
+    assert "hls4ml_path" in summary
+
+
 def test_tiny_residual_boundary_mock_run(temp_workspace):
     state, run_dir = _run_demo(temp_workspace, "tiny_residual_block.json")
     _assert_common_outputs(run_dir)

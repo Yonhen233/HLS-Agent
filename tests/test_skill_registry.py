@@ -23,6 +23,20 @@ def test_hls4ml_model_skill_exists():
     assert skill.trigger["task_type"] == "model"
 
 
+def test_hls4ml_model_skill_accepts_qonnx_frontend():
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    candidates = registry.find_candidates(
+        {
+            "task_type": "model",
+            "name": "mnist_qonnx_cnn",
+            "frontend": "qonnx",
+            "objective": "resource",
+        }
+    )
+    assert candidates[0].name == "hls4ml_model_flow"
+
+
 def test_llm_candidate_verification_skill_exists():
     registry = SkillRegistry(Path("skills"))
     registry.load_all()

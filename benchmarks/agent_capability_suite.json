@@ -164,13 +164,13 @@
       }
     },
     {
-      "id": "model_qkeras_mock_hls4ml_path",
-      "title": "QKeras model task follows hls4ml path under mock adapter",
+      "id": "model_qonnx_mock_hls4ml_path",
+      "title": "Torch/QONNX quantized model task follows hls4ml path",
       "category": "model_hls4ml",
-      "task": "examples/mnist_qkeras_cnn.json",
+      "task": "examples/mnist_qonnx_cnn.json",
       "runner": "deterministic",
       "mock_tools": true,
-      "tags": ["model", "qkeras", "hls4ml", "mock"],
+      "tags": ["model", "qonnx", "torch", "quantized", "hls4ml", "mock"],
       "expected": {
         "allowed_statuses": ["success"],
         "selected_path": "hls4ml_path",
