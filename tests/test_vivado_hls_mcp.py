@@ -88,7 +88,7 @@ def test_vitis_missing_binary_fallback(tmp_path, monkeypatch):
     result = adapter.run_csynth({"work_dir": str(tmp_path), "tcl_path": str(tmp_path / "run.tcl"), "top_function": "demo"})
     assert result["status"] == "skipped"
     assert result["error"]["error_type"] == "VivadoNotFoundError"
-    assert result["error"]["details"]["command"] == "vitis-run"
+    assert result["error"]["details"]["command"] == "vitis_hls/vitis-run"
 
 
 def test_vitis_run_csynth_uses_vitis_run_command(tmp_path, monkeypatch):
@@ -120,6 +120,35 @@ def test_vitis_run_csynth_uses_vitis_run_command(tmp_path, monkeypatch):
     assert result["report_path"].endswith("demo_csynth.rpt")
 
 
+def test_vitis_run_csynth_uses_vitis_hls_legacy_command(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    _write_design(project_dir)
+    vitis_hls = tmp_path / "vitis_hls.bat"
+    vitis_hls.write_text("@echo off\n", encoding="utf-8")
+    adapter = VivadoHLSAdapter(mock_mode=False, hls_toolchain="vitis_hls", vitis_hls_path=str(vitis_hls))
+    create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vitis")})
+    captured = {}
+
+    def fake_run(command, cwd, capture_output, text, timeout, shell):
+        del capture_output, text, timeout, shell
+        captured["command"] = command
+        report_dir = Path(cwd) / "solution1" / "syn" / "report"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        (report_dir / "demo_csynth.rpt").write_text("Latency (cycles): min = 7, max = 8\nDSP48E = 1\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="Vitis HLS 2022.2 done", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = adapter.run_csynth({"work_dir": create["work_dir"], "tcl_path": create["tcl_path"], "top_function": "demo"})
+
+    assert result["status"] == "success"
+    assert result["toolchain"] == "vitis_hls"
+    assert "-f" in captured["command"]
+    assert "--mode" not in captured["command"]
+    assert "--tcl" not in captured["command"]
+    assert result["report_path"].endswith("demo_csynth.rpt")
+
+
 def test_vitis_log_zero_errors_is_not_synthesis_error(tmp_path, monkeypatch):
     project_dir = tmp_path / "project"
     _write_design(project_dir)
@@ -141,6 +170,27 @@ def test_vitis_log_zero_errors_is_not_synthesis_error(tmp_path, monkeypatch):
 
     assert result["status"] == "success"
     assert "error" not in result
+
+
+def test_vitis_returncode_zero_with_compilation_failed_is_error(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    _write_design(project_dir)
+    vitis_hls = tmp_path / "vitis_hls.bat"
+    vitis_hls.write_text("@echo off\n", encoding="utf-8")
+    adapter = VivadoHLSAdapter(mock_mode=False, hls_toolchain="vitis_hls", vitis_hls_path=str(vitis_hls))
+    create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vitis")})
+
+    def fake_run(command, cwd, capture_output, text, timeout, shell):
+        del command, cwd, capture_output, text, timeout, shell
+        return SimpleNamespace(returncode=0, stdout="Compilation of the preprocessed source 'demo' failed", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = adapter.run_csynth({"work_dir": create["work_dir"], "tcl_path": create["tcl_path"], "top_function": "demo"})
+
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] == "VivadoSynthesisError"
+    assert "preprocessed source" in result["error"]["details"]["errors"][0]
 
 
 def test_vivado_parse_sample_report(sample_csynth_report_path):

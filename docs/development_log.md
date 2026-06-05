@@ -6,6 +6,135 @@
 
 ---
 
+## 2026-06-05 16:13:37 +08:00：完成 Vitis HLS 2022.2 代表性复测，并补齐 vitis_hls 命令适配
+### 1. 本次测试做了什么
+用户安装了 Vitis 2022.2，安装目录为：
+
+```text
+D:\Vitis2022.2
+```
+
+本轮目标是回答：Vitis 2022.2 是否会像 Vitis 2025.2.1 一样，在 hls4ml CNN 上显著差于 Vivado HLS 2018.3。为了避免重新做大规模扫描，本轮复用 `2026-06-05 10:04:07` 的 Demo4 QONNX CNN 公平实验设计，只替换 Vitis 版本，并额外跑一个轻量 fallback Dense 点作为 sanity check。
+
+实际执行命令摘录：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:TMP='D:\hls_agent\standalone_work\dl-op-to-hls-agent\tmp'
+$env:TEMP=$env:TMP
+
+python scripts\run_vitis_fairness_experiments.py `
+  --output-root runs\vitis_fairness_qonnx_2022p2_20260605 `
+  --vitis-run D:\Vitis2022.2\Vitis_HLS\2022.2\bin\vitis_hls.bat `
+  --include g1_vivado_vitis g2_vitis_base g4_vitis_tuned `
+  --timeout 1200 `
+  --force
+
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='1'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vitis_hls'
+$env:DL_OP_TO_HLS_VITIS_HLS_PATH='D:\Vitis2022.2\Vitis_HLS\2022.2\bin\vitis_hls.bat'
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND='Vitis'
+$env:DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS='900'
+python -m dl_op_to_hls.cli run examples\dense_operator.json
+
+python -m pytest tests\test_vivado_hls_mcp.py tests\test_report_parser.py -q -p no:cacheprovider
+python -m py_compile scripts\run_vitis_fairness_experiments.py
+```
+
+### 2. Vitis 2022.2 命令行兼容问题
+Vitis 2025.2.1 使用：
+
+```text
+vitis-run.bat --mode hls --tcl --input_file <tcl>
+```
+
+Vitis 2022.2 使用：
+
+```text
+vitis_hls.bat -f <tcl>
+```
+
+这不是参数小差异，而是不同 Vitis 版本真实 CLI contract 不同。本轮修复：
+
+- `VivadoHLSAdapter`：`vitis_hls` toolchain 同时支持 `vitis-run.bat` 和 `vitis_hls.bat`。
+- `scripts/run_vitis_fairness_experiments.py`：根据可执行文件名自动选择 `vitis-run` 参数或 legacy `vitis_hls -f` 参数。
+- 测试新增：`test_vitis_run_csynth_uses_vitis_hls_legacy_command`。
+
+### 3. 真实 HLS 对照结果
+复用旧日志中的 Vivado HLS 2018.3 Demo4 baseline：
+
+| 组别 | 工具链 | 状态 | Latency | BRAM | DSP | FF | LUT | Timing |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| Demo4 Vivado baseline | Vivado HLS 2018.3 | success | 775-777 | 8 | 0 | 9,888 | 49,459 | met |
+
+本轮 Vitis HLS 2022.2 结果：
+
+| 组别 | 工具链 | 目的 | 状态 | Latency | BRAM | DSP | FF | LUT | Timing |
+|---|---|---|---|---:|---:|---:|---:|---:|---|
+| g1 Vivado backend + Vitis HLS | Vitis 2022.2 | 同源 Vivado backend 源码换综合器 | report_missing | - | - | - | - | - | failed before report |
+| g2 Vitis backend baseline | Vitis 2022.2 | Vitis backend，uncertainty=1.25ns | success | 6391-6393 | 10 | 0 | 175,036 | 168,859 | met |
+| g4 Vitis tuned combo | Vitis 2022.2 | safe TCL tuned：uncertainty/FIFO/bind_storage | success | 6396-6397 | 10 | 0 | 180,353 | 182,123 | met |
+
+与 Vivado 2018.3 Demo4 baseline 的比例：
+
+- Vitis 2022.2 baseline latency：约 8.23x。
+- Vitis 2022.2 baseline FF：约 17.70x。
+- Vitis 2022.2 baseline LUT：约 3.41x。
+- Vitis 2022.2 tuned combo 没有改善，反而资源更高。
+
+与 Vitis 2025.2.1 对比：
+
+- Vitis 2025.2.1 baseline：Latency 6679-6681，FF 132,970，LUT 111,370。
+- Vitis 2022.2 baseline：Latency 6391-6393，FF 175,036，LUT 168,859。
+- 结论：2022.2 latency 比 2025.2.1 略好，但 FF/LUT 明显更高；整体仍不支持“全面切换 Vitis”的结论。
+
+### 4. 轻量 fallback Dense sanity check
+为了确认 Vitis 2022.2 不是对所有 HLS C++ 都极差，本轮额外跑了 Demo0 Dense fallback：
+
+| 组别 | 工具链 | 状态 | Latency | BRAM | DSP | FF | LUT | Timing |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| Demo0 Dense Vivado 2018.3 baseline | Vivado HLS 2018.3 | success | 269 | 0 | 16 | 732 | 549 | met |
+| Demo0 Dense Vitis 2022.2 | Vitis HLS 2022.2 | success | 296 | 0 | 16 | 1,342 | 655 | met |
+
+结论：
+
+- 对简单手写/fallback HLS C++，Vitis 2022.2 不是灾难性退化：latency 约 1.10x，LUT 约 1.19x。
+- 对 hls4ml CNN DATAFLOW/stream 模式，Vitis 2022.2 仍明显差于 Vivado 2018.3。
+
+### 5. 遇到的问题与根因
+1) Vitis 2022.2 没有 `vitis-run.bat`
+- 现象：安装目录中找不到 `vitis-run.bat`，实际命令为 `D:\Vitis2022.2\Vitis_HLS\2022.2\bin\vitis_hls.bat`。
+- 根因：2022.2 与 2025.2.1 的 Vitis HLS CLI 不同。
+- 修复：adapter 和公平实验脚本都支持双命令格式。
+
+2) `g1` returncode=0 但没有 report
+- 现象：Vitis 2022.2 运行同源 Vivado backend HLS C++ 时，进程 returncode 为 0，但没有生成 csynth report。
+- 根因：日志中出现 `Dataflow form checks found` 与 `Compilation of the preprocessed source 'myproject' failed`；Vitis 仍以 0 退出。
+- 修复：`VivadoHLSAdapter` 的日志判错增加 `Compilation of the preprocessed source` / `failed before report` 模式，不能只相信 returncode。
+
+3) Vitis safe TCL tuned 对 2022.2 无正向收益
+- 现象：g4 tuned combo latency 与 baseline 接近，资源更高。
+- 根因：当前 TCL 级调参不足以修复 hls4ml CNN 的 DATAFLOW/stream 代码结构问题。
+- 处理：继续记录为工具链/codegen 边界，不用 fallback 掩盖。
+
+### 6. 当前结论
+- 继续保持 Vivado HLS 2018.3 为默认主线是合理的。
+- Vitis 2022.2 可以作为可选工具链保留，尤其对简单 fallback HLS C++ 可用。
+- 对 Demo4 这类 hls4ml CNN，Vitis 2022.2 仍显著差于 Vivado HLS 2018.3；如果以后要让 Vitis 成为主线，需要做 Vitis-specific hls4ml template/codegen 改造，而不是只换工具版本或 TCL 参数。
+
+### 7. 当前测试结果
+通过：
+
+- `tests/test_vivado_hls_mcp.py tests/test_report_parser.py`：14 passed
+- `python -m py_compile scripts\run_vitis_fairness_experiments.py`：通过
+
+### 8. 未修复/后续问题
+- 尚未修复 Vitis 对 hls4ml CNN DATAFLOW canonical form 的兼容性；这需要改 hls4ml Vitis backend/template 或增加 Vitis-specific graph/code rewrite。
+- 尚未把 Vitis 2022.2 设为默认，因为真实指标不支持该切换。
+
+---
+
 ## 2026-06-05 15:22:16 +08:00：收敛 Demo2/Demo3 优化方法，并增强 ONNX/QONNX 静态 adapter
 ### 1. 本次测试做了什么
 本轮目标不是继续做大批量设计空间扫描，而是在真实路径上找出可解释、可复用的优化方法，并修复 Demo2-4 当前 ONNX/QONNX adapter 过窄的问题。

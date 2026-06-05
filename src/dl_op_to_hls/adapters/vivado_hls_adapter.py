@@ -67,13 +67,17 @@ class VivadoHLSAdapter:
                 candidates.extend(
                     [
                         configured / "bin" / "vitis-run.bat",
+                        configured / "bin" / "vitis_hls.bat",
                         configured / "Vitis" / "bin" / "vitis-run.bat",
+                        configured / "Vitis_HLS" / "2022.2" / "bin" / "vitis_hls.bat",
+                        configured / "2022.2" / "bin" / "vitis_hls.bat",
                         configured / "2025.2.1" / "Vitis" / "bin" / "vitis-run.bat",
                         configured / "2025.2" / "Vitis" / "bin" / "vitis-run.bat",
                     ]
                 )
         candidates.extend(
             [
+                Path("D:/Vitis2022.2/Vitis_HLS/2022.2/bin/vitis_hls.bat"),
                 Path("D:/vitis25.2.1/2025.2.1/Vitis/bin/vitis-run.bat"),
                 Path("D:/vitis25.2.1/2025.2/Vitis/bin/vitis-run.bat"),
             ]
@@ -85,7 +89,16 @@ class VivadoHLSAdapter:
         return resolved
 
     def _command_label(self) -> str:
-        return "vitis-run" if self.hls_toolchain == "vitis_hls" else "vivado_hls"
+        if self.hls_toolchain == "vitis_hls":
+            executable = self._resolve_vitis_executable()
+            return Path(executable).name if executable else "vitis_hls/vitis-run"
+        return "vivado_hls"
+
+    def _vitis_command(self, executable: str, tcl_path: str) -> list[str]:
+        exe_name = Path(executable).name.lower()
+        if "vitis-run" in exe_name:
+            return [executable, "--mode", "hls", "--tcl", "--input_file", Path(tcl_path).name]
+        return [executable, "-f", Path(tcl_path).name]
 
     def _binary_available(self) -> bool:
         if self.hls_toolchain == "vitis_hls":
@@ -108,7 +121,7 @@ class VivadoHLSAdapter:
             }
         timeout = int(timeout_seconds or 900)
         started = time.time()
-        command = [executable, "--mode", "hls", "--tcl", "--input_file", Path(tcl_path).name]
+        command = self._vitis_command(executable, tcl_path)
         try:
             completed = subprocess.run(
                 command,
@@ -442,7 +455,13 @@ class VivadoHLSAdapter:
                 lowered = line.lower()
                 if re.search(r"\b0\s+error\(s\)", lowered):
                     continue
-                if re.search(r"\berror\b", lowered) or "fatal error" in lowered or "c preprocessor failed" in lowered:
+                if (
+                    re.search(r"\berror\b", lowered)
+                    or "fatal error" in lowered
+                    or "c preprocessor failed" in lowered
+                    or "compilation of the preprocessed source" in lowered
+                    or "failed before report" in lowered
+                ):
                     log_errors.append(line.strip())
             if synthesis.get("status") == "success" and log_errors:
                 return error_result(

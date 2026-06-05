@@ -24,6 +24,7 @@ from dl_op_to_hls.tools.report_parser import parse_csynth_report_file  # noqa: E
 
 DEFAULT_VIVADO = Path("D:/Xilinx/Vivado/2018.3/bin/vivado_hls.bat")
 DEFAULT_VITIS = Path("D:/vitis25.2.1/2025.2.1/Vitis/bin/vitis-run.bat")
+DEFAULT_VITIS_2022 = Path("D:/Vitis2022.2/Vitis_HLS/2022.2/bin/vitis_hls.bat")
 
 
 @dataclass
@@ -115,7 +116,10 @@ def run_tool(variant: Variant, work_dir: Path, tcl_path: Path, vivado: Path, vit
     if variant.toolchain == "vivado_hls":
         command = [str(vivado), "-f", tcl_path.name]
     elif variant.toolchain == "vitis_hls":
-        command = [str(vitis), "--mode", "hls", "--tcl", "--input_file", tcl_path.name]
+        if "vitis-run" in vitis.name.lower():
+            command = [str(vitis), "--mode", "hls", "--tcl", "--input_file", tcl_path.name]
+        else:
+            command = [str(vitis), "-f", tcl_path.name]
     else:
         raise ValueError(f"Unknown toolchain: {variant.toolchain}")
     started = time.time()
@@ -261,7 +265,7 @@ def main() -> int:
     parser.add_argument("--vivado-backend-work", default="runs/mnist_qonnx_cnn_bc625576_02/vivado_hls")
     parser.add_argument("--vitis-backend-work", default="runs/mnist_qonnx_cnn_bc625576_06/vivado_hls")
     parser.add_argument("--vivado-hls", default=str(DEFAULT_VIVADO))
-    parser.add_argument("--vitis-run", default=str(DEFAULT_VITIS))
+    parser.add_argument("--vitis-run", default=str(DEFAULT_VITIS if DEFAULT_VITIS.exists() else DEFAULT_VITIS_2022))
     parser.add_argument("--clock-period", type=float, default=10.0)
     parser.add_argument("--top-function", default="myproject")
     parser.add_argument("--timeout", type=int, default=1200)
