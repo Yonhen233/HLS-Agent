@@ -1,4 +1,5 @@
 from dl_op_to_hls.tools.suggest_optimization import suggest_optimization
+from dl_op_to_hls.tools.suggest_optimization import build_suggestions
 
 
 class PlaceholderSuggestionClient:
@@ -59,6 +60,44 @@ def test_llm_optimizer_falls_back_to_rules():
     assert result["status"] == "success"
     assert result["llm_fallback_used"] is True
     assert result["suggestions"]
+
+
+def test_rule_suggestions_ignore_raw_episodic_memory_json():
+    suggestions = build_suggestions(
+        {
+            "resources": {"dsp": 16, "lut": 549, "bram": 0},
+            "interval": {"max_ii": 269},
+            "timing": {"met": True},
+        },
+        [
+            {"summary": 'episode.dense_001 {"run_id": "dense_001", "task_type": "operator", "status": "partial_success"}'},
+            {"summary": "Increasing reuse_factor can reduce DSP at the cost of latency."},
+        ],
+        "latency",
+    )
+
+    dumped = "\n".join(suggestions)
+    assert "episode.dense_001" not in dumped
+    assert "Prior experience hint: Increasing reuse_factor" in dumped
+
+
+def test_rule_suggestions_ignore_structured_optimization_memory_json():
+    suggestions = build_suggestions(
+        {
+            "resources": {"dsp": 16, "lut": 624, "bram": 0},
+            "interval": {"max_ii": 2052},
+            "timing": {"met": False},
+        },
+        [
+            {"summary": 'optimization.matmul.todo_006 {"objective": "resource"}'},
+            {"summary": "MatMul resource runs should relax timing first when timing is not met."},
+        ],
+        "resource",
+    )
+
+    dumped = "\n".join(suggestions)
+    assert "optimization.matmul.todo_006" not in dumped
+    assert "Prior experience hint: MatMul resource runs" in dumped
 
 
 def test_llm_optimizer_strict_mode_fails_without_llm():

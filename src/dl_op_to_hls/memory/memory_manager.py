@@ -41,6 +41,31 @@ GENERIC_QUERY_TOKENS = {
     "timing",
     "vivado",
 }
+TASK_FAMILY_TOKENS = {
+    "add",
+    "cnn",
+    "dense",
+    "matmul",
+    "mlp",
+    "qkeras",
+    "qonnx",
+    "relu",
+    "residual",
+    "resnet18",
+}
+FAILURE_QUERY_TOKENS = {
+    "blocked",
+    "error",
+    "failed",
+    "failure",
+    "missing",
+    "notfound",
+    "notfounderror",
+    "recoverable",
+    "skipped",
+    "unsupported",
+    "vivadonotfounderror",
+}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -58,6 +83,14 @@ def _anchor_tokens(query: str) -> set[str]:
         for token in _tokenize(query)
         if len(token) >= 4 and token not in GENERIC_QUERY_TOKENS and not token.isdigit()
     }
+
+
+def _is_failure_query(query: str) -> bool:
+    tokens = set(_tokenize(query))
+    if tokens.intersection(FAILURE_QUERY_TOKENS):
+        return True
+    anchors = _anchor_tokens(query)
+    return any(token.endswith("error") or token.endswith("notfounderror") for token in anchors)
 
 
 def _matches_anchor(query_anchors: set[str], text: str) -> bool:
@@ -113,13 +146,51 @@ class MemoryManager:
             sanitized["value"] = sanitize_memory_payload(sanitized.get("value"))
         return sanitized
 
-    def _memory_item_text(self, item: dict[str, Any]) -> str:
+    def _memory_item_value(self, item: dict[str, Any]) -> Any:
         try:
-            value = json.loads(item.get("value_json") or "{}")
+            return json.loads(item.get("value_json") or "{}")
         except json.JSONDecodeError:
-            value = item.get("value_json") or ""
+            return item.get("value_json") or ""
+
+    def _memory_item_text(self, item: dict[str, Any]) -> str:
+        value = self._memory_item_value(item)
         sanitized_value = sanitize_memory_payload(value)
         return sanitize_memory_text(f"{item['key']} {json.dumps(sanitized_value, ensure_ascii=False)}")
+
+    def _memory_source_tokens(self, item: dict[str, Any]) -> set[str]:
+        value = self._memory_item_value(item)
+        if isinstance(value, dict):
+            source_text = " ".join(
+                str(value.get(key, ""))
+                for key in ["run_id", "name", "task_type", "selected_path", "objective", "status"]
+            )
+        else:
+            source_text = str(value)
+        return set(_tokenize(f"{item.get('key', '')} {item.get('source_run_id', '')} {source_text}"))
+
+    def _adjust_memory_score(self, query: str, item: dict[str, Any], text: str, score: float) -> float:
+        anchors = _anchor_tokens(query)
+        source_tokens = self._memory_source_tokens(item)
+        adjusted = score + 0.08 * len(anchors.intersection(source_tokens))
+
+        query_task_tokens = anchors.intersection(TASK_FAMILY_TOKENS)
+        source_task_tokens = source_tokens.intersection(TASK_FAMILY_TOKENS)
+        if query_task_tokens and source_task_tokens and not query_task_tokens.intersection(source_task_tokens):
+            adjusted -= 0.16
+
+        value = self._memory_item_value(item)
+        if isinstance(value, dict):
+            status = str(value.get("status") or "").lower()
+            errors = value.get("errors") or []
+            if status == "success":
+                adjusted += 0.05
+            if status in {"failed", "partial_success"} and errors and not _is_failure_query(query):
+                adjusted -= 0.24
+
+        text_tokens = set(_tokenize(text))
+        if anchors and not anchors.intersection(text_tokens.union(source_tokens)):
+            adjusted -= 0.2
+        return adjusted
 
     def write_short_term(self, run_id: str, key: str, value: dict) -> dict:
         path = self._memory_dir(run_id) / "short_term.json"
@@ -176,6 +247,7 @@ class MemoryManager:
                         "value": report,
                     }
                 )
+        candidates = [self._sanitize_candidate(candidate) for candidate in candidates]
         path = self._memory_dir(run_id) / "memory_candidates.json"
         self._write_json(path, {"run_id": run_id, "candidates": candidates})
         return candidates
@@ -249,13 +321,15 @@ class MemoryManager:
             text = self._memory_item_text(item)
             if not _matches_anchor(anchors, text):
                 continue
-            score = _score(query, text)
+            score = self._adjust_memory_score(query, item, text, _score(query, text))
             if score > 0:
                 scored.append({"id": item["id"], "memory_type": item["memory_type"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         scored.sort(key=lambda item: item["score"], reverse=True)
         return scored[:top_k]
 
     def retrieve_failure_cases(self, query: str, top_k: int = 5) -> list[dict]:
+        if not _is_failure_query(query):
+            return []
         scored = []
         anchors = _anchor_tokens(query)
         for item in self.repository.list_failures():
@@ -269,7 +343,7 @@ class MemoryManager:
             text = self._memory_item_text(item)
             if not _matches_anchor(anchors, text):
                 continue
-            score = _score(query, text)
+            score = self._adjust_memory_score(query, item, text, _score(query, text))
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         scored.sort(key=lambda item: item["score"], reverse=True)

@@ -174,7 +174,7 @@ class PlanExecuteReactRuntime:
             {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name},
         )
         if specialist.name == "MemorySpecialist":
-            state_path = self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+            state_path = self._write_memory_ready_state_snapshot(state)
             state.artifacts["state"] = str(state_path)
         envelope = self.context_builder.build_for_specialist(state=state, todo=todo, specialist_name=specialist.name)
         hooks.emit(
@@ -825,6 +825,8 @@ class PlanExecuteReactRuntime:
         compressed_logs_path = self.context["artifact_manager"].write_json("compressed_logs.json", compressed_payload, "report_json")
         state.artifacts["compressed_logs"] = str(compressed_logs_path)
         if not state.memory_candidates:
+            state_path = self._write_memory_ready_state_snapshot(state)
+            state.artifacts["state"] = str(state_path)
             candidates_result = self._call_tool(state, "memory.extract_memory_candidates", {"run_id": state.run_id})
             state.memory_candidates = candidates_result.get("candidates", [])
             if candidates_result.get("path"):
@@ -885,6 +887,25 @@ class PlanExecuteReactRuntime:
         self.todo_manager.save(state.run_id, self.todo_manager.todo_list)
         state.todos = self.todo_manager.todo_list.items
         return state
+
+    def _write_memory_ready_state_snapshot(self, state: AgentState) -> Path:
+        state.todos = self.todo_manager.todo_list.items
+        unfinished_non_memory_todos = [
+            item
+            for item in state.todos
+            if item.title != "Promote memories" and item.status in {"pending", "blocked", "in_progress"}
+        ]
+        if (
+            not unfinished_non_memory_todos
+            and not state.errors
+            and state.report
+            and state.report.get("status") == "success"
+            and state.selected_path in {"fallback_template_path", "hls4ml_path", "existing_hls_project_path", "llm_candidate_path"}
+        ):
+            state.status = "success"
+        else:
+            update_status_from_todos(state)
+        return self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
 
     def should_stop(self, state: AgentState) -> bool:
         if state.status == "failed":

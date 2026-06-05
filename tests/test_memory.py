@@ -47,6 +47,34 @@ def test_memory_extract_candidates(tmp_path):
     assert candidates
 
 
+def test_memory_extract_candidates_sanitizes_prior_experience_hint(tmp_path):
+    manager = _manager(tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "run_id": "r1",
+        "task": {"task_type": "operator", "name": "dense_demo", "op_type": "Dense"},
+        "selected_path": "fallback_template_path",
+        "status": "success",
+        "report": {"status": "success"},
+        "suggestions": [
+            "RuleSuggestion: Prior experience hint: failure.old_run VivadoNotFoundError was recoverable.",
+            "Increase reuse factor if DSP is high.",
+        ],
+        "retrieved_memories": [{"text": "old noisy hint"}],
+        "errors": [],
+        "hls4ml_support": {"unsupported_layers": []},
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    candidates = manager.extract_memory_candidates("r1")
+    dumped = json.dumps(candidates, ensure_ascii=False).lower()
+
+    assert "prior experience hint" not in dumped
+    assert "old noisy hint" not in dumped
+    assert "increase reuse factor" in dumped
+
+
 def test_memory_policy_promotes_failure():
     policy = MemoryPolicy()
     candidate = {"kind": "failure", "summary": "Vivado missing", "value": {"error_type": "VivadoNotFoundError"}}
@@ -136,6 +164,62 @@ def test_memory_retrieve_failure_cases(tmp_path):
     manager.repository.save_failure({"run_id": "r1", "error_type": "VivadoNotFoundError", "error_message": "vivado missing"})
     results = manager.retrieve_failure_cases("Vivado missing", top_k=3)
     assert results
+
+
+def test_memory_failure_cases_not_returned_for_normal_optimization_query(tmp_path):
+    manager = _manager(tmp_path)
+    manager.repository.save_failure({"run_id": "r1", "error_type": "VivadoNotFoundError", "error_message": "vivado missing"})
+
+    results = manager.retrieve_failure_cases("dense_16x32 Dense latency reuse factor DSP Vivado HLS", top_k=3)
+
+    assert results == []
+
+
+def test_memory_successful_runs_rank_above_error_partial_runs_for_optimization_query(tmp_path):
+    manager = _manager(tmp_path)
+    manager.promote_to_long_term(
+        "success_dense",
+        [
+            {
+                "kind": "episodic",
+                "key": "episode.success_dense",
+                "summary": "Dense fallback generated and synthesized successfully.",
+                "value": {
+                    "run_id": "success_dense",
+                    "name": "dense_16x32",
+                    "task_type": "operator",
+                    "selected_path": "fallback_template_path",
+                    "objective": "latency",
+                    "status": "success",
+                    "errors": [],
+                },
+            }
+        ],
+    )
+    manager.promote_to_long_term(
+        "missing_dense",
+        [
+            {
+                "kind": "episodic",
+                "key": "episode.missing_dense",
+                "summary": "Dense fallback generated but Vivado HLS was missing.",
+                "value": {
+                    "run_id": "missing_dense",
+                    "name": "dense_vivado_missing_eval",
+                    "task_type": "operator",
+                    "selected_path": "fallback_template_path",
+                    "objective": "latency",
+                    "status": "partial_success",
+                    "errors": [{"error_type": "VivadoNotFoundError"}],
+                },
+            }
+        ],
+    )
+
+    results = manager.retrieve_similar_experiences("dense_16x32 Dense latency reuse factor DSP Vivado HLS", top_k=2)
+
+    assert results
+    assert results[0]["source_run_id"] == "success_dense"
 
 
 def test_memory_save_skill(tmp_path):

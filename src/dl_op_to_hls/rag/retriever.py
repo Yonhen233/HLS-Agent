@@ -74,6 +74,49 @@ def _score(query_tokens: Counter, text: str) -> float:
     return numerator / max(query_norm * text_norm, 1e-9)
 
 
+def _source_tokens(row: dict[str, Any]) -> set[str]:
+    metadata = row.get("metadata") or {}
+    source_text = " ".join(
+        str(item or "")
+        for item in [
+            row.get("source_id"),
+            metadata.get("run_id"),
+            metadata.get("source_id"),
+            metadata.get("name"),
+            metadata.get("op_type"),
+            metadata.get("task_type"),
+        ]
+    )
+    return set(_tokenize(source_text))
+
+
+def _rank_adjustment(row: dict[str, Any], anchors: set[str], strong_anchors: set[str], text_tokens: set[str]) -> float:
+    metadata = row.get("metadata") or {}
+    source_type = str(metadata.get("source_type") or "")
+    source_tokens = _source_tokens(row)
+    adjustment = 0.0
+
+    if anchors:
+        adjustment += 0.12 * len(anchors.intersection(source_tokens))
+        # If a run/source name points to a different task family, treat matches in
+        # the body as likely second-order memory unless there is a source anchor.
+        task_like_tokens = source_tokens.intersection({"dense", "matmul", "qkeras", "qonnx", "cnn", "mlp", "resnet18", "residual"})
+        if task_like_tokens and not anchors.intersection(source_tokens):
+            adjustment -= 0.12
+
+    if strong_anchors:
+        adjustment += 0.25 * len(strong_anchors.intersection(text_tokens))
+        if source_type == "static_doc":
+            # Playbooks are curated knowledge and should not be buried under many
+            # duplicated run memories when the exact structured error is queried.
+            adjustment += 0.35
+
+    if source_type in {"memory_fact", "procedural_memory"}:
+        adjustment += 0.04
+
+    return adjustment
+
+
 class RagRetriever:
     def __init__(self, repository, static_paths: list[str | Path] | None = None):
         self.repository = repository
@@ -83,7 +126,7 @@ class RagRetriever:
         query_tokens = Counter(_tokenize(query))
         anchors = _anchor_tokens(query)
         strong_anchors = _strong_anchor_tokens(query)
-        scored: list[tuple[float, dict[str, Any]]] = []
+        scored_by_text: dict[str, tuple[float, dict[str, Any]]] = {}
         for row in self._candidate_rows():
             text = sanitize_memory_text(row["text"])
             if not text:
@@ -96,18 +139,19 @@ class RagRetriever:
             score = _score(query_tokens, text)
             if score == 0:
                 continue
-            scored.append(
-                (
-                    score,
-                    {
-                        "source_id": row["source_id"],
-                        "score": round(score, 4),
-                        "text": text,
-                        "metadata": row.get("metadata") or {},
-                    },
-                )
-            )
-        scored.sort(key=lambda item: item[0], reverse=True)
+            adjusted_score = score + _rank_adjustment(row, anchors, strong_anchors, text_tokens)
+            result = {
+                "source_id": row["source_id"],
+                "score": round(adjusted_score, 4),
+                "text": text,
+                "metadata": row.get("metadata") or {},
+            }
+            dedupe_key = " ".join(text.lower().split())
+            previous = scored_by_text.get(dedupe_key)
+            if previous is None or adjusted_score > previous[0]:
+                scored_by_text[dedupe_key] = (adjusted_score, result)
+        scored = list(scored_by_text.values())
+        scored.sort(key=lambda item: (item[0], str(item[1].get("source_id", ""))), reverse=True)
         return [item[1] for item in scored[:top_k]]
 
     def _candidate_rows(self) -> list[dict[str, Any]]:

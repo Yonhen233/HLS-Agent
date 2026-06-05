@@ -74,3 +74,45 @@ def test_rag_retrieves_static_vivado_failure_playbook(tmp_path):
     assert results
     assert any("vivado_failure_playbook.md" in item["source_id"] for item in results)
     assert all("summary.md" not in item["source_id"] for item in results)
+
+
+def test_rag_static_playbook_not_buried_by_duplicate_failure_memories(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True)
+    playbook = docs_dir / "vivado_failure_playbook.md"
+    playbook.write_text(
+        "VivadoNotFoundError means vivado_hls is unavailable. It is recoverable; skip synthesis and keep partial_success.",
+        encoding="utf-8",
+    )
+    memory = _memory_with_workspace(tmp_path)
+    for idx in range(6):
+        memory.index_text(
+            f"memory:{idx}",
+            "VivadoNotFoundError is recoverable and synthesis can be skipped while keeping generated HLS artifacts.",
+            {"source_type": "memory_fact"},
+        )
+
+    results = memory.retrieve("VivadoNotFoundError recoverable skipped synthesis", top_k=3)
+
+    assert results
+    assert "vivado_failure_playbook.md" in results[0]["source_id"]
+    assert len({item["text"] for item in results}) == len(results)
+
+
+def test_rag_source_anchor_prioritizes_matching_task_family(tmp_path):
+    memory = _memory(tmp_path)
+    memory.index_text(
+        "runs/dense_16x32/suggestions.md",
+        "Dense high DSP usage can be reduced by increasing reuse factor.",
+        {"task_type": "operator", "op_type": "Dense"},
+    )
+    memory.index_text(
+        "runs/mnist_qkeras_cnn/suggestions.md",
+        "QKeras CNN failed, but a retrieved Dense high DSP reuse factor hint appeared in prior context.",
+        {"task_type": "model", "frontend": "qkeras"},
+    )
+
+    results = memory.retrieve("Dense high DSP reuse factor", top_k=2)
+
+    assert results
+    assert results[0]["source_id"] == "runs/dense_16x32/suggestions.md"

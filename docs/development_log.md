@@ -6,6 +6,121 @@
 
 ---
 
+## 2026-06-05 12:24:37 +08:00：回到 Vivado HLS 2018.3 主线，修复真实综合暴露的 Memory/RAG/Suggestion 污染
+### 1. 本次测试做了什么
+根据 Vitis 2025.2.1 公平实验结论，本轮不再继续推进 Vitis 默认切换，而是把主线重新收拢到 `Vivado HLS 2018.3`：
+
+- 保持默认工程路线为 `hls4ml backend: Vivado` + `vivado_hls.bat`。
+- 使用真实 Vivado HLS 2018.3 复跑 Demo0 `dense_operator.json` 和 Demo1 `matmul_resource.json`。
+- 使用 benchmark 复测 Agent 工程指标、RAG 召回指标、unsupported 语义指标。
+- 修复真实综合后才暴露出的 memory 快照时序、RAG 检索污染、suggestion 展示污染。
+
+实际执行命令：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:TMP='D:\hls_agent\standalone_work\dl-op-to-hls-agent\tmp'
+$env:TEMP=$env:TMP
+
+python -m pytest tests\test_memory.py tests\test_rag.py tests\test_llm_optimizer_fallback.py tests\test_agent_quality_benchmark.py -q -p no:cacheprovider
+python -m pytest tests\test_runtime_hybrid.py -q -p no:cacheprovider
+python -m pytest tests\test_token_budget.py -q -p no:cacheprovider
+python -m pytest tests\test_main_agent.py -q -p no:cacheprovider
+
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='1'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vivado_hls'
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND='Vivado'
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH='D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat'
+python -m dl_op_to_hls.cli run examples\dense_operator.json
+python -m dl_op_to_hls.cli run examples\matmul_resource.json
+
+python -m dl_op_to_hls.benchmarks.agent_quality_benchmark `
+  --runs dense_16x32_af6abf3c_18 matmul_16x16_resource_9ac8e2e8_20 relu_16_3acb1a59_03 add_16_0b53b9ed_03 existing_dense_project_20fa63c7_03 custom_unsupported_eval_893b0594_03 mnist_mlp_demo_aba95cc1_05 mnist_tiny_cnn_6d3a1cb8_06 mnist_qonnx_cnn_bc625576_07 tiny_residual_block_ad48a995_14 resnet18_boundary_demo_cd40d797_22 dense_vivado_missing_eval_3717adca_03 `
+  --rag-eval-file benchmarks\rag_eval_labels.json `
+  --rag-top-k 5 `
+  --output runs\benchmark_vivado2018_mainline_20260605_after_memory_suggestion_fix.json
+```
+
+### 2. 真实 Vivado HLS 2018.3 结果
+| Demo | run_id | 状态 | 路径 | Latency | II | BRAM | DSP | FF | LUT | Timing |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| Demo0 Dense | `dense_16x32_af6abf3c_18` | success | fallback_template_path | 269 | 269 | 0 | 16 | 732 | 549 | met |
+| Demo1 MatMul | `matmul_16x16_resource_9ac8e2e8_20` | success | fallback_template_path | 2052 | 2052 | 0 | 16 | 265 | 624 | failed |
+
+补充说明：
+- Demo0 最新输出中 `memory_candidates[0].value.status = success`，长期记忆不再把成功 run 错记为 `partial_success`。
+- Demo0 suggestions 只包含当前 report 相关建议，不再混入 `VivadoNotFoundError` 失败经验。
+- Demo1 suggestions 只保留 timing 未满足建议，不再输出 `optimization.xxx {json...}` 这类内部 memory key。
+
+### 3. Benchmark 结果
+最新 benchmark 输出文件：
+
+```text
+runs/benchmark_vivado2018_mainline_20260605_after_memory_suggestion_fix.json
+```
+
+核心指标：
+
+- run_count: 12
+- status_counts: success 8，partial_success 4
+- artifact_completeness_avg: 1.0
+- unsupported_semantics_pass_rate: 1.0
+- rag_pollution_rate: 0.0
+- RAG macro_precision@5: 0.8
+- RAG macro_recall@5: 1.0
+- RAG macro_hit@5: 1.0
+- RAG macro_mrr: 1.0
+- RAG macro_ndcg@5: 1.0
+- RAG macro_pollution@5: 0.0
+
+### 4. 遇到的问题与根因
+1) 普通优化 query 检索到失败经验
+- 现象：真实 Demo0 成功综合后，suggestions 曾引用 `VivadoNotFoundError` 历史失败经验。
+- 根因：`retrieve_initial_memory` 固定同时拉取 similar/failure/optimization 三类 memory；`MemoryManager.retrieve_failure_cases` 没有区分“失败查询”和“普通优化查询”。
+- 修复：新增 failure query 判定，仅当 query 包含 error/missing/unsupported/recoverable 等强失败锚点时返回 failure cases；普通 latency/resource 查询不再注入失败 memory。
+
+2) 长期记忆把成功 run 错记为 partial_success
+- 现象：Demo0/1 顶层 `state.status=success`，但 `memory_candidates` 的 episodic summary/value 曾记录 `partial_success`。
+- 根因：`MemorySpecialist` 在自身 `Promote memories` todo 仍处于 `in_progress` 时读取 `state.json`，状态计算被当前 memory todo 干扰。
+- 修复：新增 memory-ready state snapshot；在写给 MemorySpecialist 的 `state.json` 前，排除 `Promote memories` 自身的未完成状态。如果其余 todo 已完成、report 成功且无结构化错误，则按 success 写入长期记忆候选。
+
+3) suggestion 将结构化 memory 当成自然语言历史经验
+- 现象：Demo1 suggestions 曾出现 `Prior experience hint: optimization.matmul... {"objective": "resource"}`。
+- 根因：`build_suggestions` 直接取 `rag_context[0]`，没有区分自然语言经验与内部结构化 memory payload。
+- 修复：新增 `_select_prior_hints`，过滤 `episode.*`、`semantic.*`、`optimization.*`、`skill.*`、包含 JSON braces 的结构化摘要，只允许自然语言经验进入 suggestions。
+
+4) Windows pytest 临时目录权限异常
+- 现象：pytest setup 阶段报 `PermissionError: C:\Users\IC\AppData\Local\Temp\pytest-of-IC`。
+- 根因：当前用户对默认 pytest temp root 权限异常。
+- 修复：测试命令统一设置 `TMP/TEMP` 到独立工程目录 `D:\hls_agent\standalone_work\dl-op-to-hls-agent\tmp`。
+
+### 5. 已修复内容
+- `memory_manager.py`：增加 task-family anchor、failure-query gating、成功经验加权、带错误 partial_success 降权、候选 memory 写盘前清洗。
+- `runtime.py`：增加 memory-ready state snapshot，避免 MemorySpecialist 读取半成品状态。
+- `suggest_optimization.py`：只展示自然语言 prior hints，避免把内部 memory JSON 暴露给 summary/suggestions。
+- `rag/retriever.py`：增加 source-anchor ranking、strong-anchor static docs boost、重复 chunk 去重，避免静态 playbook 被重复短 memory 淹没。
+- 测试覆盖新增 memory failure gating、memory candidate 清洗、成功经验排序、RAG 静态 playbook 排序、suggestion prior hint 过滤。
+
+### 6. 当前测试结果
+通过：
+
+- `tests/test_memory.py tests/test_rag.py tests/test_llm_optimizer_fallback.py tests/test_agent_quality_benchmark.py`：38 passed
+- `tests/test_runtime_hybrid.py`：12 passed
+- `tests/test_token_budget.py`：1 passed
+- `tests/test_main_agent.py`：7 passed
+
+说明：
+- `pytest` 全量直接跑会因为集成测试总耗时较长而容易触发命令超时；拆分测试均通过。
+- 本轮真实 Vivado HLS 2018.3 Demo0/Demo1 都成功执行到 csynth/report parsing。
+
+### 7. 未修复/后续问题
+- Demo1 MatMul timing failed 是真实综合结果，不是 Agent 框架错误；后续应作为优化实验入口，尝试 clock period、pipeline/dataflow、array partition/reuse-factor 的设计空间探索。
+- Vivado 2018.3 仍是当前主线；Vitis 2025.2.1 保留为可选实验路径，不作为默认路径。
+- Demo2-4 的 hls4ml 真实模型链路仍需要继续围绕 Vivado backend 修 Gemm/Shape/Flatten/QONNX 兼容，而不是依赖 Vitis 升级解决。
+
+---
+
 ## 2026-06-05 10:04:07 +08:00：完成 Vivado HLS vs Vitis HLS 公平隔离实验，并修复 Vitis report timing 判定
 ### 1. 本次测试做了什么
 围绕 Demo4 `mnist_qonnx_cnn.json` 生成的 hls4ml CNN HLS 工程，补充了 Vitis 公平性隔离实验脚本：

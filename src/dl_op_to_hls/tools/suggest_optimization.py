@@ -40,12 +40,44 @@ def build_suggestions(report: dict[str, Any], rag_context: list[dict], objective
         suggestions.append("Timing is not met; relax clock period or reduce parallelism before further optimization.")
     if not suggestions:
         suggestions.append("No strong issue stands out from the current report; compare reuse_factor and precision sweeps next.")
-    if rag_context:
-        first = rag_context[0]
-        summary = sanitize_memory_text(first.get("summary") or first.get("text", ""))
-        if summary:
-            suggestions.append(f"Prior experience hint: {summary}")
+    prior_hints = _select_prior_hints(rag_context, limit=1)
+    if prior_hints:
+        suggestions.append(f"Prior experience hint: {prior_hints[0]}")
     return suggestions
+
+
+def _is_actionable_prior_hint(summary: str) -> bool:
+    normalized = " ".join((summary or "").strip().split())
+    lowered = normalized.lower()
+    if not normalized:
+        return False
+    if lowered.startswith(("episode.", "semantic.", "failure.", "optimization.", "skill.")):
+        return False
+    if "{" in normalized and "}" in normalized:
+        return False
+    if any(marker in lowered for marker in ['{"run_id"', '"task_type"', '"selected_path"', "unsupported {"]):
+        return False
+    if "prior experience hint" in lowered:
+        return False
+    return True
+
+
+def _select_prior_hints(rag_context: list[dict], limit: int = 3) -> list[str]:
+    hints: list[str] = []
+    seen: set[str] = set()
+    for item in rag_context:
+        summary = sanitize_memory_text(item.get("summary") or item.get("text", ""))
+        if not _is_actionable_prior_hint(summary):
+            continue
+        normalized = " ".join(summary.split())
+        dedupe_key = normalized.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        hints.append(normalized[:240])
+        if len(hints) >= limit:
+            break
+    return hints
 
 
 def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict], objective: str | None, suggestions: list[str]) -> str:
@@ -53,11 +85,7 @@ def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict],
     interval = report.get("interval", {})
     resources = report.get("resources", {})
     timing = report.get("timing", {})
-    history_lines = "\n".join(
-        f"- {cleaned}"
-        for item in rag_context[:3]
-        if (cleaned := sanitize_memory_text(item.get("summary") or item.get("text", "")))
-    ) or "- None"
+    history_lines = "\n".join(f"- {cleaned}" for cleaned in _select_prior_hints(rag_context, limit=3)) or "- None"
     suggestion_lines = "\n".join(f"{idx}. {item}" for idx, item in enumerate(suggestions, start=1))
     return (
         "# Optimization Suggestions\n\n"
