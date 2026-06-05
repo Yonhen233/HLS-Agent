@@ -256,7 +256,13 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
 
     def _normalize_llm_plan_dependencies(self, todo_list, task: dict[str, Any]) -> None:
-        """Repair missing edges in LLM plans without changing the selected skill semantics."""
+        """Project an LLM todo graph onto a valid acyclic workflow DAG.
+
+        The LLM is allowed to propose task-specific titles and local ordering, but
+        core HLS milestones have a fixed dependency contract. We keep the selected
+        skill/path semantics, then normalize terminal edges so summary/memory
+        finalization cannot form hidden cycles such as memory -> summary -> memory.
+        """
 
         def first_by_tool(*tool_names: str):
             for item in todo_list.items:
@@ -269,6 +275,17 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                 return
             if dependency.id not in item.dependencies:
                 item.dependencies.append(dependency.id)
+
+        def replace(item, dependencies) -> None:
+            if item is None:
+                return
+            item.dependencies = list(
+                dict.fromkeys(
+                    dependency.id
+                    for dependency in dependencies
+                    if dependency is not None and dependency.id != item.id
+                )
+            )
 
         validate = first_by_tool("task.validate_schema")
         inspect = first_by_tool("hls4ml.inspect_model")
@@ -301,9 +318,33 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         require(unsupported, graph or support)
 
         terminal = unsupported or parse or vivado_synth or implementation_source
-        require(suggest, terminal)
-        require(summary, suggest or terminal)
-        require(memory, summary or suggest or terminal)
+        self._remove_dependency_cycles(todo_list)
+
+        # Finalization has a canonical order because MemorySpecialist needs the
+        # compressed summary/suggestion artifacts as inputs. Replace, do not append,
+        # to remove LLM-introduced backward edges.
+        replace(suggest, [terminal])
+        replace(summary, [suggest or terminal])
+        replace(memory, [summary or suggest or terminal])
+        self._remove_dependency_cycles(todo_list)
+
+    def _remove_dependency_cycles(self, todo_list) -> None:
+        id_to_item = {item.id: item for item in todo_list.items}
+
+        def visit(item, stack: set[str]) -> None:
+            clean: list[str] = []
+            for dep_id in item.dependencies:
+                if dep_id not in id_to_item or dep_id == item.id:
+                    continue
+                if dep_id in stack:
+                    continue
+                visit(id_to_item[dep_id], stack | {item.id})
+                if dep_id not in clean:
+                    clean.append(dep_id)
+            item.dependencies = clean
+
+        for item in todo_list.items:
+            visit(item, set())
 
     def execute_todo_with_react(self, state: AgentState, todo) -> dict[str, Any]:
         state.current_todo_id = todo.id

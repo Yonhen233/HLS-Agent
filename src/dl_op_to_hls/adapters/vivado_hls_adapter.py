@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import re
+import os
 import shutil
+import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -31,15 +34,122 @@ MOCK_REPORT_BY_TOP = {
 
 
 class VivadoHLSAdapter:
-    def __init__(self, mock_mode: bool = True, vivado_hls_path: str | None = None):
+    def __init__(
+        self,
+        mock_mode: bool = True,
+        vivado_hls_path: str | None = None,
+        hls_toolchain: str = "vivado_hls",
+        vitis_hls_path: str | None = None,
+    ):
         self.mock_mode = mock_mode
         self.vivado_hls_path = vivado_hls_path
+        self.hls_toolchain = self._normalize_toolchain(hls_toolchain)
+        self.vitis_hls_path = vitis_hls_path
 
     def _bridge(self, work_dir: str) -> SeniorVivadoBridge:
         return SeniorVivadoBridge(self.vivado_hls_path, work_dir)
 
+    def _normalize_toolchain(self, value: str | None) -> str:
+        text = str(value or "vivado_hls").strip().lower().replace("-", "_")
+        if text in {"vivado", "vivado_hls", "legacy_vivado"}:
+            return "vivado_hls"
+        if text in {"vitis", "vitis_hls", "vitis_run", "vitisrun", "modern_vitis"}:
+            return "vitis_hls"
+        return "vivado_hls"
+
+    def _resolve_vitis_executable(self) -> str | None:
+        candidates: list[Path] = []
+        if self.vitis_hls_path:
+            configured = Path(self.vitis_hls_path)
+            if configured.is_file():
+                candidates.append(configured)
+            else:
+                candidates.extend(
+                    [
+                        configured / "bin" / "vitis-run.bat",
+                        configured / "Vitis" / "bin" / "vitis-run.bat",
+                        configured / "2025.2.1" / "Vitis" / "bin" / "vitis-run.bat",
+                        configured / "2025.2" / "Vitis" / "bin" / "vitis-run.bat",
+                    ]
+                )
+        candidates.extend(
+            [
+                Path("D:/vitis25.2.1/2025.2.1/Vitis/bin/vitis-run.bat"),
+                Path("D:/vitis25.2.1/2025.2/Vitis/bin/vitis-run.bat"),
+            ]
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        resolved = shutil.which("vitis-run") or shutil.which("vitis-run.bat")
+        return resolved
+
+    def _command_label(self) -> str:
+        return "vitis-run" if self.hls_toolchain == "vitis_hls" else "vivado_hls"
+
     def _binary_available(self) -> bool:
+        if self.hls_toolchain == "vitis_hls":
+            return self._resolve_vitis_executable() is not None
         return bool(self.vivado_hls_path and Path(self.vivado_hls_path).exists()) or shutil.which("vivado_hls") is not None or shutil.which("vivado_hls.bat") is not None
+
+    def _run_vitis_with_existing_tcl(self, tcl_path: str, work_dir: Path, timeout_seconds: int | None = None) -> dict[str, Any]:
+        executable = self._resolve_vitis_executable()
+        log_path = work_dir / "csynth.log"
+        if not executable:
+            return {
+                "project_dir": str(work_dir),
+                "synthesis": {
+                    "status": "error",
+                    "errors": ["vitis-run command not found"],
+                    "warnings": [],
+                    "log_path": None,
+                    "project_dir": str(work_dir),
+                },
+            }
+        timeout = int(timeout_seconds or 900)
+        started = time.time()
+        command = [executable, "--mode", "hls", "--tcl", "--input_file", Path(tcl_path).name]
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                shell=(os.name == "nt"),
+            )
+            combined = (completed.stdout or "") + ("\n=== STDERR ===\n" + (completed.stderr or "") if completed.stderr else "")
+            log_path.write_text(combined, encoding="utf-8")
+            status = "success" if completed.returncode == 0 else "error"
+            return {
+                "project_dir": str(work_dir),
+                "synthesis": {
+                    "status": status,
+                    "passed": completed.returncode == 0,
+                    "errors": [] if completed.returncode == 0 else [f"Vitis HLS exited with return code {completed.returncode}"],
+                    "warnings": [],
+                    "log_path": str(log_path),
+                    "project_dir": str(work_dir),
+                    "duration_seconds": round(time.time() - started, 3),
+                    "command": " ".join(command),
+                    "toolchain": "vitis_hls",
+                },
+            }
+        except subprocess.TimeoutExpired:
+            log_path.write_text(f"ERROR: vitis-run csynth timed out after {timeout} seconds", encoding="utf-8")
+            return {
+                "project_dir": str(work_dir),
+                "synthesis": {
+                    "status": "timeout",
+                    "passed": False,
+                    "errors": [f"vitis-run csynth timed out after {timeout} seconds"],
+                    "warnings": [],
+                    "log_path": str(log_path),
+                    "project_dir": str(work_dir),
+                    "duration_seconds": round(time.time() - started, 3),
+                    "toolchain": "vitis_hls",
+                },
+            }
 
     def _sanitize_hls4ml_sources_for_legacy_vivado(self, work_dir: Path, top_source: Path) -> list[str]:
         """Trim non-synthesis stdio includes that break Vivado HLS 2018.3 on Windows.
@@ -174,7 +284,11 @@ class VivadoHLSAdapter:
             if not top_function:
                 detected_top = bridge.extract_top_function(copied_code.read_text(encoding="utf-8", errors="ignore"))
                 top_function = detected_top or copied_code.stem
-            sanitized_files = self._sanitize_hls4ml_sources_for_legacy_vivado(work_dir, copied_code)
+            sanitized_files = (
+                self._sanitize_hls4ml_sources_for_legacy_vivado(work_dir, copied_code)
+                if self.hls_toolchain == "vivado_hls"
+                else []
+            )
             tcl_path = bridge.create_project_tcl(
                 project_dir=str(work_dir),
                 project_name=Path(arguments.get("work_dir", work_dir)).name,
@@ -190,6 +304,7 @@ class VivadoHLSAdapter:
                 "work_dir": str(work_dir),
                 "top_function": top_function,
                 "sanitized_files": sanitized_files,
+                "toolchain": self.hls_toolchain,
             }
 
         files = bridge.discover_design_files(str(hls_project_dir))
@@ -223,7 +338,7 @@ class VivadoHLSAdapter:
             target_device=arguments.get("part", "xc7z020clg400-1"),
             clock_period=str(arguments.get("clock_period", 5)),
         )
-        return {"status": "success", "tcl_path": str(tcl_path), "work_dir": str(work_dir), "top_function": top_function}
+        return {"status": "success", "tcl_path": str(tcl_path), "work_dir": str(work_dir), "top_function": top_function, "toolchain": self.hls_toolchain}
 
     def run_csim(self, arguments: dict[str, Any]) -> dict[str, Any]:
         work_dir = Path(arguments["work_dir"])
@@ -235,11 +350,11 @@ class VivadoHLSAdapter:
             return error_result(
                 build_error(
                     "VivadoNotFoundError",
-                    "vivado_hls command not found.",
+                    f"{self._command_label()} command not found.",
                     recoverable=True,
                     source="vivado.run_csim",
                     suggested_action="Keep generated HLS project and skip synthesis.",
-                    details={"command": "vivado_hls"},
+                    details={"command": self._command_label(), "toolchain": self.hls_toolchain},
                 ),
                 status="skipped",
             )
@@ -285,11 +400,11 @@ class VivadoHLSAdapter:
             return error_result(
                 build_error(
                     "VivadoNotFoundError",
-                    "vivado_hls command not found.",
+                    f"{self._command_label()} command not found.",
                     recoverable=True,
                     source="vivado.run_csynth",
                     suggested_action="Keep generated HLS project and skip synthesis.",
-                    details={"command": "vivado_hls"},
+                    details={"command": self._command_label(), "toolchain": self.hls_toolchain},
                 ),
                 status="skipped",
             )
@@ -307,13 +422,16 @@ class VivadoHLSAdapter:
             )
         testbench_file = work_dir / "testbench.cpp"
         bridge = self._bridge(str(work_dir))
-        result = bridge.run_with_existing_tcl(
-            tcl_file_path=tcl_path,
-            design_dir=str(work_dir),
-            code_text=code_file.read_text(encoding="utf-8", errors="ignore"),
-            testbench_text=testbench_file.read_text(encoding="utf-8", errors="ignore") if testbench_file.exists() else None,
-            project_name=top_function,
-        )
+        if self.hls_toolchain == "vitis_hls":
+            result = self._run_vitis_with_existing_tcl(tcl_path=tcl_path, work_dir=work_dir)
+        else:
+            result = bridge.run_with_existing_tcl(
+                tcl_file_path=tcl_path,
+                design_dir=str(work_dir),
+                code_text=code_file.read_text(encoding="utf-8", errors="ignore"),
+                testbench_text=testbench_file.read_text(encoding="utf-8", errors="ignore") if testbench_file.exists() else None,
+                project_name=top_function,
+            )
         synthesis = result.get("synthesis", {})
         real_report = bridge.locate_report(result.get("project_dir") or work_dir, top_function=top_function)
         log_path = synthesis.get("log_path")
@@ -322,6 +440,8 @@ class VivadoHLSAdapter:
             log_text = Path(log_path).read_text(encoding="utf-8", errors="ignore")
             for line in log_text.splitlines():
                 lowered = line.lower()
+                if re.search(r"\b0\s+error\(s\)", lowered):
+                    continue
                 if re.search(r"\berror\b", lowered) or "fatal error" in lowered or "c preprocessor failed" in lowered:
                     log_errors.append(line.strip())
             if synthesis.get("status") == "success" and log_errors:
@@ -340,6 +460,7 @@ class VivadoHLSAdapter:
             "log_path": log_path,
             "report_path": real_report,
             "project_dir": result.get("project_dir"),
+            "toolchain": self.hls_toolchain,
         }
 
     def parse_report(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -5,6 +5,7 @@ import shutil
 import importlib.util
 import contextlib
 import io
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -13,8 +14,9 @@ from ..core.errors import build_error, error_result
 
 
 class HLS4MLAdapter:
-    def __init__(self, mock_mode: bool = True):
+    def __init__(self, mock_mode: bool = True, backend_override: str | None = None):
         self.mock_mode = mock_mode
+        self.backend_override = backend_override
 
     def _installed(self) -> bool:
         return (
@@ -70,6 +72,15 @@ class HLS4MLAdapter:
         if value == "input":
             value = "model_input"
         return value
+
+    def _resolve_backend(self, requested_backend: Any = None) -> str:
+        backend = self.backend_override or os.environ.get("DL_OP_TO_HLS_HLS4ML_BACKEND") or requested_backend or "Vivado"
+        text = str(backend)
+        if text.lower() == "vitis":
+            return "Vitis"
+        if text.lower() == "vivado":
+            return "Vivado"
+        return text
 
     def _tensor_shapes(self, model: Any) -> dict[str, list[int]]:
         shapes: dict[str, list[int]] = {}
@@ -512,7 +523,7 @@ class HLS4MLAdapter:
             hls4ml_cfg = task.get("hls4ml", {})
             default_precision = hls4ml_cfg.get("precision", "fixed<16,6>")
             default_reuse_factor = int(hls4ml_cfg.get("reuse_factor", 1))
-            backend = task.get("target", {}).get("backend", "Vivado")
+            backend = self._resolve_backend(task.get("target", {}).get("backend", "Vivado"))
             with contextlib.redirect_stdout(io.StringIO()):
                 hls4ml.utils.config_from_onnx_model(
                     model,
@@ -574,7 +585,7 @@ class HLS4MLAdapter:
                 [
                     f"Model: {arguments['model_path']}",
                     f"Frontend: {arguments['frontend']}",
-                    f"Backend: {arguments['backend']}",
+                    f"Backend: {self._resolve_backend(arguments['backend'])}",
                     f"Part: {arguments['part']}",
                     f"ClockPeriod: {arguments['clock_period']}",
                     f"Precision: {arguments['precision']}",
@@ -622,7 +633,7 @@ class HLS4MLAdapter:
             import onnx  # type: ignore
 
             model = onnx.load(model_path)
-            backend = arguments.get("backend", "Vivado")
+            backend = self._resolve_backend(arguments.get("backend", "Vivado"))
             precision = arguments.get("precision", "fixed<16,6>")
             reuse_factor = int(arguments.get("reuse_factor", 1))
             strategy = arguments.get("strategy", "Latency")
@@ -672,7 +683,7 @@ class HLS4MLAdapter:
                         "model_path": model_path,
                         "frontend": arguments.get("frontend", "onnx"),
                         "frontend_adapter": "onnx_layer_list",
-                        "backend": arguments.get("backend", "Vivado"),
+                        "backend": self._resolve_backend(arguments.get("backend", "Vivado")),
                         "part": arguments.get("part", "xc7z020clg400-1"),
                         "clock_period": arguments.get("clock_period", 5),
                         "project_name": arguments.get("project_name", "myproject"),
@@ -785,10 +796,10 @@ class HLS4MLAdapter:
                     }
                 }
             top_function = str(config_payload.get("project_name") if isinstance(config_payload, dict) else "") or "myproject"
-            backend = (
-                str(config_payload.get("backend"))
+            backend = self._resolve_backend(
+                config_payload.get("backend")
                 if isinstance(config_payload, dict) and config_payload.get("backend")
-                else str(arguments.get("backend", "Vivado"))
+                else arguments.get("backend", "Vivado")
             )
             part = (
                 config_payload.get("part")

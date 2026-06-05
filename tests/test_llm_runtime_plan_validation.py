@@ -138,6 +138,40 @@ def test_llm_plan_dependencies_are_normalized_for_hls4ml_flow(temp_workspace, mo
     assert by_tool["vivado.run_csynth"].dependencies == [by_tool["vivado.create_project"].id]
     assert by_tool["vivado.parse_report"].dependencies == [by_tool["vivado.run_csynth"].id]
     assert by_tool["suggestion.suggest_optimization"].dependencies == [by_tool["vivado.parse_report"].id]
+    assert by_tool["summary.write_summary"].dependencies == [by_tool["suggestion.suggest_optimization"].id]
+    assert by_tool["memory.promote_to_long_term"].dependencies == [by_tool["summary.write_summary"].id]
+
+
+def test_llm_plan_normalization_breaks_summary_memory_cycles(temp_workspace, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = LLMFirstRuntime(agent, llm_client=FakeLLMClient(json_responses=[]))
+    state = runtime.initialize(str(temp_workspace / "examples" / "mnist_tiny_cnn.json"))
+    plan = {
+        "selected_skill": "hls4ml_model_flow",
+        "skill_usage": "adapted",
+        "reason_summary": "Simulate a real LLM plan that created a finalization cycle.",
+        "todos": [
+            {"title": "Validate task schema", "assigned_tool": "task.validate_schema", "assigned_specialist": None, "dependencies": [], "inputs": {}},
+            {"title": "Inspect ONNX model", "assigned_tool": "hls4ml.inspect_model", "assigned_specialist": "HLS4MLSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Check hls4ml support", "assigned_tool": "hls4ml.check_support", "assigned_specialist": "HLS4MLSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Generate hls4ml configuration", "assigned_tool": "hls4ml.generate_config", "assigned_specialist": "HLS4MLSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Convert model to HLS", "assigned_tool": "hls4ml.convert", "assigned_specialist": "HLS4MLSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Create Vivado HLS project", "assigned_tool": "vivado.create_project", "assigned_specialist": "VivadoSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Run C synthesis", "assigned_tool": "vivado.run_csynth", "assigned_specialist": "VivadoSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Parse synthesis report", "assigned_tool": "vivado.parse_report", "assigned_specialist": "VivadoSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Suggest balanced optimization", "assigned_tool": "suggestion.suggest_optimization", "assigned_specialist": "OptimizationSpecialist", "dependencies": [], "inputs": {}},
+            {"title": "Promote run to long-term memory", "assigned_tool": "memory.promote_to_long_term", "assigned_specialist": "MemorySpecialist", "dependencies": ["Write final summary"], "inputs": {}},
+            {"title": "Write final summary", "assigned_tool": "summary.write_summary", "assigned_specialist": None, "dependencies": ["Promote run to long-term memory"], "inputs": {}},
+        ],
+    }
+
+    runtime._create_todos_from_llm_plan(state, plan)
+    by_tool = {item.assigned_tool: item for item in state.todos}
+
+    assert by_tool["summary.write_summary"].dependencies == [by_tool["suggestion.suggest_optimization"].id]
+    assert by_tool["memory.promote_to_long_term"].dependencies == [by_tool["summary.write_summary"].id]
 
 
 def test_llm_runtime_auto_delegates_preassigned_specialist_todo(temp_workspace, monkeypatch):

@@ -28,13 +28,13 @@ def test_todo_dependency_blocked(tmp_path):
     assert manager.todo_list.items[1].status == "blocked"
 
 
-def test_todo_warning_dependency_does_not_unlock_core_hls_step(tmp_path):
+def test_todo_warning_dependency_unlocks_core_hls_step(tmp_path):
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["Check hls4ml support", "Generate hls4ml config"], {"task_type": "model", "name": "demo"})
     manager.mark_completed_with_warning("todo_001", {"status": "unsupported"}, {"message": "unsupported"})
     ready = manager.get_next_ready_item(todo_list)
-    assert ready is None
-    assert manager.todo_list.items[1].status == "blocked"
+    assert ready.id == "todo_002"
+    assert manager.todo_list.items[0].error == {"message": "unsupported"}
 
 
 def test_todo_warning_dependency_unlocks_recovery_step(tmp_path):

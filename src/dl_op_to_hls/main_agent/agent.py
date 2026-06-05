@@ -57,10 +57,15 @@ class MainAgent:
         self.registry = ToolRegistry()
         self.console = console
         self.llm_client = LLMClient()
-        self.hls4ml_adapter = HLS4MLAdapter(mock_mode=self.config.mock_hls4ml)
+        self.hls4ml_adapter = HLS4MLAdapter(
+            mock_mode=self.config.mock_hls4ml,
+            backend_override=self.config.hls4ml_backend,
+        )
         self.vivado_adapter = VivadoHLSAdapter(
             mock_mode=self.config.mock_vivado,
+            hls_toolchain=self.config.hls_toolchain,
             vivado_hls_path=self.config.vivado_hls_path,
+            vitis_hls_path=self.config.vitis_hls_path,
         )
         self.skill_registry = SkillRegistry(self.config.workspace_root / "skills")
         self.skill_registry.load_all()

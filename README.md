@@ -169,13 +169,30 @@ $env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="demo"
 $env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="strict"
 ```
 
-## hls4ml 与 Vivado HLS 配置
+## hls4ml / Vivado HLS / Vitis HLS 配置
 
-hls4ml 是 Python 库；安装后可走真实 hls4ml path。Vivado HLS 通过命令行调用。
+hls4ml 是 Python 库；安装后可走真实 hls4ml path。HLS 综合工具支持两种配置：
+
+- `vivado_hls`：默认路径，适合当前稳定 demo，使用 Vivado HLS 2018.3。
+- `vitis_hls`：可选现代路径，使用 Vitis 2025.2.1 的 `vitis-run --mode hls`。
+
+Vivado HLS 2018.3：
 
 ```powershell
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vivado_hls"
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vivado"
 $env:DL_OP_TO_HLS_VIVADO_HLS_PATH="D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"
 ```
+
+Vitis HLS 2025.2.1：
+
+```powershell
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vitis_hls"
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vitis"
+$env:DL_OP_TO_HLS_VITIS_HLS_PATH="D:\vitis25.2.1\2025.2.1\Vitis\bin\vitis-run.bat"
+```
+
+当前真实对比结论：Vitis 已经接入并可生成真实 report，但 Demo2 5ns timing 未通过，Demo3/Demo4 的 latency 与 LUT/FF 相比 Vivado 2018.3 更高。因此默认仍保持 `vivado_hls`，Vitis 作为可选真实工具链继续优化。
 
 如需强制演示环境使用 mock 工具：
 

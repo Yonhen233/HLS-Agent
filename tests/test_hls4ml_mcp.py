@@ -36,6 +36,26 @@ def test_hls4ml_generate_config_mock(tmp_path):
     )
     assert (tmp_path / "hls4ml_config.yml").exists()
     assert result["status"] == "success"
+    assert "Backend: Vivado" in (tmp_path / "hls4ml_config.yml").read_text(encoding="utf-8")
+
+
+def test_hls4ml_backend_override_mock_config(tmp_path):
+    adapter = HLS4MLAdapter(mock_mode=True, backend_override="Vitis")
+    result = adapter.generate_config(
+        {
+            "model_path": "models/mlp.onnx",
+            "frontend": "onnx",
+            "backend": "Vivado",
+            "part": "xc7z020clg400-1",
+            "clock_period": 5,
+            "precision": "fixed<16,6>",
+            "reuse_factor": 1,
+            "strategy": "Latency",
+            "output_dir": str(tmp_path),
+        }
+    )
+    assert result["status"] == "success"
+    assert "Backend: Vitis" in (tmp_path / "hls4ml_config.yml").read_text(encoding="utf-8")
 
 
 def test_hls4ml_convert_mock(tmp_path):

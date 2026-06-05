@@ -38,3 +38,15 @@ def test_runtime_env_overrides_yaml(tmp_path, monkeypatch):
 
     assert config.runtime_mode == "production"
     assert config.optimization_fallback_mode == "strict"
+
+
+def test_runtime_vitis_toolchain_defaults_hls4ml_backend(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_HLS_TOOLCHAIN", "vitis")
+    monkeypatch.delenv("DL_OP_TO_HLS_HLS4ML_BACKEND", raising=False)
+    monkeypatch.setenv("DL_OP_TO_HLS_VITIS_HLS_PATH", r"D:\vitis25.2.1\2025.2.1\Vitis\bin\vitis-run.bat")
+
+    config = AppConfig.load(tmp_path)
+
+    assert config.hls_toolchain == "vitis_hls"
+    assert config.hls4ml_backend == "Vitis"
+    assert config.vitis_hls_path.endswith("vitis-run.bat")

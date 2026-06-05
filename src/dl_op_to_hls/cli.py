@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from .benchmarks.agent_quality_benchmark import main as benchmark_main
@@ -110,7 +111,16 @@ def _build_agent(*, mock_tools: bool = False) -> MainAgent:
     return MainAgent(console=False)
 
 
+def _configure_stdio() -> None:
+    """Keep JSON CLI output parseable on Windows consoles with non-UTF-8 codepages."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
 

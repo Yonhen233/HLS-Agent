@@ -13,3 +13,8 @@ def test_permission_denies_rm(tmp_path):
     decision = gate.check_command(["rm", "-rf", "runs"])
     assert decision["decision"] == "deny"
 
+
+def test_permission_allows_vitis_run(tmp_path):
+    gate = PermissionGate(DEFAULT_PERMISSIONS, tmp_path)
+    decision = gate.check_command(["vitis-run", "--mode", "hls"])
+    assert decision["decision"] == "allow"

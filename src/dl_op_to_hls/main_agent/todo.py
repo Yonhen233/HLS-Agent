@@ -167,7 +167,7 @@ class TodoManager:
         if dep.status == "completed":
             return True
         if dep.status == "completed_with_warning":
-            return item.assigned_tool in WARNING_DEPENDENCY_OK_TOOLS
+            return True
         if dep.status == "skipped":
             return item.assigned_tool in SKIPPED_DEPENDENCY_OK_TOOLS
         return False

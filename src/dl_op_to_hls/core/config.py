@@ -14,7 +14,7 @@ DEFAULT_PERMISSIONS = {
         "denied_dirs": ["/", "/etc", "~/.ssh", "~/.aws"],
     },
     "commands": {
-        "allow": ["vivado_hls", "pytest"],
+        "allow": ["vivado_hls", "vitis-run", "vitis", "pytest"],
         "ask": ["python"],
         "deny": ["rm", "rm -rf", "curl", "wget", "ssh", "scp", "sudo"],
     },
@@ -86,7 +86,10 @@ class AppConfig:
     specialist_llm_decider_enabled: bool = False
     mock_hls4ml: bool = True
     mock_vivado: bool = True
+    hls_toolchain: str = "vivado_hls"
+    hls4ml_backend: str | None = None
     vivado_hls_path: str | None = None
+    vitis_hls_path: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -111,6 +114,15 @@ class AppConfig:
             specialist_llm_decider_enabled_value = bool(specialist_section.get("llm_decider_enabled", False))
         else:
             specialist_llm_decider_enabled_value = specialist_llm_decider_enabled.strip().lower() in {"1", "true", "yes", "on"}
+        toolchain_section = runtime_section.get("toolchain", {}) if isinstance(runtime_section.get("toolchain", {}), dict) else {}
+        hls_toolchain = _normalize_hls_toolchain(
+            os.environ.get("DL_OP_TO_HLS_HLS_TOOLCHAIN")
+            or os.environ.get("DL_OP_TO_HLS_HLS_TOOL")
+            or toolchain_section.get("hls_toolchain", "vivado_hls")
+        )
+        hls4ml_backend = os.environ.get("DL_OP_TO_HLS_HLS4ML_BACKEND") or toolchain_section.get("hls4ml_backend")
+        if not hls4ml_backend and hls_toolchain == "vitis_hls":
+            hls4ml_backend = "Vitis"
         return cls(
             workspace_root=root,
             runs_root=root / "runs",
@@ -124,7 +136,10 @@ class AppConfig:
             specialist_llm_decider_enabled=specialist_llm_decider_enabled_value,
             mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", "1") != "0",
             mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", "1") != "0",
+            hls_toolchain=hls_toolchain,
+            hls4ml_backend=hls4ml_backend,
             vivado_hls_path=os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH"),
+            vitis_hls_path=os.environ.get("DL_OP_TO_HLS_VITIS_HLS_PATH"),
         )
 
     def ensure_directories(self) -> None:
@@ -153,9 +168,29 @@ class AppConfig:
             "specialist_llm_decider_enabled": self.specialist_llm_decider_enabled,
             "mock_hls4ml": self.mock_hls4ml,
             "mock_vivado": self.mock_vivado,
+            "hls_toolchain": self.hls_toolchain,
+            "hls4ml_backend": self.hls4ml_backend,
             "vivado_hls_path": self.vivado_hls_path,
+            "vitis_hls_path": self.vitis_hls_path,
             "extra": self.extra,
         }
 
     def write_runtime_config(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
+
+
+def _normalize_hls_toolchain(value: Any) -> str:
+    text = str(value or "vivado_hls").strip().lower().replace("-", "_")
+    aliases = {
+        "vivado": "vivado_hls",
+        "vivado_hls": "vivado_hls",
+        "legacy_vivado": "vivado_hls",
+        "vitis": "vitis_hls",
+        "vitis_hls": "vitis_hls",
+        "vitis_run": "vitis_hls",
+        "vitisrun": "vitis_hls",
+        "modern_vitis": "vitis_hls",
+    }
+    if text not in aliases:
+        raise ValueError(f"Invalid HLS toolchain: {value}")
+    return aliases[text]

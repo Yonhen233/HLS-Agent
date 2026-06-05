@@ -6,6 +6,122 @@
 
 ---
 
+## 2026-06-05 08:50:39 +08:00：接入 Vitis HLS 2025.2.1 双工具链，并完成真实 DeepSeek-V4-Pro + Vitis Demo2-4 复测
+### 1. 本次测试做了什么
+在现有 Vivado HLS 2018.3 真实链路之外，新增 Vitis HLS 2025.2.1 可选工具链，并用真实 LLM + 真实 hls4ml + 真实 Vitis HLS 复测 Demo2-Demo4。
+
+环境与模式：
+- LLM：OpenAI-compatible API，Base URL `https://llmapi.paratera.com`，模型名严格使用 `DeepSeek-V4-Pro`。
+- hls4ml：真实库，`DL_OP_TO_HLS_MOCK_HLS4ML=0`。
+- HLS 工具链：Vitis 2025.2.1，`DL_OP_TO_HLS_HLS_TOOLCHAIN=vitis_hls`。
+- Vitis 命令：`D:\vitis25.2.1\2025.2.1\Vitis\bin\vitis-run.bat`。
+- hls4ml backend：`DL_OP_TO_HLS_HLS4ML_BACKEND=Vitis`。
+- runtime：LLM-first / strict 模式，未静默降级为 deterministic planner。
+
+关键真实 run：
+- Demo2 MNIST MLP：`mnist_mlp_demo_aba95cc1_04`
+- Demo3 Tiny CNN：`mnist_tiny_cnn_6d3a1cb8_05`
+- Demo4 Torch/QONNX CNN：`mnist_qonnx_cnn_bc625576_06`
+
+### 2. 本轮真实 Vitis 运行结果
+Demo2 `examples/mnist_mlp_hls4ml.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：205-208 cycles
+- resources：BRAM 415、DSP 933、FF 163499、LUT 62913
+- timing：target 5.0ns、estimated 8.187ns、timing_met=false
+
+Demo3 `examples/mnist_tiny_cnn.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：6987-7133 cycles
+- resources：BRAM 14、DSP 30、FF 152301、LUT 117690
+- timing：target 10.0ns、estimated 7.588ns、timing_met=true
+
+Demo4 `examples/mnist_qonnx_cnn.json`：
+- status：`success`
+- selected_path：`hls4ml_path`
+- report_status：`success`
+- latency：6826-6972 cycles
+- resources：BRAM 10、DSP 0、FF 133712、LUT 111638
+- timing：target 10.0ns、estimated 9.070ns、timing_met=true
+
+### 3. 与 Vivado HLS 2018.3 的对比结论
+同一批 Demo 在 Vivado HLS 2018.3 上的最近真实结果：
+- Demo2：latency 209-212，BRAM 1609、DSP 933、FF 1864080、LUT 610956。
+- Demo3：latency 761-763，BRAM 14、DSP 29、FF 16390、LUT 58161。
+- Demo4：latency 775-777，BRAM 8、DSP 0、FF 9888、LUT 49459。
+
+阶段性判断：
+- Demo2：Vitis 资源显著下降，但 5ns timing 未过。
+- Demo3/Demo4：Vitis 能跑通，但 latency、FF、LUT 明显高于 Vivado 2018.3。
+- 因此不全面切换到 Vitis；当前保持双配置，默认仍为 `vivado_hls`，Vitis 作为可选现代工具链继续优化。
+
+### 4. 遇到的问题与根因
+1) Vitis 2025.2.1 没有 `vitis_hls.bat`
+- 现象：安装目录中不存在传统 `vitis_hls.bat`。
+- 根因：当前 Vitis 版本推荐通过 `vitis-run --mode hls --tcl --input_file <tcl>` 执行 HLS。
+- 修复：`vivado_hls_adapter.py` 增加 `vitis_hls` toolchain 分支，自动解析 `vitis-run.bat`，并复用已有 hls4ml TCL。
+
+2) Vitis report timing 格式与 Vivado 2018.3 不完全一致
+- 现象：Vitis report 中 timing 行包含 `10.00 ns` / `9.070 ns`，初版 parser 没有解析出 timing。
+- 根因：原 parser 只覆盖旧 Vivado report 的数字格式。
+- 修复：`report_parser.py` 增加带 `ns` 单位的 Vitis timing regex。
+
+3) Vitis log 中的 `0 error(s)` 被误判为 synthesis error
+- 现象：Demo2 初跑时 state 里出现 `VivadoSynthesisError`，但真实 log 是 `0 error(s), 1 warning(s)`。
+- 根因：log parser 只按关键词匹配 `error`，没有识别 `0 error(s)` 这种否定形式。
+- 修复：`vivado_hls_adapter.py` 的 error detector 忽略 `0 error(s)` / `0 errors`。
+
+4) LLM planner 在真实 toolchain 中计划了 `hls4ml.run_csim`
+- 现象：Demo3 初跑时 `hls4ml.run_csim` 返回结构化错误，后续 Todo 被阻塞。
+- 根因：真实 hls4ml csim 目前统一交给 VivadoSpecialist/Vitis toolchain 执行，不应该让 Main Agent 计划 hls4ml direct csim。
+- 修复：从 `hls4ml_model_flow.yaml` 的 allowlist 移除 `hls4ml.run_csim`，并在 `prompt_context.py` 中明确 real csim/csynth 交给 VivadoSpecialist。
+
+5) LLM 计划生成了 summary / memory 循环依赖
+- 现象：Demo3 初跑时真实综合和 report 都成功，但 `Promote memory` 与 `Write summary` 互相依赖，最终 run 被误标为 `partial_success`。
+- 根因：LLM 计划图不是天然 DAG，需要 runtime 对核心 HLS 工作流和 finalization 阶段做结构化规范化。
+- 修复：`llm_runtime.py` 增加依赖图规范化和 cycle removal，将终止阶段固定为 `suggestion -> summary -> memory`。
+
+6) Windows GBK 控制台导致 CLI JSON 输出失败
+- 现象：Demo4 初跑真实 run 成功，但 CLI 打印 state JSON 时遇到特殊连字符，触发 `UnicodeEncodeError`。
+- 根因：Windows 默认控制台编码与 UTF-8 JSON 输出不一致。
+- 修复：`cli.py` 启动时对 stdout/stderr 做 UTF-8 + replace 重配置。
+
+7) 真实复测汇总脚本本身有 PowerShell 兼容问题
+- 现象：脚本使用 `Resolve-Path` 写尚未创建的 stdout 文件，并使用当前 PowerShell 不支持的 `ConvertFrom-Json -Depth`。
+- 根因：这是测试汇总脚本的兼容性问题，不是 Agent 运行链路问题。
+- 处理：改为从最新 run 目录的 `state.json` / `todos.json` 读取结果；后续 benchmark 脚本应避免依赖新版 PowerShell 参数。
+
+### 5. 已修复内容
+- `src/dl_op_to_hls/core/config.py`：新增 `hls_toolchain`、`hls4ml_backend`、`vitis_hls_path` 配置。
+- `src/dl_op_to_hls/main_agent/agent.py`：将 hls4ml backend override 和 HLS toolchain 注入 adapter。
+- `src/dl_op_to_hls/adapters/hls4ml_adapter.py`：支持 `DL_OP_TO_HLS_HLS4ML_BACKEND=Vitis`。
+- `src/dl_op_to_hls/adapters/vivado_hls_adapter.py`：支持 `vitis-run --mode hls`，并保留 Vivado 2018.3 路径。
+- `src/dl_op_to_hls/tools/report_parser.py`：兼容 Vitis timing report。
+- `src/dl_op_to_hls/main_agent/todo.py`：`completed_with_warning` 现在满足后续依赖，避免 warning 阻断主流程。
+- `src/dl_op_to_hls/main_agent/llm_runtime.py`：规范化 LLM Todo DAG，移除 summary/memory 循环依赖。
+- `src/dl_op_to_hls/cli.py`：修复 Windows 控制台 UTF-8 输出问题。
+- `skills/hls4ml_model_flow.yaml`、`src/dl_op_to_hls/skills/prompt_context.py`：移除真实链路中不应规划的 `hls4ml.run_csim`。
+- `README.md`：新增 Vivado/Vitis 双工具链配置说明。
+
+### 6. 当前测试结果
+- focused pytest：`tests/test_llm_runtime_plan_validation.py`、`tests/test_todo.py`、`tests/test_vivado_hls_mcp.py`、`tests/test_report_parser.py`、`tests/test_runtime_config.py`、`tests/test_hls4ml_mcp.py`、`tests/test_permissions.py`、`tests/test_skill_registry.py`、`tests/test_skill_policy.py` 全部通过。
+- full pytest：`python -m pytest -q -p no:cacheprovider` 全部通过。
+- 真实 DeepSeek-V4-Pro + hls4ml + Vitis Demo2-Demo4：全部生成真实 csynth report。
+- Demo3/Demo4 修复后复测：CLI exit code 均为 0，state 均为 `success`。
+- trace 中确认包含 `LLMPlanAccepted`、`LLMReActAutoDelegated`、`SpecialistSelected`、`ContextEnvelopeCreated`、`SpecialistFinished`、`SpecialistResultMerged`。
+
+### 7. 未修复完成的问题与原因
+- 尚未将默认工具链全面切换到 Vitis，因为真实指标不支持“Vitis 效果更好”的结论；Vitis 当前作为可选后端保留。
+- Demo2 Vitis 虽然 report 成功，但 5ns timing 未过，需要后续做 clock/reuse/precision sweep 或修改 objective。
+- Demo3/Demo4 Vitis 延迟和 LUT/FF 明显高于 Vivado 2018.3，可能需要专门的 Vitis backend 配置调优，而不是直接沿用 Vivado 2018.3 的 demo 参数。
+- 当前 Vitis 路径复用了 hls4ml 生成的 TCL，尚未针对 Vitis 2025.2.1 新特性做优化探索。
+
+---
+
 ## 2026-06-04 22:35:34 +08:00：Demo4 改造为 Torch/QONNX 量化演示，并跑通真实 DeepSeek-V4-Pro + hls4ml + Vivado Demo2-4
 ### 1. 本次测试做了什么
 按开发期真实链路重新验证 Demo2-Demo4：

@@ -91,7 +91,7 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         )
     if not timing_match:
         timing_match = re.search(
-            r"\|\s*ap_clk\s*\|\s*([0-9.]+)\s*\|\s*([0-9.]+)\s*\|",
+            r"\|\s*ap_clk\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|",
             text,
             flags=re.IGNORECASE,
         )
