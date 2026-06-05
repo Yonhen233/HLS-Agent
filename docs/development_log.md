@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-06-05 10:04:07 +08:00：完成 Vivado HLS vs Vitis HLS 公平隔离实验，并修复 Vitis report timing 判定
+### 1. 本次测试做了什么
+围绕 Demo4 `mnist_qonnx_cnn.json` 生成的 hls4ml CNN HLS 工程，补充了 Vitis 公平性隔离实验脚本：
+
+- 新增 `scripts/run_vitis_fairness_experiments.py`，用于复跑 Vivado HLS 2018.3 与 Vitis HLS 2025.2.1 的可控对照实验。
+- 实验 1：同一份 Vivado backend HLS 源码，分别用 `vivado_hls` 与 `vitis-run --mode hls` 综合，隔离“综合器差异”。
+- 实验 2：同一份 Vitis backend 工程，调整 `clock_uncertainty` 与 `config_dataflow`，隔离“Vitis 默认策略差异”。
+- 实验 3：将部分 deprecated `RESOURCE` pragma 迁移到 `bind_storage`，隔离“pragma 兼容迁移”影响。
+- 实验 4：新增 Vitis best-effort tuned 组，组合 normalized uncertainty、FIFO sizing off、explicit stream depth、bind_storage migration，回答“Vitis 在安全 TCL 级调参下最好能做到什么样”。
+
+实际执行命令：
+
+```powershell
+$env:PYTHONPATH='src'
+python scripts\run_vitis_fairness_experiments.py --output-root runs\vitis_fairness_qonnx_20260605
+python scripts\run_vitis_fairness_experiments.py --output-root runs\vfe_qonnx_0605 --include g2_vitis_fifo2
+python -m pytest tests\test_report_parser.py -q -p no:cacheprovider
+python -m pytest -q -p no:cacheprovider
+python -m py_compile scripts\run_vitis_fairness_experiments.py
+```
+
+### 2. 本轮真实 HLS 对照结果
+| 组别 | 工具链 | 目的 | 状态 | Latency | BRAM | DSP | FF | LUT | Timing |
+|---|---|---|---|---:|---:|---:|---:|---:|---|
+| g1 Vivado backend + Vivado HLS | Vivado 2018.3 | Vivado baseline | success | 775-777 | 8 | 0 | 9,888 | 49,459 | met |
+| g1 Vivado backend + Vitis HLS | Vitis 2025.2.1 | 同源代码换综合器 | report_missing | - | - | - | - | - | failed before report |
+| g2 Vitis backend + Vitis HLS | Vitis 2025.2.1 | Vitis baseline，uncertainty=1.25ns | success | 6679-6681 | 10 | 0 | 132,970 | 111,370 | met |
+| g2 + FIFO sizing off | Vitis 2025.2.1 | 隔离 FIFO 默认 sizing | success | 6679-6681 | 10 | 0 | 132,970 | 111,370 | met |
+| g3 + bind_storage | Vitis 2025.2.1 | 迁移 RESOURCE 到 bind_storage | success | 6679-6681 | 10 | 0 | 132,970 | 111,370 | met |
+| g4 tuned combo | Vitis 2025.2.1 | Vitis safe TCL best-effort | success | 5904-5904 | 10 | 0 | 176,854 | 172,590 | met |
+
+补充核对：
+- `parameters.h` 在 Vivado backend 与 Vitis backend 中完全一致。
+- `myproject.cpp` 仅存在 Vitis backend 多一个 `#include <iostream>` 和空行的差异，网络结构、权重、层调用主体一致。
+- Vitis backend 的 `project.tcl` 默认 `clock_uncertainty 27%`，Vivado backend 为 `12.5%`；本轮实验显式统一为 `1.25ns`，避免把默认 uncertainty 差异误判为综合器差异。
+
+### 3. 结论
+- 第三组不是 Vitis 最优组，只是 deprecated pragma 迁移验证；它没有改善 latency 或资源。
+- 第四组是当前“安全 TCL 级 best-effort”对照：latency 从 6679-6681 降到 5904，但 FF/LUT 从 132,970/111,370 增加到 176,854/172,590。
+- 当前 Demo4 上整体最优仍是 Vivado 2018.3：latency、FF、LUT 都显著优于 Vitis 2025.2.1。
+- Vitis 更差的主因不是模型不同，也不是单纯 clock uncertainty；更像是 Vitis 对 hls4ml CNN 的 DATAFLOW canonical form、FIFO/stream 推断和 array partition 处理方式不同。
+- 如果要追求真正 Vitis 最优，需要进入 hls4ml Vitis backend/custom template 层改生成代码结构，而不是只改 TCL 选项。
+
+### 4. 遇到的问题与根因
+1) Vitis report timing 被旧 parser 误判
+- 现象：Vitis report 的 ap_clk 表包含 target、estimated、uncertainty 三列；旧 parser 只比较 `estimated <= target`。
+- 根因：Vitis 的有效 timing budget 应是 `target - uncertainty`。
+- 修复：`report_parser.py` 新增 `uncertainty_ns` 和 `effective_budget_ns`，timing met 改为比较 `estimated_ns <= effective_budget_ns`。
+
+2) `config_dataflow` 语法初版写错
+- 现象：Vitis 报 `config_dataflow: Unknown option 'true'`。
+- 根因：Vitis 2025.2.1 的 `-disable_fifo_sizing_opt` 是 flag，不应写成额外 positional `true`。
+- 修复：改为 `config_dataflow -disable_fifo_sizing_opt -fifo_depth 2 -start_fifo_depth 2 -scalar_fifo_depth 2 -task_level_fifo_depth 2`。
+
+3) Windows 路径过长污染实验结果
+- 现象：长目录名下 `g2_vitis_backend_vitis_tool_u1p25_fifo_sizing_off` 已生成 report，但进程 returncode=1。
+- 根因：Vitis 后端生成的 VHDL 文件名很长，叠加长工作目录后触发 Windows path length 错误。
+- 修复：实验脚本改用短 `dir_name`，并新增 `--include` 只复跑指定变体；短路径复跑 `g2_vitis_fifo2` 后 returncode=0，metrics 不变。
+
+4) Vivado backend 源码无法直接由 Vitis 成功综合
+- 现象：`g1_vivado_backend_same_source_vitis_tool_u1p25` 在 report 前失败。
+- 根因：Vitis 对 Vivado backend 生成的 DATAFLOW canonical form 更严格，日志中出现 `Dataflow form checks found` 与 `Compilation of the preprocessed source 'myproject' failed`。
+- 处理：记录为真实工具链兼容边界，不用 fallback 掩盖；后续若要支持，需要专门的 Vitis 代码生成/重写路径。
+
+### 5. 已修复内容
+- 新增 `scripts/run_vitis_fairness_experiments.py`，沉淀可复跑的真实工具链公平实验。
+- `.gitignore` 增加 Vitis 临时噪声：`.hls.failed`、`dfx_runtime.txt`、`logs/`、`tmp/`。
+- `report_parser.py` 支持 Vitis ap_clk uncertainty，并输出 `effective_budget_ns`。
+- `tests/test_report_parser.py` 增加 Vitis timing uncertainty 单测。
+- 新增 `docs/vitis_fairness_experiments.md`，说明实验分组、复跑方式与结论。
+
+### 6. 当前测试结果
+- `python -m pytest tests\test_report_parser.py -q -p no:cacheprovider`：通过。
+- `python -m pytest -q -p no:cacheprovider`：通过。
+- `python -m py_compile scripts\run_vitis_fairness_experiments.py`：通过。
+- 真实 Vitis 短路径复跑 `g2_vitis_fifo2`：returncode=0，report success，metrics 与长路径一致。
+
+### 7. 未修复完成的问题与原因
+- 尚未全面切换到 Vitis：真实隔离实验显示 Demo4 上 Vivado 2018.3 仍显著更优。
+- 尚未实现 Vitis 专用 HLS 代码结构优化：这需要改 hls4ml 生成模板或增加 Vitis-specific graph/code rewrite，风险和工作量高于 TCL 参数调优。
+- Vitis 对 DATAFLOW canonical form 的警告仍存在：当前记录为后续专项优化方向，不在本轮用宽松 fallback 掩盖。
+
+---
+
 ## 2026-06-05 08:50:39 +08:00：接入 Vitis HLS 2025.2.1 双工具链，并完成真实 DeepSeek-V4-Pro + Vitis Demo2-4 复测
 ### 1. 本次测试做了什么
 在现有 Vivado HLS 2018.3 真实链路之外，新增 Vitis HLS 2025.2.1 可选工具链，并用真实 LLM + 真实 hls4ml + 真实 Vitis HLS 复测 Demo2-Demo4。

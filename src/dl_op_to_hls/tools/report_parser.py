@@ -78,6 +78,7 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         latency_max = latency_max if latency_max is not None else int(latency_table.group(2))
         ii_min = ii_min if ii_min is not None else int(latency_table.group(3))
         ii_max = ii_max if ii_max is not None else int(latency_table.group(4))
+    uncertainty_ns = None
     timing_match = re.search(
         r"Timing\s*\(ns\)\s*:\s*Target\s*=\s*([0-9.]+)\s*,\s*Estimated\s*=\s*([0-9.]+)",
         text,
@@ -91,12 +92,19 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         )
     if not timing_match:
         timing_match = re.search(
-            r"\|\s*ap_clk\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|",
+            r"\|\s*ap_clk\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|\s*([0-9.]+)\s*(?:ns)?\s*\|",
             text,
             flags=re.IGNORECASE,
         )
+        if timing_match:
+            uncertainty_ns = float(timing_match.group(3))
     target_ns = float(timing_match.group(1)) if timing_match else None
     estimated_ns = float(timing_match.group(2)) if timing_match else None
+    effective_budget_ns = (
+        target_ns - uncertainty_ns
+        if target_ns is not None and uncertainty_ns is not None
+        else target_ns
+    )
     if all(value is None for value in (latency_min, latency_max, ii_min, ii_max, target_ns, estimated_ns)):
         return error_result(
             build_error(
@@ -122,7 +130,9 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         "timing": {
             "target_ns": target_ns,
             "estimated_ns": estimated_ns,
-            "met": (estimated_ns <= target_ns) if target_ns is not None and estimated_ns is not None else None,
+            "uncertainty_ns": uncertainty_ns,
+            "effective_budget_ns": effective_budget_ns,
+            "met": (estimated_ns <= effective_budget_ns) if effective_budget_ns is not None and estimated_ns is not None else None,
         },
     }
 

@@ -3,4 +3,7 @@ __pycache__/
 *.pyc
 runs/*
 !runs/.gitkeep
-
+.hls.failed
+dfx_runtime.txt
+logs/
+tmp/

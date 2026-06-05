@@ -29,5 +29,7 @@ def test_report_parser_parses_vitis_timing_with_ns_units(tmp_path):
     assert result["status"] == "success"
     assert result["timing"]["target_ns"] == 10.0
     assert result["timing"]["estimated_ns"] == 9.07
-    assert result["timing"]["met"] is True
+    assert result["timing"]["uncertainty_ns"] == 2.7
+    assert result["timing"]["effective_budget_ns"] == 7.3
+    assert result["timing"]["met"] is False
     assert result["resources"]["lut"] == 111638
