@@ -9,17 +9,30 @@
   "target": {
     "backend": "Vivado",
     "part": "xc7z020clg400-1",
-    "clock_period": 5
+    "clock_period": 10
   },
   "hls4ml": {
-    "precision": "fixed<16,6>",
-    "reuse_factor": 64,
+    "precision": "fixed<8,3>",
+    "reuse_factor": 512,
     "strategy": "Resource"
   },
   "objective": "balanced",
+  "optimization_notes": {
+    "source": "real_vivado2018_sweep",
+    "reason": "The original fixed<16,6>/reuse_factor=64/5ns configuration synthesized but exceeded the xc7z020 reference resource scale and failed timing. This configuration prioritizes a real, board-feasible HLS baseline before accuracy/latency sweeps.",
+    "reference_run": "mnist_mlp_demo_pfixed8_3_rf512_clk10p0_resource_be1ca1bf",
+    "metrics": {
+      "latency_max_cycles": 1235,
+      "bram": 33,
+      "dsp": 0,
+      "ff": 26030,
+      "lut": 47977,
+      "timing_met": true
+    }
+  },
   "demo": {
     "expected_path": "hls4ml",
     "mock_tools": false,
-    "description": "Small MNIST MLP through hls4ml path; mock tools are only for offline smoke tests."
+    "description": "Resource-oriented MNIST MLP through the real hls4ml path; mock tools are only for offline smoke tests."
   }
 }

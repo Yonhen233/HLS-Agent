@@ -112,6 +112,124 @@ def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch
     assert (tmp_path / "hls_project" / "firmware").exists()
 
 
+def test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern(tmp_path):
+    onnx = __import__("onnx")
+    numpy = __import__("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 4])
+    y = helper.make_tensor_value_info("logits", TensorProto.FLOAT, [1, 2])
+    weights = numpy_helper.from_array(numpy.ones((4, 2), dtype=numpy.float32), name="fc.weight")
+    bias = numpy_helper.from_array(numpy.array([0.25, -0.25], dtype=numpy.float32), name="fc.bias")
+    matmul = helper.make_node("MatMul", inputs=["model_input", "fc.weight"], outputs=["mm"], name="fc_matmul")
+    add = helper.make_node("Add", inputs=["mm", "fc.bias"], outputs=["logits"], name="fc_bias")
+    graph = helper.make_graph([matmul, add], "matmul_add_graph", [x], [y], initializer=[weights, bias])
+    model = helper.make_model(graph)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layer_list, _input_layer, output_layer, rewrites = adapter._build_layer_list_from_onnx(model)
+    dense_layers = [layer for layer in layer_list if layer.get("class_name") == "Dense"]
+
+    assert output_layer == "fc_matmul"
+    assert len(dense_layers) == 1
+    assert dense_layers[0]["use_bias"] is True
+    assert dense_layers[0]["n_in"] == 4
+    assert dense_layers[0]["n_out"] == 2
+    assert "MatMul static weight -> Dense layer-list" in rewrites
+    assert "Add static bias -> folded into previous Dense/Conv2D" in rewrites
+
+
+def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
+    onnx = __import__("onnx")
+    numpy = __import__("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 1, 4, 4])
+    y = helper.make_tensor_value_info("bn_out", TensorProto.FLOAT, [1, 2, 2, 2])
+    conv_w = numpy_helper.from_array(numpy.ones((2, 1, 3, 3), dtype=numpy.float32), name="conv.weight")
+    scale = numpy_helper.from_array(numpy.array([1.0, 2.0], dtype=numpy.float32), name="bn.scale")
+    beta = numpy_helper.from_array(numpy.array([0.0, 0.5], dtype=numpy.float32), name="bn.beta")
+    mean = numpy_helper.from_array(numpy.array([0.25, -0.25], dtype=numpy.float32), name="bn.mean")
+    var = numpy_helper.from_array(numpy.array([1.0, 4.0], dtype=numpy.float32), name="bn.var")
+    conv = helper.make_node("Conv", inputs=["model_input", "conv.weight"], outputs=["conv_out"], name="conv")
+    bn = helper.make_node(
+        "BatchNormalization",
+        inputs=["conv_out", "bn.scale", "bn.beta", "bn.mean", "bn.var"],
+        outputs=["bn_out"],
+        name="bn",
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph([conv, bn], "conv_bn_graph", [x], [y], initializer=[conv_w, scale, beta, mean, var])
+    model = helper.make_model(graph)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layer_list, _input_layer, output_layer, rewrites = adapter._build_layer_list_from_onnx(model)
+    conv_layer = next(layer for layer in layer_list if layer.get("class_name") == "Conv2D")
+
+    assert output_layer == "conv"
+    assert conv_layer["use_bias"] is True
+    assert conv_layer["bias_data"].shape == (2,)
+    assert "BatchNormalization -> folded into previous Dense/Conv2D" in rewrites
+
+
+def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():
+    onnx = __import__("onnx")
+    numpy = __import__("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 2, 2])
+    y = helper.make_tensor_value_info("flat", TensorProto.FLOAT, [1, 4])
+    c0 = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["shape_dim0"],
+        value=numpy_helper.from_array(numpy.array([1], dtype=numpy.int64)),
+        name="shape_dim0_const",
+    )
+    c1 = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["shape_dim1"],
+        value=numpy_helper.from_array(numpy.array([4], dtype=numpy.int64)),
+        name="shape_dim1_const",
+    )
+    concat = helper.make_node("Concat", inputs=["shape_dim0", "shape_dim1"], outputs=["target_shape"], name="shape_concat", axis=0)
+    reshape = helper.make_node("Reshape", inputs=["model_input", "target_shape"], outputs=["flat"], name="flat_reshape")
+    graph = helper.make_graph([c0, c1, concat, reshape], "reshape_helpers_graph", [x], [y])
+    model = helper.make_model(graph)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layer_list, _input_layer, output_layer, rewrites = adapter._build_layer_list_from_onnx(model)
+    reshape_layer = next(layer for layer in layer_list if layer.get("class_name") == "Reshape")
+
+    assert output_layer == "flat_reshape"
+    assert reshape_layer["target_shape"] == [4]
+    assert "Constant -> static shape helper eliminated" in rewrites
+    assert "Concat -> static shape helper eliminated" in rewrites
+    assert "Reshape -> static Reshape" in rewrites
+
+
+def test_hls4ml_layer_list_adapter_rejects_branching_dataflow():
+    onnx = __import__("onnx")
+    numpy = __import__("numpy")
+    import pytest
+    from onnx import TensorProto, helper, numpy_helper
+
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 4])
+    y = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2])
+    w1 = numpy_helper.from_array(numpy.ones((4, 2), dtype=numpy.float32), name="w1")
+    w2 = numpy_helper.from_array(numpy.ones((4, 2), dtype=numpy.float32), name="w2")
+    branch_a = helper.make_node("MatMul", inputs=["model_input", "w1"], outputs=["a"], name="branch_a")
+    branch_b = helper.make_node("MatMul", inputs=["model_input", "w2"], outputs=["b"], name="branch_b")
+    add = helper.make_node("Add", inputs=["a", "b"], outputs=["out"], name="residual_add")
+    graph = helper.make_graph([branch_a, branch_b, add], "branch_graph", [x], [y], initializer=[w1, w2])
+    model = helper.make_model(graph)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    with pytest.raises(ValueError, match="Branched/residual graphs need a real graph compiler"):
+        adapter._build_layer_list_from_onnx(model)
+
+
 def test_hls4ml_run_csim_real_mode_does_not_mock_success(tmp_path):
     project_dir = tmp_path / "hls_project"
     project_dir.mkdir()

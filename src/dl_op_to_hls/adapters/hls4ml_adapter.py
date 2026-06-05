@@ -98,6 +98,14 @@ class HLS4MLAdapter:
             shapes[value.name] = dims
         return shapes
 
+    def _infer_onnx_shapes(self, model: Any) -> Any:
+        try:
+            import onnx  # type: ignore
+
+            return onnx.shape_inference.infer_shapes(model)
+        except Exception:
+            return model
+
     def _onnx_attrs(self, node: Any) -> dict[str, Any]:
         from onnx import helper  # type: ignore
 
@@ -105,20 +113,63 @@ class HLS4MLAdapter:
 
     def _onnx_layer_list_supported(self, model: Any) -> tuple[bool, list[str], list[str]]:
         ops = [node.op_type for node in model.graph.node]
-        supported = {"Gemm", "Relu", "Conv", "MaxPool", "Reshape", "Flatten", "Shape", "Concat", "Constant"}
+        supported = {
+            "Add",
+            "AveragePool",
+            "BatchNormalization",
+            "Cast",
+            "Concat",
+            "Constant",
+            "ConstantOfShape",
+            "Conv",
+            "DequantizeLinear",
+            "Dropout",
+            "Flatten",
+            "Gather",
+            "Gemm",
+            "GlobalAveragePool",
+            "Identity",
+            "MatMul",
+            "MaxPool",
+            "QuantizeLinear",
+            "Relu",
+            "Reshape",
+            "Shape",
+            "Sigmoid",
+            "Slice",
+            "Squeeze",
+            "Tanh",
+            "Transpose",
+            "Unsqueeze",
+        }
         unsupported = sorted({op for op in ops if op not in supported})
-        dataflow_ops = {op for op in ops if op not in {"Shape", "Concat", "Constant"}}
+        helper_ops = {
+            "Cast",
+            "Concat",
+            "Constant",
+            "ConstantOfShape",
+            "Gather",
+            "Shape",
+            "Slice",
+            "Squeeze",
+            "Unsqueeze",
+        }
+        dataflow_ops = {op for op in ops if op not in helper_ops}
         return not unsupported and bool(dataflow_ops), sorted(set(ops)), unsupported
 
     def _build_layer_list_from_onnx(self, model: Any) -> tuple[list[dict[str, Any]], str, str, list[str]]:
         """Build a small hls4ml layer list for static Torch/ONNX/QONNX demo graphs.
 
-        This is intentionally narrow: Dense MLP and small CNN graphs exported from PyTorch.
+        This is an engineering adapter, not a full ONNX compiler. It supports static
+        PyTorch/QONNX-exported MLP/CNN graphs and a few safe rewrites/folds. Branching
+        dataflow such as residual Add is rejected with a structured unsupported reason.
         It keeps the hls4ml backend and ModelGraph generation, but avoids hls4ml 1.3.0 ONNX
         parser edge cases around Gemm constants and channels-first Conv nodes.
         """
         from onnx import numpy_helper  # type: ignore
+        import numpy as np  # type: ignore
 
+        model = self._infer_onnx_shapes(model)
         initializers = {item.name: numpy_helper.to_array(item) for item in model.graph.initializer}
         shapes = self._tensor_shapes(model)
         graph_inputs = [item.name for item in model.graph.input if item.name not in initializers]
@@ -142,14 +193,154 @@ class HLS4MLAdapter:
         ]
         prev = layer_input_name
         rewrites: list[str] = []
-        skipped_shape_outputs = {output for node in model.graph.node if node.op_type in {"Shape", "Concat", "Constant"} for output in node.output}
+        data_owner: dict[str, str] = {input_name: layer_input_name}
+        helper_outputs: set[str] = set()
+        static_helper_ops = {
+            "Shape",
+            "Concat",
+            "Constant",
+            "ConstantOfShape",
+            "Gather",
+            "Unsqueeze",
+            "Squeeze",
+            "Slice",
+        }
+
+        def _owner_for_data_input(node: Any, index: int = 0) -> str:
+            if len(node.input) <= index:
+                raise ValueError(f"{node.op_type} node {node.name or node.output[0]} is missing a data input.")
+            tensor_name = node.input[index]
+            owner = data_owner.get(tensor_name)
+            if owner is None:
+                raise ValueError(
+                    f"{node.op_type} node {node.name or node.output[0]} consumes {tensor_name}, "
+                    "which is not on the static sequential data path."
+                )
+            if owner != prev:
+                raise ValueError(
+                    f"{node.op_type} node {node.name or node.output[0]} consumes {tensor_name} from {owner}, "
+                    f"but the current sequential tail is {prev}. Branched/residual graphs need a real graph compiler."
+                )
+            return owner
+
+        def _mark_outputs_as_data(node: Any, owner: str) -> None:
+            for output in node.output:
+                data_owner[output] = owner
+
+        def _mark_outputs_as_helper(node: Any) -> None:
+            for output in node.output:
+                helper_outputs.add(output)
+
+        def _last_trainable_layer() -> dict[str, Any]:
+            for layer in reversed(layer_list):
+                if layer.get("class_name") in {"Dense", "Conv2D"}:
+                    return layer
+            raise ValueError("No Dense/Conv2D layer is available for folding.")
+
+        def _as_channel_vector(array: Any, channels: int, node_label: str) -> Any:
+            values = np.asarray(array, dtype=np.float32).reshape(-1)
+            if values.size != channels:
+                raise ValueError(f"{node_label} expected {channels} channel values, got {values.size}.")
+            return values
+
+        def _fold_bias_add(node: Any, data_input: str, bias_input: str) -> None:
+            _owner_for_data_input(node, list(node.input).index(data_input))
+            layer = _last_trainable_layer()
+            if layer.get("name") != prev:
+                raise ValueError(
+                    f"Add node {node.name or node.output[0]} cannot be safely folded because the current tail is {prev}, "
+                    f"not the trainable layer {layer.get('name')}."
+                )
+            channels = int(layer.get("n_out") or layer.get("n_filt") or 0)
+            if channels <= 0:
+                raise ValueError(f"Add node {node.name or node.output[0]} cannot infer channel count for bias folding.")
+            bias = _as_channel_vector(initializers[bias_input], channels, f"Add node {node.name or node.output[0]}")
+            old_bias = layer.get("bias_data")
+            if old_bias is None:
+                layer["bias_data"] = bias
+            else:
+                layer["bias_data"] = _as_channel_vector(old_bias, channels, "Existing bias") + bias
+            layer["use_bias"] = True
+            rewrites.append("Add static bias -> folded into previous Dense/Conv2D")
+            _mark_outputs_as_data(node, prev)
+
+        def _fold_batchnorm(node: Any) -> None:
+            _owner_for_data_input(node)
+            if len(node.input) < 5:
+                raise ValueError(f"BatchNormalization node {node.name or node.output[0]} is missing static parameters.")
+            missing = [name for name in node.input[1:5] if name not in initializers]
+            if missing:
+                raise ValueError(f"BatchNormalization node {node.name or node.output[0]} has non-static parameters: {missing}.")
+            layer = _last_trainable_layer()
+            if layer.get("name") != prev:
+                raise ValueError(
+                    f"BatchNormalization node {node.name or node.output[0]} cannot be safely folded because the current tail is {prev}, "
+                    f"not the trainable layer {layer.get('name')}."
+                )
+            channels = int(layer.get("n_out") or layer.get("n_filt") or 0)
+            scale = _as_channel_vector(initializers[node.input[1]], channels, "BatchNormalization scale")
+            beta = _as_channel_vector(initializers[node.input[2]], channels, "BatchNormalization bias")
+            mean = _as_channel_vector(initializers[node.input[3]], channels, "BatchNormalization mean")
+            variance = _as_channel_vector(initializers[node.input[4]], channels, "BatchNormalization variance")
+            epsilon = float(self._onnx_attrs(node).get("epsilon", 1e-5))
+            factor = scale / np.sqrt(variance + epsilon)
+            old_bias = layer.get("bias_data")
+            if old_bias is None:
+                old_bias_vec = np.zeros(channels, dtype=np.float32)
+            else:
+                old_bias_vec = _as_channel_vector(old_bias, channels, "Existing bias")
+            if layer.get("class_name") == "Dense":
+                layer["weight_data"] = np.asarray(layer["weight_data"], dtype=np.float32) * factor.reshape(1, -1)
+            elif layer.get("class_name") == "Conv2D":
+                layer["weight_data"] = np.asarray(layer["weight_data"], dtype=np.float32) * factor.reshape(1, 1, 1, -1)
+            layer["bias_data"] = (old_bias_vec - mean) * factor + beta
+            layer["use_bias"] = True
+            rewrites.append("BatchNormalization -> folded into previous Dense/Conv2D")
+            _mark_outputs_as_data(node, prev)
+
+        def _add_activation(node: Any, activation: str, name: str) -> None:
+            nonlocal prev
+            _owner_for_data_input(node)
+            layer_list.append({"name": name, "class_name": "Activation", "activation": activation, "inputs": [prev]})
+            prev = name
+            _mark_outputs_as_data(node, prev)
 
         for index, node in enumerate(model.graph.node):
             raw_name = node.name or (node.output[0] if node.output else node.op_type)
             name = self._safe_layer_name(raw_name, f"{node.op_type}_{index}")
-            if node.op_type in {"Shape", "Concat", "Constant"}:
+            if node.op_type in static_helper_ops:
+                _mark_outputs_as_helper(node)
+                rewrites.append(f"{node.op_type} -> static shape helper eliminated")
                 continue
+            if node.op_type in {"Identity", "Dropout", "QuantizeLinear", "DequantizeLinear"}:
+                owner = _owner_for_data_input(node)
+                _mark_outputs_as_data(node, owner)
+                rewrites.append(f"{node.op_type} -> data no-op/precision metadata")
+                continue
+            if node.op_type == "Cast":
+                if node.input and node.input[0] in helper_outputs:
+                    _mark_outputs_as_helper(node)
+                    rewrites.append("Cast -> static shape helper eliminated")
+                    continue
+                owner = _owner_for_data_input(node)
+                _mark_outputs_as_data(node, owner)
+                rewrites.append("Cast -> data no-op for static numeric adapter")
+                continue
+            if node.op_type == "Transpose":
+                owner = _owner_for_data_input(node)
+                perm = list(self._onnx_attrs(node).get("perm") or [])
+                rank = len(shapes.get(node.input[0], []))
+                if not perm or perm == list(range(rank)):
+                    _mark_outputs_as_data(node, owner)
+                    rewrites.append("Transpose -> identity eliminated")
+                    continue
+                if rank == 4 and perm in ([0, 2, 3, 1], [0, 3, 1, 2]):
+                    _mark_outputs_as_data(node, owner)
+                    rewrites.append("Transpose -> layout metadata only")
+                    continue
+                raise ValueError(f"Transpose node {node.name or index} uses unsupported perm={perm}.")
             if node.op_type == "Gemm":
+                _owner_for_data_input(node)
                 if len(node.input) < 2 or node.input[1] not in initializers:
                     raise ValueError(f"Gemm node {node.name or index} has no static weight initializer.")
                 attrs = self._onnx_attrs(node)
@@ -174,33 +365,81 @@ class HLS4MLAdapter:
                     }
                 )
                 prev = name
+                _mark_outputs_as_data(node, prev)
                 rewrites.append("Gemm -> Dense layer-list")
                 continue
-            if node.op_type == "Relu":
-                layer_list.append({"name": name, "class_name": "Activation", "activation": "ReLU", "inputs": [prev]})
+            if node.op_type == "MatMul":
+                _owner_for_data_input(node)
+                if len(node.input) < 2 or node.input[1] not in initializers:
+                    raise ValueError(f"MatMul node {node.name or index} needs a static second-input weight initializer.")
+                weights = initializers[node.input[1]]
+                if weights.ndim != 2:
+                    raise ValueError(f"MatMul node {node.name or index} expects a rank-2 weight matrix.")
+                layer_list.append(
+                    {
+                        "name": name,
+                        "class_name": "Dense",
+                        "inputs": [prev],
+                        "weight_data": weights,
+                        "bias_data": None,
+                        "n_in": int(weights.shape[0]),
+                        "n_out": int(weights.shape[1]),
+                        "use_bias": False,
+                    }
+                )
                 prev = name
+                _mark_outputs_as_data(node, prev)
+                rewrites.append("MatMul static weight -> Dense layer-list")
+                continue
+            if node.op_type == "Add":
+                initializer_inputs = [item for item in node.input if item in initializers]
+                data_inputs = [item for item in node.input if item not in initializers]
+                if len(initializer_inputs) == 1 and len(data_inputs) == 1:
+                    _fold_bias_add(node, data_inputs[0], initializer_inputs[0])
+                    continue
+                raise ValueError(
+                    f"Add node {node.name or index} is not a static bias add. "
+                    "Residual/elementwise Add requires graph-level support and is intentionally unsupported here."
+                )
+            if node.op_type == "BatchNormalization":
+                _fold_batchnorm(node)
+                continue
+            if node.op_type == "Relu":
+                _add_activation(node, "ReLU", name)
+                continue
+            if node.op_type == "Sigmoid":
+                _add_activation(node, "sigmoid", name)
+                continue
+            if node.op_type == "Tanh":
+                _add_activation(node, "tanh", name)
                 continue
             if node.op_type == "Flatten":
+                _owner_for_data_input(node)
                 output_shape = shapes.get(node.output[0], [])
                 target_shape = output_shape[1:] if len(output_shape) > 1 else [-1]
                 layer_list.append({"name": name, "class_name": "Reshape", "inputs": [prev], "target_shape": target_shape})
                 prev = name
+                _mark_outputs_as_data(node, prev)
                 rewrites.append("Flatten -> static Reshape")
                 continue
             if node.op_type == "Reshape":
-                if node.input and node.input[0] in skipped_shape_outputs:
-                    continue
+                _owner_for_data_input(node)
                 output_shape = shapes.get(node.output[0], [])
                 if not output_shape:
                     raise ValueError(f"Reshape node {node.name or index} has no static output shape.")
                 layer_list.append({"name": name, "class_name": "Reshape", "inputs": [prev], "target_shape": output_shape[1:]})
                 prev = name
+                _mark_outputs_as_data(node, prev)
                 rewrites.append("Reshape -> static Reshape")
                 continue
             if node.op_type == "Conv":
+                _owner_for_data_input(node)
                 if len(node.input) < 2 or node.input[1] not in initializers:
                     raise ValueError(f"Conv node {node.name or index} has no static weight initializer.")
                 attrs = self._onnx_attrs(node)
+                groups = int(attrs.get("group", 1))
+                if groups != 1:
+                    raise ValueError(f"Conv node {node.name or index} uses group={groups}; grouped conv is not supported.")
                 weights = initializers[node.input[1]]
                 bias = initializers[node.input[2]] if len(node.input) > 2 and node.input[2] in initializers else None
                 input_shape_nchw = shapes.get(node.input[0], [])
@@ -238,23 +477,31 @@ class HLS4MLAdapter:
                     }
                 )
                 prev = name
+                _mark_outputs_as_data(node, prev)
                 rewrites.append("NCHW Conv -> channels_last Conv2D layer-list")
                 continue
-            if node.op_type == "MaxPool":
+            if node.op_type in {"MaxPool", "AveragePool", "GlobalAveragePool"}:
+                _owner_for_data_input(node)
                 attrs = self._onnx_attrs(node)
                 input_shape_nchw = shapes.get(node.input[0], [])
                 output_shape_nchw = shapes.get(node.output[0], [])
                 if len(input_shape_nchw) != 4 or len(output_shape_nchw) != 4:
-                    raise ValueError(f"MaxPool node {node.name or index} requires static 4D NCHW shapes.")
+                    raise ValueError(f"{node.op_type} node {node.name or index} requires static 4D NCHW shapes.")
                 input_shape_nhwc = nhwc(input_shape_nchw)
                 output_shape_nhwc = nhwc(output_shape_nchw)
-                kernel = list(attrs.get("kernel_shape") or [2, 2])
+                if node.op_type == "GlobalAveragePool":
+                    kernel = [int(input_shape_nhwc[1]), int(input_shape_nhwc[2])]
+                    strides = kernel
+                    class_name = "AveragePooling2D"
+                else:
+                    kernel = list(attrs.get("kernel_shape") or [2, 2])
+                    strides = list(attrs.get("strides") or kernel)
+                    class_name = "MaxPooling2D" if node.op_type == "MaxPool" else "AveragePooling2D"
                 pads = list(attrs.get("pads") or [0, 0, 0, 0])
-                strides = list(attrs.get("strides") or kernel)
                 layer_list.append(
                     {
                         "name": name,
-                        "class_name": "MaxPooling2D",
+                        "class_name": class_name,
                         "inputs": [prev],
                         "data_format": "channels_last",
                         "n_filt": int(input_shape_nhwc[3]),
@@ -274,7 +521,8 @@ class HLS4MLAdapter:
                     }
                 )
                 prev = name
-                rewrites.append("NCHW MaxPool -> channels_last MaxPooling2D layer-list")
+                _mark_outputs_as_data(node, prev)
+                rewrites.append(f"NCHW {node.op_type} -> channels_last {class_name} layer-list")
                 continue
             raise ValueError(f"Unsupported op for layer-list ONNX adapter: {node.op_type}")
 
@@ -355,7 +603,7 @@ class HLS4MLAdapter:
         try:  # pragma: no cover - real dependency path
             import onnx  # type: ignore
 
-            model = onnx.load(model_path)
+            model = self._infer_onnx_shapes(onnx.load(model_path))
             tensor_shapes: dict[str, list[int | str]] = {}
             for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]:
                 dims: list[int | str] = []

@@ -191,7 +191,7 @@ class VivadoSpecialist(BaseSpecialist):
         observations.append({"tool": "vivado.run_csynth", "result": self._compress_result(csynth_result)})
         if csynth_result.get("log_path"):
             artifacts.append({"type": "vivado_log", "path": csynth_result["log_path"]})
-        if csynth_result.get("status") != "success":
+        if csynth_result.get("status") != "success" and not csynth_result.get("report_path"):
             error = csynth_result.get("error", {})
             errors.append(error)
             summary = error.get("message", "Vivado synthesis was skipped or failed.")
@@ -207,6 +207,14 @@ class VivadoSpecialist(BaseSpecialist):
                     errors=errors,
                     metrics=empty_report("skipped") if status == "partial_success" else None,
                 ),
+            )
+        if csynth_result.get("status") != "success" and csynth_result.get("report_path"):
+            warnings.append(
+                {
+                    "message": "Vivado HLS did not exit cleanly before the adapter timeout, but a csynth report was produced and will be parsed.",
+                    "status": csynth_result.get("status"),
+                    "report_path": csynth_result.get("report_path"),
+                }
             )
 
         report_path = csynth_result.get("report_path")
@@ -232,11 +240,16 @@ class VivadoSpecialist(BaseSpecialist):
                 metrics = parse_result
             else:
                 warnings.append({"message": "Vivado report parsing did not produce metrics.", "result": parse_result})
+        report_available_after_timeout = bool(metrics and csynth_result.get("status") != "success")
         result = SpecialistResult(
             specialist_name=self.name,
             todo_id=envelope.todo_id,
-            status="success",
-            summary="Vivado HLS synthesis completed and metrics were parsed.",
+            status="partial_success" if report_available_after_timeout else "success",
+            summary=(
+                "Vivado HLS produced a parseable report after a non-clean exit/timeout."
+                if report_available_after_timeout
+                else "Vivado HLS synthesis completed and metrics were parsed."
+            ),
             observations=observations,
             metrics=metrics,
             artifacts=artifacts,

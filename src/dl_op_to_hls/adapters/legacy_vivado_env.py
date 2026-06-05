@@ -134,34 +134,36 @@ class HLSVerificationEnv:
             }
         cwd = Path(design_dir)
         log_path = cwd / "csynth.log"
-        timeout = int(timeout_seconds or 600)
+        timeout = int(timeout_seconds or os.environ.get("DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS", "600"))
         started = time.time()
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        process = subprocess.Popen(
+            [executable, "-f", os.path.basename(tcl_file_path)],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=(os.name == "nt"),
+            creationflags=creationflags,
+        )
+        timed_out = False
         try:
-            completed = subprocess.run(
-                [executable, "-f", os.path.basename(tcl_file_path)],
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                shell=(os.name == "nt"),
-            )
-            combined = (completed.stdout or "") + ("\n=== STDERR ===\n" + (completed.stderr or "") if completed.stderr else "")
-            log_path.write_text(combined, encoding="utf-8")
-            status = "success" if completed.returncode == 0 else "error"
-            return {
-                "project_dir": str(cwd),
-                "synthesis": {
-                    "status": status,
-                    "passed": completed.returncode == 0,
-                    "errors": [] if completed.returncode == 0 else [f"Vivado HLS exited with return code {completed.returncode}"],
-                    "warnings": [],
-                    "log_path": str(log_path),
-                    "project_dir": str(cwd),
-                    "duration_seconds": round(time.time() - started, 3),
-                },
-            }
+            stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            log_path.write_text(f"ERROR: csynth timed out after {timeout} seconds", encoding="utf-8")
+            timed_out = True
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:  # pragma: no cover - Windows is the primary Vivado HLS environment.
+                process.kill()
+            stdout, stderr = process.communicate(timeout=30)
+
+        if timed_out:
+            combined = f"ERROR: csynth timed out after {timeout} seconds"
+            if stdout:
+                combined += f"\n=== STDOUT BEFORE TIMEOUT ===\n{stdout}"
+            if stderr:
+                combined += f"\n=== STDERR BEFORE TIMEOUT ===\n{stderr}"
+            log_path.write_text(combined, encoding="utf-8")
             return {
                 "project_dir": str(cwd),
                 "synthesis": {
@@ -174,3 +176,19 @@ class HLSVerificationEnv:
                     "duration_seconds": round(time.time() - started, 3),
                 },
             }
+
+        combined = (stdout or "") + ("\n=== STDERR ===\n" + (stderr or "") if stderr else "")
+        log_path.write_text(combined, encoding="utf-8")
+        status = "success" if process.returncode == 0 else "error"
+        return {
+            "project_dir": str(cwd),
+            "synthesis": {
+                "status": status,
+                "passed": process.returncode == 0,
+                "errors": [] if process.returncode == 0 else [f"Vivado HLS exited with return code {process.returncode}"],
+                "warnings": [],
+                "log_path": str(log_path),
+                "project_dir": str(cwd),
+                "duration_seconds": round(time.time() - started, 3),
+            },
+        }

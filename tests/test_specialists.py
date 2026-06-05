@@ -261,6 +261,31 @@ def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkey
     assert result.errors[0]["error_type"] == "VivadoNotFoundError"
 
 
+def test_vivado_specialist_parses_report_after_csynth_timeout(temp_workspace, sample_csynth_report_path):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    report_path = temp_workspace / "runs" / "r1" / "vivado_hls" / "solution1" / "syn" / "report" / "myproject_csynth.rpt"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(sample_csynth_report_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    agent.registry.get("vivado.run_csynth").handler = lambda arguments, context: {
+        "status": "timeout",
+        "log_path": str(temp_workspace / "runs" / "r1" / "vivado_hls" / "csynth.log"),
+        "report_path": str(report_path),
+        "project_dir": str(temp_workspace / "runs" / "r1" / "vivado_hls"),
+    }
+    specialist = VivadoSpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(_dense_state(temp_workspace), _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
+
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+
+    assert result.status == "partial_success"
+    assert result.metrics["status"] == "success"
+    assert result.metrics["latency"]["max_cycles"] == 45
+    assert any(item.get("tool") == "vivado.parse_report" for item in result.observations)
+    assert result.warnings
+
+
 def test_vivado_specialist_blocks_without_hls_project_dir(temp_workspace):
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")

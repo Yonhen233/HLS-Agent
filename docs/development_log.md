@@ -6,6 +6,111 @@
 
 ---
 
+## 2026-06-05 15:22:16 +08:00：收敛 Demo2/Demo3 优化方法，并增强 ONNX/QONNX 静态 adapter
+### 1. 本次测试做了什么
+本轮目标不是继续做大批量设计空间扫描，而是在真实路径上找出可解释、可复用的优化方法，并修复 Demo2-4 当前 ONNX/QONNX adapter 过窄的问题。
+
+执行动作：
+
+- 复盘 Demo2/Demo3/Demo4 真实 `hls4ml + Vivado HLS 2018.3` 历史 run，确认 Demo2/3/4 已经能够走真实 `hls4ml_path`，主要剩余问题从“链路跑不通”转为“资源/timing 是否适合作为后续 baseline”。
+- 对 Demo2 MNIST MLP 做少量代表性真实 Vivado 点验证，没有继续大规模 sweep。
+- 对 Demo3 Tiny CNN 做一个 focused resource-oriented 点验证，没有继续大规模 sweep。
+- 扩展 `HLS4MLAdapter` 的 ONNX/QONNX layer-list adapter：增加 shape inference、更多静态 shape helper 消除、`MatMul + Add -> Dense+bias`、`BatchNormalization` folding、`AveragePool/GlobalAveragePool`、`Sigmoid/Tanh`、Q/DQ metadata skip，以及 residual/branched dataflow 的明确拒绝。
+- 使用真实 hls4ml + mock Vivado 轻跑 Demo2-4，验证 adapter 改动没有破坏 Agent 编排和 hls4ml conversion。
+
+实际执行命令摘录：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:TMP='D:\hls_agent\standalone_work\dl-op-to-hls-agent\tmp'
+$env:TEMP=$env:TMP
+
+python scripts\sweep_hls4ml_model.py --base-task examples\mnist_mlp_hls4ml.json --output-root runs\sweeps\mnist_mlp_real_vivado2018_rf512_timeout2400_20260605 --precisions 'fixed<8,3>' --reuse-factors 512 --clock-periods 10 --strategies Resource --max-runs 1 --hls-timeout 2400 --timeout 3000
+python scripts\sweep_hls4ml_model.py --base-task examples\mnist_tiny_cnn.json --output-root runs\sweeps\mnist_tiny_cnn_real_vivado2018_rf64_p8_20260605 --precisions 'fixed<8,3>' --reuse-factors 64 --clock-periods 10 --strategies Resource --max-runs 1 --hls-timeout 2400 --timeout 3000
+
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='0'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='1'
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND='Vivado'
+python -m dl_op_to_hls.cli run examples\mnist_mlp_hls4ml.json
+python -m dl_op_to_hls.cli run examples\mnist_tiny_cnn.json
+python -m dl_op_to_hls.cli run examples\mnist_qonnx_cnn.json
+
+python -m pytest tests\test_hls4ml_mcp.py -q -p no:cacheprovider
+python -m pytest tests\test_demo_examples_schema.py tests\test_demo_model_scripts.py -q -p no:cacheprovider
+python -m pytest tests\test_vivado_hls_mcp.py tests\test_report_parser.py -q -p no:cacheprovider
+```
+
+### 2. 找到的优化方法
+Demo2 `mnist_mlp_hls4ml.json`：
+
+- 原始配置：`fixed<16,6>`、`reuse_factor=64`、`clock=5ns`、`Resource`。
+- 真实结果：能综合，但资源规模明显超出 `xc7z020` 参考板卡，timing failed。
+- 代表性优化方法：降低精度到 `fixed<8,3>`，提高 `reuse_factor=512`，放宽 clock 到 `10ns`，继续使用 `Resource` strategy。
+- 真实参考 run：`mnist_mlp_demo_pfixed8_3_rf512_clk10p0_resource_be1ca1bf`。
+- 指标：Latency 1232-1235 cycles，BRAM 33，DSP 0，FF 26030，LUT 47977，Timing met。
+- 已将该配置写回 `examples/mnist_mlp_hls4ml.json`，作为更真实的 board-feasible baseline。
+
+Demo3 `mnist_tiny_cnn.json`：
+
+- 原始配置：`fixed<16,6>`、`reuse_factor=32`、`clock=10ns`、`Resource`。
+- 真实结果：timing met，但 LUT 约 58161，对 `xc7z020` 参考规模偏高。
+- 代表性优化方法：降低精度到 `fixed<8,3>`，提高 `reuse_factor=64`，保持 `clock=10ns` 和 `Resource`。
+- 真实参考 run：`mnist_tiny_cnn_pfixed8_3_rf64_clk10p0_resource_4769edbf`。
+- 指标：Latency 148-150 cycles，BRAM 3，DSP 0，FF 2513，LUT 6680，Timing met。
+- 已将该配置写回 `examples/mnist_tiny_cnn.json`。
+
+说明：这不是宣称全局最优，只是当前开发阶段找到的可靠优化方向：降低定点位宽、提高 reuse factor、放宽过紧 clock，用真实 Vivado HLS 2018.3 结果证明资源/timing 能明显改善。
+
+### 3. ONNX/QONNX adapter 问题与根因
+此前 adapter 是为了 Demo2-4 快速打通而写的窄范围工程实现，主要处理：
+
+- `Gemm -> Dense`
+- `Relu -> Activation`
+- NCHW `Conv -> channels_last Conv2D`
+- `Flatten/Reshape -> static Reshape`
+- 跳过少量 `Shape/Concat/Constant` 静态 shape 辅助节点
+
+问题在于：
+
+- 遇到 PyTorch/QONNX 常见的 `MatMul + Add` 表达时，不能折叠成 Dense+bias。
+- 遇到 inference 常见的 `BatchNormalization` 时，不能 fold 到前一个 Dense/Conv。
+- 静态 shape 子图不只包含 `Shape/Concat/Constant`，还可能包含 `Gather/Unsqueeze/Squeeze/Slice/ConstantOfShape`。
+- 如果遇到 residual/branched Add，旧逻辑没有把“这需要真正图编译能力”表达得足够明确。
+
+### 4. 修复方案
+本轮没有把它伪装成完整 ONNX compiler，而是把它升级为更可靠的静态 layer-list adapter：
+
+- 增加 ONNX shape inference，优先使用推理后的 value_info。
+- 扩展静态 helper 消除：`Shape`、`Constant`、`ConstantOfShape`、`Concat`、`Gather`、`Unsqueeze`、`Squeeze`、`Slice`。
+- 支持 `MatMul` 第二输入为静态 initializer 时生成 Dense。
+- 支持紧跟 Dense/Conv 的静态 `Add` bias folding。
+- 支持紧跟 Dense/Conv 的 `BatchNormalization` folding。
+- 支持 `AveragePool`、`GlobalAveragePool` 到 channels_last pooling layer-list。
+- 支持 `Identity/Dropout/QuantizeLinear/DequantizeLinear` 作为 no-op/precision metadata。
+- 对 residual Add、分支图、grouped conv、不安全 transpose 等情况明确抛出 unsupported，避免假成功。
+
+### 5. 当前验证结果
+通过测试：
+
+- `tests/test_hls4ml_mcp.py`：14 passed
+- `tests/test_demo_examples_schema.py tests/test_demo_model_scripts.py`：14 passed
+- `tests/test_vivado_hls_mcp.py tests/test_report_parser.py`：12 passed
+
+真实 hls4ml + mock Vivado 轻跑结果：
+
+| Demo | run_id | status | selected_path | report | errors |
+|---|---|---|---|---|---|
+| Demo2 MNIST MLP | `mnist_mlp_demo_1ed09a79_02` | success | hls4ml_path | success | none |
+| Demo3 Tiny CNN | `mnist_tiny_cnn_154bde8b` | success | hls4ml_path | success | none |
+| Demo4 QONNX CNN | `mnist_qonnx_cnn_bc625576_09` | success | hls4ml_path | success | none |
+
+### 6. 未修复/后续问题
+- 当前 ONNX/QONNX adapter 仍然不是完整 compiler，不支持任意动态图、任意分支、任意 residual block、grouped/depthwise conv 或复杂 QONNX 量化算子语义。
+- 当前优化方法还没有做精度/准确率评估；后续如果接入真实 MNIST 数据，需要补 accuracy/cosine/error tolerance 评估。
+- Demo2/Demo3 的参数只是可靠 baseline，不是全局 Pareto 最优；后续若目标板卡确定，再做更系统的 precision/reuse/clock sweep。
+
+---
+
 ## 2026-06-05 12:24:37 +08:00：回到 Vivado HLS 2018.3 主线，修复真实综合暴露的 Memory/RAG/Suggestion 污染
 ### 1. 本次测试做了什么
 根据 Vitis 2025.2.1 公平实验结论，本轮不再继续推进 Vitis 默认切换，而是把主线重新收拢到 `Vivado HLS 2018.3`：
