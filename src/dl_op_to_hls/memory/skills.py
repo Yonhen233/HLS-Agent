@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 
+def _verified(state: dict) -> bool:
+    verification = state.get("verification") or {}
+    mode = verification.get("mode")
+    if verification.get("passed") is True and mode in {"golden_testbench", "hls4ml_reference_compare", "reference_compare"}:
+        return True
+    comparison = verification.get("comparison") if isinstance(verification.get("comparison"), dict) else {}
+    return verification.get("passed") is True and comparison.get("passed") is True
+
+
 def build_skill_candidates(state: dict) -> list[dict]:
     skills: list[dict] = []
     selected_path = state.get("selected_path")
-    if selected_path == "fallback_template_path":
+    verified = _verified(state)
+    if selected_path == "fallback_template_path" and verified:
         skills.append(
             {
                 "kind": "skill",
@@ -21,7 +31,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                 "success_criteria": {"generated_hls_project": True},
             }
         )
-    if state.get("report"):
+    if state.get("report") and verified:
         skills.append(
             {
                 "kind": "skill",
@@ -38,7 +48,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                 "success_criteria": {"report_available": True},
             }
         )
-    if selected_path == "hls4ml_path":
+    if selected_path == "hls4ml_path" and verified:
         skills.append(
             {
                 "kind": "skill",

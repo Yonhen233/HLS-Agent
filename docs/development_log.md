@@ -6,6 +6,247 @@
 
 ---
 
+## 2026-06-15 18:26:30 +08:00：修复 functional verification 与 memory 状态一致性，并复测 Demo1
+### 1. 本次测试做了什么
+在 Functional Verification Layer 接入后，又针对真实 Demo1 暴露出的状态一致性做了一轮收尾验证：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=.pytest-tmp-full'
+pytest -q
+
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='0'
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH='D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vivado_hls'
+$env:DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS='900'
+python -m dl_op_to_hls.cli run examples/matmul_resource.json
+```
+
+结果：
+
+| 项目 | 结果 |
+|---|---|
+| focused tests | `tests/test_functional_verification.py`、`tests/test_memory.py`、`tests/test_runtime_hybrid.py`、`tests/test_specialists.py` 通过 |
+| full pytest | 通过，含依赖缺失场景 skip |
+| 真实 Demo1 run | `matmul_16x16_resource_9ac8e2e8_24` |
+| final status | `partial_success` |
+| Functional Verification | `golden_testbench` passed，`csim_executed=true` |
+| Timing | target 8ns，estimated 9.634ns，timing failed |
+| summary | 已包含 `Functional Verification` 和 `Parameter Advisor` |
+
+### 2. 暴露的问题与修复
+#### 问题：memory-ready state snapshot 会在 timing fail 时临时改成 success
+现象：
+
+- Demo1 的最终 `state.json` 是 `partial_success`。
+- 但 memory 抽取前的中间快照曾经只检查 `report.status == success`，没有检查 `report.timing.met`。
+- 这会让 memory candidate 的 summary 一度写成 success，和真实 run 结果不一致。
+
+修复：
+
+- `runtime.finalize()` 在 memory candidate 抽取前先调用 `update_status_from_todos(state)`。
+- `_write_memory_ready_state_snapshot()` 的 success 条件增加 `state.report["timing"]["met"] is not False`。
+- 复测后，Demo1 memory candidate 正确记录为：
+
+```text
+Run matmul_16x16_resource_9ac8e2e8_24 used fallback_template_path with status partial_success.
+```
+
+### 3. 未修复/后续观察
+- Demo1 功能验证已经通过，但 timing 未满足；这是 HLS 参数/时钟约束问题，不再被误判为功能失败或完整成功。
+- ParameterAdvisor 仍可从 verified history 给建议，但已避免把 timing failed history 当成 timing-clean 的推荐样本。
+
+## 2026-06-15 18:06:50 +08:00：接入 Functional Verification Layer，并完成 Vivado HLS 2018.3 真实验证
+### 1. 本次测试做了什么
+本轮目标是把“能综合”升级为“先功能验证，再信任综合指标”：
+
+- fallback Dense/MatMul/ReLU/Add 生成 deterministic golden testbench。
+- hls4ml Demo2/3/4 生成小批量 ONNX Runtime reference input/output。
+- Vivado HLS `csim_design` 后解析 functional pass/fail。
+- `summary.md` 增加 `Functional Verification` 和 `Parameter Advisor` 章节。
+- Memory/Skill/ParameterAdvisor 只把真正有 reference/golden 证据的结果当成 verified history。
+
+实际执行过的关键命令：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='0'
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH='D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vivado_hls'
+$env:DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS='1200'
+
+python -m dl_op_to_hls.cli run examples\mnist_mlp_hls4ml.json
+python -m dl_op_to_hls.cli run examples\mnist_tiny_cnn.json
+python -m dl_op_to_hls.cli run examples\mnist_qonnx_cnn.json
+python -m dl_op_to_hls.cli run examples\dense_operator.json
+python -m dl_op_to_hls.cli run examples\matmul_resource.json
+
+$env:PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=.pytest-tmp'
+pytest -q
+```
+
+测试结论：
+
+| Demo | Run ID | 路径 | 状态 | Functional Verification | 关键指标 |
+|---|---|---|---|---|---|
+| Demo0 Dense | `dense_16x32_af6abf3c_21` | fallback_template | success | `golden_testbench` passed | latency 269, DSP 16, LUT 549, timing met |
+| Demo1 MatMul | `matmul_16x16_resource_9ac8e2e8_23` | fallback_template | partial_success | `golden_testbench` passed | latency 2052, DSP 16, LUT 624, timing failed |
+| Demo2 MLP | `mnist_mlp_demo_1ed09a79_05` | hls4ml | partial_success | `hls4ml_reference_compare` failed | max_abs_error 1.3666, timing met |
+| Demo3 Tiny CNN | `mnist_tiny_cnn_154bde8b_03` | hls4ml | partial_success | `hls4ml_reference_compare` failed | max_abs_error 0.2815, timing met, LUT 354417 |
+| Demo4 QONNX CNN | `mnist_qonnx_cnn_bc625576_10` | hls4ml/QONNX | success | `hls4ml_reference_compare` passed | max_abs_error 0.1873, latency 5040, LUT 354417, timing met |
+
+全量测试结果：
+
+```text
+pytest -q
+结果：通过，含 7 个依赖缺失时的 skip。
+```
+
+### 2. 暴露的问题与修复
+#### 问题 A：旧版 csim pass 只是“程序运行成功”，不是功能正确
+现象：
+
+- Demo2 早期显示 `csim_passed`，但只是 Vivado 日志中出现 `CSim done with 0 errors`。
+- hls4ml testbench 默认只打印 quantized predictions，不会 assert reference mismatch。
+
+修复：
+
+- 新增 `tools/functional_verification.py`。
+- hls4ml conversion 后生成：
+  - `tb_data/tb_input_features.dat`
+  - `tb_data/tb_output_predictions.dat`
+  - `tb_data/reference_manifest.json`
+- Vivado csim 后递归查找 `solution1/csim/build/tb_data/csim_results.log`，与 reference output 做数值比较。
+- verification 结果写入 `verification.json`、`state.json`、`summary.md`。
+
+#### 问题 B：Vivado csim 运行目录下找不到 hls4ml weights/tb_data
+现象：
+
+```text
+ERROR: file weights/w2.txt does not exist
+ERROR: [SIM 211-100] 'csim_design' failed
+```
+
+根因：
+
+- hls4ml 生成的 testbench 在 csim build 目录运行。
+- 只复制源码不够，`weights/` 和 `tb_data/` 必须作为 testbench data 加入 TCL。
+
+修复：
+
+- `legacy_vivado_env.py` 自动追加：
+  - `add_files -tb weights`
+  - `add_files -tb tb_data`
+
+#### 问题 C：Demo3 CNN 的 Conv ReuseFactor 触发 Vivado 2018.3 runtime assertion
+现象：
+
+```text
+Assertion failed!
+Expression: CONFIG_T::reuse_factor <= CONFIG_T::filt_height * CONFIG_T::filt_width * CONFIG_T::n_chan
+```
+
+根因：
+
+- hls4ml 自动把第一层 Conv RF 调成 36。
+- Vivado 2018.3 linebuffer resource conv 对第一层实际要求 RF <= 3*3*1 = 9。
+
+修复：
+
+- ONNX layer-list adapter 在生成 ModelGraph 前写入 `HLSConfig.LayerName`。
+- 对 Conv2D 层按 `filt_height * filt_width * n_chan` 自动 cap per-layer ReuseFactor。
+- 修复后 Demo3 不再 assertion，能跑到 csynth/report/reference compare。
+
+#### 问题 D：Memory/ParameterAdvisor 会误用旧版“execution-only csim”历史
+现象：
+
+- 旧 run 里有 `mode=vivado_csim` 且 `passed=true` 的历史。
+- 这类历史只说明程序运行过，不说明输出和 reference 一致。
+
+修复：
+
+- verified 判定收紧为：
+  - `mode=golden_testbench` 且 passed
+  - 或 `mode=hls4ml_reference_compare` 且 passed
+  - 或 comparison 明确 passed
+- `MemoryManager`、`MemoryPolicy`、`skills.py`、`ParameterAdvisor` 同步使用该定义。
+- `ParameterAdvisor` 额外忽略 timing failed 的历史，不把它作为推荐参数的正样本。
+
+#### 问题 E：timing failed 被全局状态误判为 success
+现象：
+
+- Demo1 MatMul 功能验证通过，但 timing 未达标，早期 run status 仍是 success。
+
+修复：
+
+- `VivadoSpecialist` 在 timing not met 时返回 `partial_success`。
+- `reflector.update_status_from_todos` 将 `report.timing.met == false` 作为全局 `partial_success` 条件。
+- Demo1 复测 `matmul_16x16_resource_9ac8e2e8_23` 已正确显示 `partial_success`。
+
+#### 问题 F：测试不满足“无 ONNX 也能跑”
+现象：
+
+```text
+ModuleNotFoundError: No module named 'onnx'
+```
+
+根因：
+
+- 部分 adapter 单测直接 `__import__("onnx")`。
+
+修复：
+
+- 改成 `pytest.importorskip("onnx")` / `pytest.importorskip("numpy")`。
+- 全量 pytest 通过。
+
+### 3. 未完成或暂不修复的问题
+#### Demo2 MLP 功能对比失败
+现状：
+
+- `csim_executed=true`，说明 Vivado CSim 已执行。
+- reference compare failed，`max_abs_error=1.3666`。
+
+判断：
+
+- 当前 `fixed<8,3>` 是为了资源/timing 收敛选出的保守配置，但对 MLP 输出精度破坏明显。
+- 这不是 Agent workflow 没跑通，而是功能验证层暴露了真实量化误差。
+
+后续建议：
+
+- 优先尝试更宽 precision，例如 `fixed<10,4>`、`fixed<12,5>`。
+- 结合 verified history 做小范围参数建议，而不是盲目大扫参。
+
+#### Demo3 Tiny CNN 功能对比略失败且资源偏大
+现状：
+
+- Conv RF cap 后不再 assertion。
+- reference compare failed，`max_abs_error=0.2815`，略高于 tolerance 0.25。
+- LUT 达到 354417，说明当前 hls4ml layer-list + resource conv 配置仍不够板级友好。
+
+判断：
+
+- 当前路径已经是真实 hls4ml/Vivado 路径，不是 mock。
+- 失败集中在精度/资源权衡和 CNN adapter 参数策略。
+
+后续建议：
+
+- 增加 per-layer precision/ReuseFactor policy，而不是全模型统一参数。
+- 对 Conv 层同时考虑 RF 合法性、LUT、timing 和 reference error。
+
+#### 历史 DB/RAG 仍包含旧版本误判 memory
+现状：
+
+- 老 run 中仍有 `mode=vivado_csim` 的历史条目。
+
+处理：
+
+- 本轮已从代码层过滤，不再作为 verified recommendation 来源。
+- 暂不直接清洗 DB，避免破坏可追溯开发历史；如后续需要，可做 migration 标记为 `execution_only`。
+
+---
+
 ## 2026-06-05 16:13:37 +08:00：完成 Vitis HLS 2022.2 代表性复测，并补齐 vitis_hls 命令适配
 ### 1. 本次测试做了什么
 用户安装了 Vitis 2022.2，安装目录为：

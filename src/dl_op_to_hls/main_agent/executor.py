@@ -30,6 +30,7 @@ class AgentExecutor:
             "warnings": result.warnings,
             "suggested_todos": result.suggested_todos,
             "memory_candidates": result.memory_candidates,
+            "verification": result.verification,
             "context_usage": result.context_usage,
         }
         todo.specialist_result = compressed
@@ -38,10 +39,13 @@ class AgentExecutor:
             "summary": result.summary,
             "specialist": result.specialist_name,
             "context_usage": result.context_usage,
+            "verification": result.verification,
         }
         state.tool_results.append({"specialist": result.specialist_name, "result": compressed})
         state.errors.extend(result.errors)
         state.memory_candidates.extend(result.memory_candidates)
+        if result.verification:
+            state.verification = result.verification
         for artifact in result.artifacts:
             artifact_type = artifact.get("type")
             artifact_path = artifact.get("path")

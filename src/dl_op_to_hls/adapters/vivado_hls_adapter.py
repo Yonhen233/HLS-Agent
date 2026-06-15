@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.errors import build_error, error_result
+from ..tools.functional_verification import parse_csim_verification
 from ..tools.report_parser import parse_csynth_report_file
 from .senior_agent_adapter import SeniorVivadoBridge
 
@@ -260,6 +261,25 @@ class VivadoHLSAdapter:
 
         return changed
 
+    def _copy_hls4ml_testbench(self, hls_project_dir: Path, work_dir: Path, top_function: str | None) -> Path | None:
+        candidates: list[Path] = []
+        if top_function:
+            candidates.append(hls_project_dir / f"{top_function}_test.cpp")
+        candidates.extend(sorted(hls_project_dir.glob("*_test.cpp")))
+        candidates.extend(sorted(hls_project_dir.glob("testbench.cpp")))
+        source = next((path for path in candidates if path.exists()), None)
+        if source is None:
+            return None
+        text = source.read_text(encoding="utf-8", errors="ignore")
+        # The copied firmware files live at work_dir root for synthesis include
+        # compatibility, so the generated hls4ml testbench needs local includes.
+        text = text.replace('#include "firmware/', '#include "')
+        if "#include <string.h>" not in text and "#include <stdlib.h>" in text:
+            text = text.replace("#include <stdlib.h>", "#include <stdlib.h>\n#include <string.h>", 1)
+        destination = work_dir / "testbench.cpp"
+        destination.write_text(text, encoding="utf-8")
+        return destination
+
     def create_project(self, arguments: dict[str, Any]) -> dict[str, Any]:
         hls_project_dir = Path(arguments["hls_project_dir"])
         work_dir = Path(arguments["work_dir"])
@@ -280,6 +300,7 @@ class VivadoHLSAdapter:
                     shutil.copy2(child, destination)
             if tb_data_dir.exists() and tb_data_dir.is_dir():
                 shutil.copytree(tb_data_dir, work_dir / "tb_data", dirs_exist_ok=True)
+            copied_tb = self._copy_hls4ml_testbench(hls_project_dir, work_dir, top_function)
             candidate_files: list[Path] = []
             if top_function:
                 candidate_files.append(work_dir / f"{top_function}.cpp")
@@ -307,7 +328,7 @@ class VivadoHLSAdapter:
                 project_name=Path(arguments.get("work_dir", work_dir)).name,
                 top_function=top_function,
                 code_file=str(copied_code),
-                testbench_file=None,
+                testbench_file=str(copied_tb) if copied_tb else None,
                 target_device=arguments.get("part", "xc7z020clg400-1"),
                 clock_period=str(arguments.get("clock_period", 5)),
             )
@@ -316,6 +337,7 @@ class VivadoHLSAdapter:
                 "tcl_path": str(tcl_path),
                 "work_dir": str(work_dir),
                 "top_function": top_function,
+                "testbench_path": str(copied_tb) if copied_tb else None,
                 "sanitized_files": sanitized_files,
                 "toolchain": self.hls_toolchain,
             }
@@ -351,7 +373,14 @@ class VivadoHLSAdapter:
             target_device=arguments.get("part", "xc7z020clg400-1"),
             clock_period=str(arguments.get("clock_period", 5)),
         )
-        return {"status": "success", "tcl_path": str(tcl_path), "work_dir": str(work_dir), "top_function": top_function, "toolchain": self.hls_toolchain}
+        return {
+            "status": "success",
+            "tcl_path": str(tcl_path),
+            "work_dir": str(work_dir),
+            "top_function": top_function,
+            "testbench_path": str(copied_tb) if copied_tb else None,
+            "toolchain": self.hls_toolchain,
+        }
 
     def run_csim(self, arguments: dict[str, Any]) -> dict[str, Any]:
         work_dir = Path(arguments["work_dir"])
@@ -398,7 +427,10 @@ class VivadoHLSAdapter:
                     ),
                     status="skipped",
                 )
-            log_path.write_text("INFO: [HLS] Starting synthesis...\nINFO: [HLS] Finished generating all RTL models.\n", encoding="utf-8")
+            log_path.write_text(
+                "INFO: [SIM] CSim done with 0 errors.\nGOLDEN_CHECK_PASSED\nINFO: [HLS] Starting synthesis...\nINFO: [HLS] Finished generating all RTL models.\n",
+                encoding="utf-8",
+            )
             fixture_name = MOCK_REPORT_BY_TOP.get(top_function)
             if fixture_name:
                 fixture_path = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "reports" / fixture_name
@@ -408,7 +440,8 @@ class VivadoHLSAdapter:
                     report_path.write_text(MOCK_REPORT, encoding="utf-8")
             else:
                 report_path.write_text(MOCK_REPORT, encoding="utf-8")
-            return {"status": "success", "log_path": str(log_path), "report_path": str(report_path)}
+            verification = parse_csim_verification(log_path, work_dir=work_dir)
+            return {"status": "success", "log_path": str(log_path), "report_path": str(report_path), "verification": verification}
         if not self._binary_available():
             return error_result(
                 build_error(
@@ -450,6 +483,7 @@ class VivadoHLSAdapter:
         log_path = synthesis.get("log_path")
         log_errors: list[str] = []
         if log_path and Path(log_path).exists():
+            verification = parse_csim_verification(log_path, work_dir=work_dir)
             log_text = Path(log_path).read_text(encoding="utf-8", errors="ignore")
             for line in log_text.splitlines():
                 lowered = line.lower()
@@ -480,6 +514,7 @@ class VivadoHLSAdapter:
             "report_path": real_report,
             "project_dir": result.get("project_dir"),
             "toolchain": self.hls_toolchain,
+            "verification": parse_csim_verification(log_path, work_dir=work_dir) if log_path else {"status": "not_run", "passed": None, "mode": "none"},
         }
 
     def parse_report(self, arguments: dict[str, Any]) -> dict[str, Any]:

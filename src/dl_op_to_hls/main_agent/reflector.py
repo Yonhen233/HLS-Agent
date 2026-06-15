@@ -27,6 +27,7 @@ def update_status_from_todos(state) -> None:
         and not state.errors
         and state.report
         and state.report.get("status") == "success"
+        and state.report.get("timing", {}).get("met") is not False
         and state.selected_path in {"fallback_template_path", "hls4ml_path", "existing_hls_project_path", "llm_candidate_path"}
         and statuses.issubset({"completed", "completed_with_warning", "skipped"})
     ):

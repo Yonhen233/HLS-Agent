@@ -111,6 +111,16 @@ def _score(query: str, text: str) -> float:
     return numerator / max(query_norm * text_norm, 1e-9)
 
 
+def _is_functionally_verified(verification: dict[str, Any] | None) -> bool:
+    if not verification:
+        return False
+    mode = verification.get("mode")
+    if verification.get("passed") is True and mode in {"golden_testbench", "hls4ml_reference_compare", "reference_compare"}:
+        return True
+    comparison = verification.get("comparison") if isinstance(verification.get("comparison"), dict) else {}
+    return verification.get("passed") is True and comparison.get("passed") is True
+
+
 class MemoryManager:
     def __init__(self, repository, rag_memory, workspace_root: str | Path):
         self.repository = repository
@@ -238,13 +248,20 @@ class MemoryManager:
             candidates.extend(build_semantic_candidates(state))
             candidates.extend(build_skill_candidates(state))
             report = state.get("report") or {}
-            if report and report.get("status") == "success":
+            verification = state.get("verification") or {}
+            if report and report.get("status") == "success" and _is_functionally_verified(verification):
                 candidates.append(
                     {
                         "kind": "optimization",
                         "key": f"optimization.{run_id}.metrics",
-                        "summary": "Synthesis metrics captured for later comparison.",
-                        "value": report,
+                        "summary": "Functionally verified synthesis metrics captured for later comparison.",
+                        "value": {
+                            "report": report,
+                            "verification": verification,
+                            "task": state.get("task", {}),
+                            "selected_path": state.get("selected_path"),
+                        },
+                        "confidence": 1.0,
                     }
                 )
         candidates = [self._sanitize_candidate(candidate) for candidate in candidates]

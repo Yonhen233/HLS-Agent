@@ -286,6 +286,35 @@ def test_vivado_specialist_parses_report_after_csynth_timeout(temp_workspace, sa
     assert result.warnings
 
 
+def test_vivado_specialist_timing_failure_is_partial_success(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    report_path = temp_workspace / "runs" / "r1" / "vivado_hls" / "solution1" / "syn" / "report" / "myproject_csynth.rpt"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text("report", encoding="utf-8")
+    agent.registry.get("vivado.run_csynth").handler = lambda arguments, context: {
+        "status": "success",
+        "log_path": str(temp_workspace / "runs" / "r1" / "vivado_hls" / "csynth.log"),
+        "report_path": str(report_path),
+        "verification": {"status": "csim_passed", "passed": True, "mode": "golden_testbench"},
+    }
+    agent.registry.get("vivado.parse_report").handler = lambda arguments, context: {
+        "status": "success",
+        "latency": {"min_cycles": 10, "max_cycles": 10},
+        "interval": {"min_ii": 1, "max_ii": 1},
+        "resources": {"bram": 0, "dsp": 1, "ff": 10, "lut": 20},
+        "timing": {"target_ns": 8.0, "estimated_ns": 9.6, "met": False},
+    }
+    specialist = VivadoSpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(_dense_state(temp_workspace), _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
+
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+
+    assert result.status == "partial_success"
+    assert "timing was not met" in result.summary
+    assert result.warnings
+
+
 def test_vivado_specialist_blocks_without_hls_project_dir(temp_workspace):
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")

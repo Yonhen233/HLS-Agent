@@ -48,6 +48,8 @@ class HLSVerificationEnv:
             lines.append(f"add_files -cflags \"-std=c++0x\" {workspace['code_filename']}")
             if workspace.get("testbench_filename"):
                 lines.append(f"add_files -tb -cflags \"-std=c++0x\" {workspace['testbench_filename']}")
+            for data_dir in workspace.get("testbench_data_dirs", []):
+                lines.append(f"add_files -tb {data_dir}")
             lines.append(f"set_top {workspace['top_function']}")
             lines.append('open_solution -reset "solution1"')
             lines.append(f"set_part {{{workspace['part']}}}")
@@ -90,6 +92,11 @@ class HLSVerificationEnv:
             "clock_period": clock_period,
             "code_filename": os.path.basename(code_file),
             "testbench_filename": os.path.basename(testbench_file) if testbench_file else None,
+            "testbench_data_dirs": [
+                item
+                for item in ["weights", "tb_data"]
+                if testbench_file and os.path.isdir(os.path.join(project_dir, item))
+            ],
             "initialized": False,
         }
         tcl_path = os.path.join(project_dir, f"run_{workspace['project_name']}.tcl")

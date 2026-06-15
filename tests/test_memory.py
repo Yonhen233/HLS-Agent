@@ -83,8 +83,18 @@ def test_memory_policy_promotes_failure():
 
 def test_memory_policy_promotes_optimization():
     policy = MemoryPolicy()
-    candidate = {"kind": "optimization", "summary": "Reuse factor reduced DSP."}
+    candidate = {
+        "kind": "optimization",
+        "summary": "Reuse factor reduced DSP.",
+        "value": {"verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"}},
+    }
     assert policy.should_promote(candidate) is True
+
+
+def test_memory_policy_requires_verified_optimization():
+    policy = MemoryPolicy()
+    candidate = {"kind": "optimization", "summary": "Unverified synthesis metrics."}
+    assert policy.should_promote(candidate) is False
 
 
 def test_memory_policy_ignores_raw_log():
@@ -97,7 +107,14 @@ def test_memory_promote_to_long_term(tmp_path):
     manager = _manager(tmp_path)
     result = manager.promote_to_long_term(
         "r1",
-        [{"kind": "optimization", "key": "optimization.r1", "summary": "Reuse factor reduced DSP.", "value": {"dsp": 12}}],
+        [
+            {
+                "kind": "optimization",
+                "key": "optimization.r1",
+                "summary": "Reuse factor reduced DSP.",
+                "value": {"dsp": 12, "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"}},
+            }
+        ],
     )
     assert result["promoted_memories"]
 
@@ -140,9 +157,10 @@ def test_memory_promotion_strips_second_order_prior_experience(tmp_path):
                 "kind": "optimization",
                 "key": "optimization.resnet_run",
                 "summary": "ResNet boundary run recorded unsupported status.",
-                "value": {
-                    "name": "resnet18_boundary_demo",
-                    "suggestions": [
+                    "value": {
+                        "name": "resnet18_boundary_demo",
+                        "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+                        "suggestions": [
                         "Optimization is not applicable yet.",
                         "RuleSuggestion: Prior experience hint: optimization.matmul_run increased reuse_factor to reduce DSP.",
                     ],

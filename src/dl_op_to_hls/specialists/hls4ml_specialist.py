@@ -87,6 +87,12 @@ class HLS4MLSpecialist(BaseSpecialist):
                 artifacts.append({"type": "hls_project", "path": result["hls_project_dir"]})
             if result.get("log_path"):
                 artifacts.append({"type": "hls4ml_log", "path": result["log_path"]})
+            reference = result.get("reference_data") or {}
+            for key in ("input_path", "output_path", "manifest_path"):
+                if reference.get(key):
+                    artifacts.append({"type": "reference_data", "path": reference[key], "role": key})
+            if reference.get("status") == "error":
+                warnings.append({"message": "Reference data generation failed.", "error": reference.get("error")})
         elif tool in {"hls4ml.run_csim", "hls4ml.run_hls4ml_csim"}:
             summary = "hls4ml csim completed." if result.get("status") == "success" else "hls4ml csim failed."
             if result.get("log_path"):

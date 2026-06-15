@@ -254,6 +254,7 @@ class PlanExecuteReactRuntime:
                 "errors": result.errors,
                 "warnings": result.warnings,
                 "suggested_todos": result.suggested_todos,
+                "verification": result.verification,
                 "context_usage": result.context_usage,
             },
             "specialist_status": result.status,
@@ -311,6 +312,8 @@ class PlanExecuteReactRuntime:
                 observation["error_type"] = (result.errors[0] if result.errors else {}).get("error_type")
                 if observation["error_type"] == "VivadoNotFoundError":
                     observation["status"] = "skipped"
+            if result.verification:
+                state.verification = result.verification
         if result.specialist_name == "VerificationSpecialist" and result.errors:
             observation["error_type"] = result.errors[0].get("error_type")
             if observation["error_type"] == "VerificationFailedError":
@@ -816,6 +819,13 @@ class PlanExecuteReactRuntime:
             state.report = empty_report("missing")
         report_path = self.context["artifact_manager"].write_json("report.json", state.report, "report_json")
         state.artifacts["report_json"] = str(report_path)
+        if state.verification:
+            verification_path = self.context["artifact_manager"].write_json(
+                "verification.json",
+                state.verification,
+                "verification",
+            )
+            state.artifacts["verification"] = str(verification_path)
         state.artifacts["trace"] = str(self.context["run_dir"] / "trace.jsonl")
         self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
         if not state.artifacts.get("compressed_context"):
@@ -824,6 +834,7 @@ class PlanExecuteReactRuntime:
         compressed_payload = self._compress_outputs(state)
         compressed_logs_path = self.context["artifact_manager"].write_json("compressed_logs.json", compressed_payload, "report_json")
         state.artifacts["compressed_logs"] = str(compressed_logs_path)
+        update_status_from_todos(state)
         if not state.memory_candidates:
             state_path = self._write_memory_ready_state_snapshot(state)
             state.artifacts["state"] = str(state_path)
@@ -840,6 +851,12 @@ class PlanExecuteReactRuntime:
             state.promoted_memories = promote_result.get("promoted_memories", [])
             if promote_result.get("path"):
                 state.artifacts["promoted_memories"] = promote_result["path"]
+        if not state.parameter_advice:
+            state.parameter_advice = self._call_tool(
+                state,
+                "parameter_advisor.recommend",
+                {"state": state.to_dict()},
+            )
         if not state.suggestions:
             suggestion_result = self._call_tool(
                 state,
@@ -864,6 +881,7 @@ class PlanExecuteReactRuntime:
                 state.artifacts.get("suggestions"),
                 state.artifacts.get("compressed_context"),
                 state.artifacts.get("report_json"),
+                state.artifacts.get("verification"),
                 state.artifacts.get("compressed_logs"),
                 state.artifacts.get("unsupported_report"),
             ]
@@ -900,6 +918,7 @@ class PlanExecuteReactRuntime:
             and not state.errors
             and state.report
             and state.report.get("status") == "success"
+            and state.report.get("timing", {}).get("met") is not False
             and state.selected_path in {"fallback_template_path", "hls4ml_path", "existing_hls_project_path", "llm_candidate_path"}
         ):
             state.status = "success"
@@ -1132,7 +1151,21 @@ class PlanExecuteReactRuntime:
                 "vivado.run_csynth",
                 {"work_dir": state.vivado_work_dir, "tcl_path": tcl_path, "top_function": create_result.get("top_function")},
             )
+            if csynth_result.get("verification"):
+                state.verification = csynth_result["verification"]
             if csynth_result.get("status") == "success":
+                if state.verification and state.verification.get("passed") is False:
+                    error = build_error(
+                        "VerificationFailedError",
+                        "Vivado C simulation functional verification failed.",
+                        recoverable=True,
+                        source="vivado.run_csynth",
+                        suggested_action="Inspect reference/output mismatch before trusting synthesis metrics.",
+                        details={"verification": state.verification},
+                    ).to_dict()
+                    state.errors.append(error)
+                    self.todo_manager.mark_failed(todo.id, error)
+                    return {"status": "failed", "action": {"tool": "vivado.run_csynth"}, "observation": csynth_result}
                 report_path = csynth_result.get("report_path")
                 if report_path and Path(report_path).exists():
                     self.context["artifact_manager"].register_file(report_path, "vivado_report")

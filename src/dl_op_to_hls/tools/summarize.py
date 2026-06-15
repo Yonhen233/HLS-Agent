@@ -87,6 +87,73 @@ def _specialist_section(state: dict[str, Any]) -> str:
     return "## Specialist Execution Summary\n\n" + "\n".join(rows)
 
 
+def _functional_verification_section(state: dict[str, Any]) -> str:
+    verification = state.get("verification") or {}
+    if not verification:
+        return (
+            "## Functional Verification\n\n"
+            "- Status: not_run\n"
+            "- Reason: No functional verification result was recorded.\n"
+        )
+    comparison = verification.get("comparison") or {}
+    lines = [
+        "## Functional Verification",
+        "",
+        f"- Status: {verification.get('status')}",
+        f"- Passed: {verification.get('passed')}",
+        f"- Mode: {verification.get('mode')}",
+        f"- CSim executed: {verification.get('csim_executed')}",
+    ]
+    if comparison:
+        lines.extend(
+            [
+                f"- Samples: {comparison.get('sample_count')}",
+                f"- Max abs error: {comparison.get('max_abs_error')}",
+                f"- Max rel error: {comparison.get('max_rel_error')}",
+                f"- Tolerance: {comparison.get('tolerance')}",
+            ]
+        )
+    if verification.get("log_path"):
+        lines.append(f"- CSim log: {verification.get('log_path')}")
+    if verification.get("reference_path"):
+        lines.append(f"- Reference output: {verification.get('reference_path')}")
+    if verification.get("output_path"):
+        lines.append(f"- CSim output: {verification.get('output_path')}")
+    if verification.get("reason"):
+        lines.append(f"- Reason: {verification.get('reason')}")
+    return "\n".join(lines) + "\n"
+
+
+def _parameter_advice_section(state: dict[str, Any]) -> str:
+    advice = state.get("parameter_advice") or {}
+    if not advice:
+        return "## Parameter Advisor\n\n- Status: not_run\n"
+    lines = [
+        "## Parameter Advisor",
+        "",
+        f"- Status: {advice.get('status')}",
+        f"- Mode: {advice.get('mode')}",
+        f"- Confidence: {advice.get('confidence')}",
+        f"- Verified sources: {advice.get('source_count')}",
+    ]
+    if advice.get("reason"):
+        lines.append(f"- Reason: {advice.get('reason')}")
+    recommendations = advice.get("recommendations") or []
+    if recommendations:
+        lines.append("")
+        lines.append("| Parameter | Recommended Value | Reason |")
+        lines.append("|---|---|---|")
+        for item in recommendations:
+            lines.append(
+                "| {parameter} | {value} | {reason} |".format(
+                    parameter=item.get("parameter"),
+                    value=item.get("recommended_value"),
+                    reason=str(item.get("reason", "")).replace("|", "/"),
+                )
+            )
+    return "\n".join(lines) + "\n"
+
+
 def _context_isolation_section(state: dict[str, Any]) -> str:
     run_id = state.get("run_id")
     return (
@@ -155,6 +222,7 @@ def write_summary(arguments: dict[str, Any], context: dict[str, Any]) -> dict[st
         f"- LUT: {resources.get('lut')}\n"
         f"- FF: {resources.get('ff')}\n"
         f"- Timing met: {timing.get('met')}\n\n"
+        f"{_functional_verification_section(state)}\n"
         "## Errors / Warnings\n"
         f"{_error_lines(state.get('errors', []))}\n\n"
         "## Todo Execution Summary\n\n"
@@ -162,6 +230,7 @@ def write_summary(arguments: dict[str, Any], context: dict[str, Any]) -> dict[st
         f"{_specialist_section(state)}\n\n"
         f"{_context_isolation_section(state)}\n"
         f"{_memory_section(state)}\n"
+        f"{_parameter_advice_section(state)}\n"
         f"{_llm_section(state)}\n"
         "\n## Suggestions\n"
         + ("\n".join(f"- {item}" for item in suggestions) if suggestions else "- None")

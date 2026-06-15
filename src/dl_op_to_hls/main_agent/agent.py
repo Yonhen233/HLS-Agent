@@ -39,6 +39,7 @@ from ..specialists.router import build_default_router
 from ..tools.fallback_template import generate_operator_hls, generate_testbench
 from ..tools.graph_rewrite import rewrite_graph
 from ..tools.llm_candidate import LLMCandidateGenerator, generate_candidate
+from ..tools.parameter_advisor import recommend_parameters
 from ..tools.suggest_optimization import suggest_optimization
 from ..tools.summarize import write_summary
 from ..tools.verify_candidate import verify_candidate
@@ -354,6 +355,17 @@ class MainAgent:
                 permission_level="write",
                 tags=["suggestion"],
                 handler=suggest_optimization,
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="parameter_advisor.recommend",
+                description="Recommend HLS parameters from functionally verified long-term memory.",
+                input_schema=simple_schema({"state": {"type": "object"}}, ["state"]),
+                output_schema=simple_schema({"status": {"type": "string"}}),
+                permission_level="read",
+                tags=["parameter", "memory"],
+                handler=recommend_parameters,
             )
         )
         self._register_tool_aliases()

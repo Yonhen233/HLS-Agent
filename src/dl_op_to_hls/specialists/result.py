@@ -17,6 +17,7 @@ class SpecialistResult:
     warnings: list[dict[str, Any]] = field(default_factory=list)
     suggested_todos: list[dict[str, Any]] = field(default_factory=list)
     memory_candidates: list[dict[str, Any]] = field(default_factory=list)
+    verification: dict[str, Any] | None = None
     context_usage: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

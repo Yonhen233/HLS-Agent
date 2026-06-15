@@ -31,6 +31,35 @@ def test_runtime_fallback_success_not_downgraded_by_hls4ml_warning(temp_workspac
     assert state.status == "success"
 
 
+def test_runtime_timing_failed_is_partial_success_even_when_function_verified():
+    state = AgentState(
+        run_id="timing_failed",
+        task={"task_type": "operator", "name": "matmul"},
+        status="initialized",
+        plan=[],
+        selected_path="fallback_template_path",
+        report={"status": "success", "timing": {"met": False}},
+        verification={"status": "csim_passed", "passed": True, "mode": "golden_testbench"},
+    )
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Run Vivado HLS synthesis",
+            description="Run synthesis",
+            status="completed_with_warning",
+            priority=1,
+            dependencies=[],
+            assigned_tool="vivado.run_csynth",
+            assigned_specialist="VivadoSpecialist",
+            inputs={},
+            outputs={"summary": "timing was not met"},
+            error=None,
+        )
+    ]
+    update_status_from_todos(state)
+    assert state.status == "partial_success"
+
+
 def test_runtime_vivado_missing_marks_todo_skipped(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     agent = MainAgent(temp_workspace, console=False)

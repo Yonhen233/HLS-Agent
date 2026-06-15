@@ -1,0 +1,173 @@
+import json
+
+import pytest
+
+from dl_op_to_hls.tools.fallback_template import render_fallback_operator
+from dl_op_to_hls.tools.functional_verification import parse_csim_verification, write_onnx_reference_data
+from dl_op_to_hls.tools.parameter_advisor import recommend_parameters
+
+
+def _operator_task(op_type: str) -> dict:
+    return {
+        "task_type": "operator",
+        "op_type": op_type,
+        "name": f"{op_type.lower()}_golden",
+        "input_shape": [4, 4] if op_type == "MatMul" else [4],
+        "output_shape": [4, 4] if op_type == "MatMul" else [4],
+        "dtype": "ap_fixed<16,6>",
+        "target": {"backend": "VivadoHLS", "part": "xc7z020clg400-1", "clock_period": 5},
+        "optimization": {"objective": "latency", "reuse_factor": 1, "pipeline_ii": 1},
+    }
+
+
+@pytest.mark.parametrize("op_type", ["Dense", "MatMul", "ReLU", "Add"])
+def test_fallback_generates_golden_testbench_and_reference(tmp_path, op_type):
+    result = render_fallback_operator(_operator_task(op_type), str(tmp_path))
+    testbench = (tmp_path / "testbench.cpp").read_text(encoding="utf-8")
+    reference = json.loads((tmp_path / "reference.json").read_text(encoding="utf-8"))
+    assert result["status"] == "success"
+    assert "GOLDEN_CHECK_PASSED" in testbench
+    assert "GOLDEN_CHECK_FAILED" in testbench
+    assert reference["status"] == "success"
+
+
+def test_parse_csim_verification_from_golden_log(tmp_path):
+    log = tmp_path / "csynth.log"
+    log.write_text("Starting C simulation...\nGOLDEN_CHECK_PASSED\nC simulation completed\n", encoding="utf-8")
+    result = parse_csim_verification(log, work_dir=tmp_path)
+    assert result["status"] == "csim_passed"
+    assert result["passed"] is True
+
+
+def test_parse_csim_verification_compares_hls4ml_outputs(tmp_path):
+    tb_data = tmp_path / "tb_data"
+    tb_data.mkdir()
+    (tb_data / "tb_output_predictions.dat").write_text("1.0 2.0\n", encoding="utf-8")
+    (tb_data / "csim_results.log").write_text("1.1 1.9\n", encoding="utf-8")
+    log = tmp_path / "csynth.log"
+    log.write_text("C simulation completed\n", encoding="utf-8")
+    result = parse_csim_verification(log, work_dir=tmp_path, tolerance=0.25)
+    assert result["status"] == "csim_passed"
+    assert result["comparison"]["max_abs_error"] == pytest.approx(0.1)
+
+
+def test_parse_csim_verification_finds_vivado_csim_build_output(tmp_path):
+    tb_data = tmp_path / "tb_data"
+    build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"
+    tb_data.mkdir()
+    build_tb_data.mkdir(parents=True)
+    (tb_data / "tb_output_predictions.dat").write_text("1.0 2.0\n", encoding="utf-8")
+    (build_tb_data / "csim_results.log").write_text("1.05 1.95\n", encoding="utf-8")
+    log = tmp_path / "csynth.log"
+    log.write_text("INFO: [SIM 211-1] CSim done with 0 errors.\n", encoding="utf-8")
+    result = parse_csim_verification(log, work_dir=tmp_path, tolerance=0.25)
+    assert result["mode"] == "hls4ml_reference_compare"
+    assert result["status"] == "csim_passed"
+    assert result["output_path"].endswith("csim_results.log")
+
+
+def test_parse_csim_verification_reports_assertion_failure(tmp_path):
+    tb_data = tmp_path / "tb_data"
+    build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"
+    tb_data.mkdir()
+    build_tb_data.mkdir(parents=True)
+    (tb_data / "tb_output_predictions.dat").write_text("1.0 2.0\n", encoding="utf-8")
+    (build_tb_data / "csim_results.log").write_text("", encoding="utf-8")
+    log = tmp_path / "csynth.log"
+    log.write_text("Processing input 0\nAssertion failed!\n@E Simulation failed\n", encoding="utf-8")
+    result = parse_csim_verification(log, work_dir=tmp_path)
+    assert result["status"] == "csim_failed"
+    assert result["csim_executed"] is True
+    assert result["reason"] == "C simulation log contains a failure marker."
+
+
+def test_write_onnx_reference_data(tmp_path):
+    pytest.importorskip("onnx")
+    pytest.importorskip("onnxruntime")
+    import onnx
+    from onnx import TensorProto, helper
+
+    input_tensor = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])
+    output_tensor = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
+    node = helper.make_node("Identity", ["x"], ["y"])
+    graph = helper.make_graph([node], "identity_graph", [input_tensor], [output_tensor])
+    model = helper.make_model(graph, producer_name="dl-op-to-hls-test", opset_imports=[helper.make_operatorsetid("", 13)])
+    model.ir_version = 10
+    model_path = tmp_path / "identity.onnx"
+    onnx.save(model, model_path)
+
+    result = write_onnx_reference_data(model_path, tmp_path / "hls_project", num_samples=2)
+    assert result["status"] == "success"
+    assert (tmp_path / "hls_project" / "tb_data" / "tb_input_features.dat").exists()
+    assert (tmp_path / "hls_project" / "tb_data" / "tb_output_predictions.dat").exists()
+
+
+class _Repo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {
+                "name": "mnist_mlp_demo",
+                "task_type": "model",
+                "hls4ml": {"precision": "fixed<8,3>", "reuse_factor": 512, "strategy": "Resource"},
+                "target": {"clock_period": 10},
+            },
+            "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+            "report": {"status": "success", "resources": {"lut": 123}},
+        }
+        return [
+            {
+                "id": 1,
+                "source_run_id": "verified_run",
+                "importance": 3,
+                "value_json": json.dumps(value),
+            }
+        ]
+
+
+def test_parameter_advisor_reads_verified_history():
+    state = {
+        "task": {
+            "name": "mnist_mlp_demo",
+            "task_type": "model",
+            "hls4ml": {"precision": "fixed<16,6>", "reuse_factor": 64},
+        }
+    }
+    result = recommend_parameters({"state": state}, {"repository": _Repo()})
+    assert result["status"] == "success"
+    assert result["mode"] == "verified_history"
+    assert any(item["parameter"] == "reuse_factor" and item["recommended_value"] == 512 for item in result["recommendations"])
+
+
+class _ExecutionOnlyRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 512}},
+            "verification": {"status": "csim_passed", "passed": True, "mode": "vivado_csim"},
+            "report": {"status": "success"},
+        }
+        return [{"id": 2, "source_run_id": "execution_only", "importance": 5, "value_json": json.dumps(value)}]
+
+
+def test_parameter_advisor_ignores_execution_only_csim_history():
+    state = {"task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 64}}}
+    result = recommend_parameters({"state": state}, {"repository": _ExecutionOnlyRepo()})
+    assert result["status"] == "no_verified_history"
+
+
+class _TimingFailedRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {"name": "matmul_16x16_resource", "task_type": "operator", "optimization": {"reuse_factor": 8}},
+            "verification": {"status": "csim_passed", "passed": True, "mode": "golden_testbench"},
+            "report": {"status": "success", "timing": {"met": False}},
+        }
+        return [{"id": 3, "source_run_id": "timing_failed", "importance": 5, "value_json": json.dumps(value)}]
+
+
+def test_parameter_advisor_ignores_timing_failed_history():
+    state = {"task": {"name": "matmul_16x16_resource", "task_type": "operator", "optimization": {"reuse_factor": 8}}}
+    result = recommend_parameters({"state": state}, {"repository": _TimingFailedRepo()})
+    assert result["status"] == "no_verified_history"

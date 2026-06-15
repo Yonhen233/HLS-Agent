@@ -189,8 +189,13 @@ class VivadoSpecialist(BaseSpecialist):
             permission_gate,
         )
         observations.append({"tool": "vivado.run_csynth", "result": self._compress_result(csynth_result)})
+        verification = csynth_result.get("verification")
         if csynth_result.get("log_path"):
             artifacts.append({"type": "vivado_log", "path": csynth_result["log_path"]})
+        if verification and verification.get("reference_path"):
+            artifacts.append({"type": "reference_data", "path": verification["reference_path"], "role": "reference_output"})
+        if verification and verification.get("output_path"):
+            artifacts.append({"type": "verification_output", "path": verification["output_path"]})
         if csynth_result.get("status") != "success" and not csynth_result.get("report_path"):
             error = csynth_result.get("error", {})
             errors.append(error)
@@ -206,6 +211,7 @@ class VivadoSpecialist(BaseSpecialist):
                     observations=observations,
                     errors=errors,
                     metrics=empty_report("skipped") if status == "partial_success" else None,
+                    verification=verification,
                 ),
             )
         if csynth_result.get("status") != "success" and csynth_result.get("report_path"):
@@ -241,11 +247,46 @@ class VivadoSpecialist(BaseSpecialist):
             else:
                 warnings.append({"message": "Vivado report parsing did not produce metrics.", "result": parse_result})
         report_available_after_timeout = bool(metrics and csynth_result.get("status") != "success")
+        verification_failed = bool(verification and verification.get("passed") is False)
+        verification_missing = bool(verification and verification.get("status") in {"not_run", "unknown"})
+        if verification_failed:
+            errors.append(
+                build_error(
+                    "VerificationFailedError",
+                    "Vivado C simulation functional verification failed.",
+                    recoverable=True,
+                    source="vivado.run_csynth",
+                    suggested_action="Inspect reference/output mismatch before trusting synthesis metrics.",
+                    details={"verification": verification},
+                ).to_dict()
+            )
+        elif verification_missing:
+            warnings.append({"message": "Functional verification did not run or did not produce a pass/fail marker.", "verification": verification})
+        timing_failed = bool(metrics and isinstance(metrics.get("timing"), dict) and metrics["timing"].get("met") is False)
+        if timing_failed:
+            warnings.append(
+                {
+                    "message": "Synthesis completed and functional verification passed, but timing was not met.",
+                    "timing": metrics.get("timing") if metrics else None,
+                }
+            )
+        result_status = (
+            "failed"
+            if verification_failed
+            else "partial_success"
+            if report_available_after_timeout or timing_failed
+            else "success"
+        )
         result = SpecialistResult(
             specialist_name=self.name,
             todo_id=envelope.todo_id,
-            status="partial_success" if report_available_after_timeout else "success",
+            status=result_status,
             summary=(
+                "Vivado HLS produced metrics, but functional verification failed."
+                if verification_failed
+                else "Vivado HLS synthesis completed and functional verification passed, but timing was not met."
+                if timing_failed
+                else
                 "Vivado HLS produced a parseable report after a non-clean exit/timeout."
                 if report_available_after_timeout
                 else "Vivado HLS synthesis completed and metrics were parsed."
@@ -253,7 +294,9 @@ class VivadoSpecialist(BaseSpecialist):
             observations=observations,
             metrics=metrics,
             artifacts=artifacts,
+            errors=errors,
             warnings=warnings,
+            verification=verification,
         )
         return self._finalize_result(envelope, result)
 

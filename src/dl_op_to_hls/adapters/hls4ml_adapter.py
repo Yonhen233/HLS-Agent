@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.errors import build_error, error_result
+from ..tools.functional_verification import write_onnx_reference_data
 
 
 class HLS4MLAdapter:
@@ -544,6 +545,23 @@ class HLS4MLAdapter:
         from hls4ml.model.graph import ModelGraph  # type: ignore
 
         layer_list, input_layer, output_layer, rewrites = self._build_layer_list_from_onnx(model)
+        hls_config = dict(hls_config or {})
+        requested_model = dict(hls_config.get("Model", {}))
+        requested_reuse = int(requested_model.get("ReuseFactor", 1) or 1)
+        layer_name_config = dict(hls_config.get("LayerName", {}))
+        for layer in layer_list:
+            if layer.get("class_name") != "Conv2D":
+                continue
+            max_resource_reuse = int(layer["filt_height"]) * int(layer["filt_width"]) * int(layer["n_chan"])
+            if requested_reuse > max_resource_reuse:
+                layer_config = dict(layer_name_config.get(layer["name"], {}))
+                layer_config["ReuseFactor"] = max(1, max_resource_reuse)
+                layer_name_config[layer["name"]] = layer_config
+                rewrites.append(
+                    f"Conv2D {layer['name']} ReuseFactor capped to {max_resource_reuse} for Vivado HLS resource CSim"
+                )
+        if layer_name_config:
+            hls_config["LayerName"] = layer_name_config
         config = create_config(
             output_dir=str(output_dir),
             project_name=project_name,
@@ -989,11 +1007,13 @@ class HLS4MLAdapter:
             log_dir.mkdir(parents=True, exist_ok=True)
             log_path = log_dir / "hls4ml_convert.log"
             log_path.write_text("Mock hls4ml conversion completed successfully.", encoding="utf-8")
+            reference_result = write_onnx_reference_data(model_path=arguments.get("model_path", ""), project_dir=output_dir)
             return {
                 "status": "success",
                 "hls_project_dir": str(output_dir),
                 "top_function": top_function,
                 "log_path": str(log_path),
+                "reference_data": reference_result,
             }
         if not self._installed():
             return error_result(
@@ -1103,11 +1123,13 @@ class HLS4MLAdapter:
                 ),
                 encoding="utf-8",
             )
+            reference_result = write_onnx_reference_data(model_path=model_path, project_dir=output_dir)
             return {
                 "status": "success",
                 "hls_project_dir": str(output_dir),
                 "top_function": top_function,
                 "log_path": str(log_path),
+                "reference_data": reference_result,
             }
         except Exception as exc:  # pragma: no cover - real dependency path
             try:
@@ -1145,12 +1167,14 @@ class HLS4MLAdapter:
                         ),
                         encoding="utf-8",
                     )
+                    reference_result = write_onnx_reference_data(model_path=model_path, project_dir=output_dir)
                     return {
                         "status": "success",
                         "hls_project_dir": str(output_dir),
                         "top_function": top_function,
                         "log_path": str(log_path),
                         "frontend_adapter": "onnx_layer_list",
+                        "reference_data": reference_result,
                     }
             except Exception as layer_exc:
                 exc = RuntimeError(f"{exc}; ONNX/QONNX layer-list adapter failed: {layer_exc}")

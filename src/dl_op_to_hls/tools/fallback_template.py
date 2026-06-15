@@ -5,6 +5,7 @@ from string import Template
 from typing import Any
 
 from ..core.errors import build_error, error_result
+from .functional_verification import write_fallback_reference_data
 
 
 def _load_template(template_dir: Path, name: str) -> Template:
@@ -31,12 +32,32 @@ def _render_testbench(op_type: str, task: dict[str, Any], template_dir: Path) ->
         output_dim = _shape_value(task.get("output_shape"), 0, 32)
         setup = "\n".join(
             [
-                f"  data_t input[{input_dim}] = {{0}};",
-                f"  data_t weights[{output_dim}][{input_dim}] = {{0}};",
-                f"  data_t bias[{output_dim}] = {{0}};",
-                f"  data_t output[{output_dim}] = {{0}};",
-                f"  for (int i = 0; i < {input_dim}; ++i) input[i] = (data_t)(i % 4);",
+                "  int failed = 0;",
+                "  const double tolerance = 0.001;",
+                f"  data_t input[{input_dim}];",
+                f"  data_t weights[{output_dim}][{input_dim}];",
+                f"  data_t bias[{output_dim}];",
+                f"  data_t output[{output_dim}];",
+                f"  data_t expected[{output_dim}];",
+                f"  for (int i = 0; i < {input_dim}; ++i) input[i] = (data_t)((i % 5) - 2);",
+                f"  for (int o = 0; o < {output_dim}; ++o) {{",
+                "    bias[o] = (data_t)(o % 2);",
+                "    expected[o] = bias[o];",
+                f"    for (int i = 0; i < {input_dim}; ++i) {{",
+                "      weights[o][i] = (data_t)(((o + i) % 3) - 1);",
+                "      expected[o] += input[i] * weights[o][i];",
+                "    }",
+                "  }",
                 f"  {top_function}(input, weights, bias, output);",
+                f"  for (int o = 0; o < {output_dim}; ++o) {{",
+                "    double diff = (double)(output[o] - expected[o]);",
+                "    if (diff < 0) diff = -diff;",
+                "    if (diff > tolerance) {",
+                "      std::printf(\"GOLDEN_CHECK_FAILED Dense output[%d] diff=%f\\n\", o, diff);",
+                "      failed = 1;",
+                "    }",
+                "  }",
+                "  if (failed) return 1;",
             ]
         )
     elif op_type == "MatMul":
@@ -45,30 +66,86 @@ def _render_testbench(op_type: str, task: dict[str, Any], template_dir: Path) ->
         cols = _shape_value(task.get("output_shape"), 1, 4)
         setup = "\n".join(
             [
-                f"  data_t lhs[{rows}][{inner}] = {{0}};",
-                f"  data_t rhs[{inner}][{cols}] = {{0}};",
-                f"  data_t output[{rows}][{cols}] = {{0}};",
+                "  int failed = 0;",
+                "  const double tolerance = 0.001;",
+                f"  data_t lhs[{rows}][{inner}];",
+                f"  data_t rhs[{inner}][{cols}];",
+                f"  data_t output[{rows}][{cols}];",
+                f"  data_t expected[{rows}][{cols}];",
+                f"  for (int r = 0; r < {rows}; ++r) {{",
+                f"    for (int k = 0; k < {inner}; ++k) lhs[r][k] = (data_t)(((r + k) % 4) - 1);",
+                "  }",
+                f"  for (int k = 0; k < {inner}; ++k) {{",
+                f"    for (int c = 0; c < {cols}; ++c) rhs[k][c] = (data_t)(((k + c) % 3) - 1);",
+                "  }",
+                f"  for (int r = 0; r < {rows}; ++r) {{",
+                f"    for (int c = 0; c < {cols}; ++c) {{",
+                "      expected[r][c] = 0;",
+                f"      for (int k = 0; k < {inner}; ++k) expected[r][c] += lhs[r][k] * rhs[k][c];",
+                "    }",
+                "  }",
                 f"  {top_function}(lhs, rhs, output);",
+                f"  for (int r = 0; r < {rows}; ++r) {{",
+                f"    for (int c = 0; c < {cols}; ++c) {{",
+                "      double diff = (double)(output[r][c] - expected[r][c]);",
+                "      if (diff < 0) diff = -diff;",
+                "      if (diff > tolerance) {",
+                "        std::printf(\"GOLDEN_CHECK_FAILED MatMul output[%d][%d] diff=%f\\n\", r, c, diff);",
+                "        failed = 1;",
+                "      }",
+                "    }",
+                "  }",
+                "  if (failed) return 1;",
             ]
         )
     elif op_type == "ReLU":
         width = _shape_value(task.get("input_shape"), 0, 16)
         setup = "\n".join(
             [
-                f"  data_t input[{width}] = {{0}};",
-                f"  data_t output[{width}] = {{0}};",
+                "  int failed = 0;",
+                "  const double tolerance = 0.001;",
+                f"  data_t input[{width}];",
+                f"  data_t output[{width}];",
+                f"  data_t expected[{width}];",
                 f"  for (int i = 0; i < {width}; ++i) input[i] = (i % 2 == 0) ? (data_t)i : (data_t)(-i);",
+                f"  for (int i = 0; i < {width}; ++i) expected[i] = input[i] > 0 ? input[i] : (data_t)0;",
                 f"  {top_function}(input, output);",
+                f"  for (int i = 0; i < {width}; ++i) {{",
+                "    double diff = (double)(output[i] - expected[i]);",
+                "    if (diff < 0) diff = -diff;",
+                "    if (diff > tolerance) {",
+                "      std::printf(\"GOLDEN_CHECK_FAILED ReLU output[%d] diff=%f\\n\", i, diff);",
+                "      failed = 1;",
+                "    }",
+                "  }",
+                "  if (failed) return 1;",
             ]
         )
     else:
         width = _shape_value(task.get("input_shape"), 0, 16)
         setup = "\n".join(
             [
-                f"  data_t lhs[{width}] = {{0}};",
-                f"  data_t rhs[{width}] = {{0}};",
-                f"  data_t output[{width}] = {{0}};",
+                "  int failed = 0;",
+                "  const double tolerance = 0.001;",
+                f"  data_t lhs[{width}];",
+                f"  data_t rhs[{width}];",
+                f"  data_t output[{width}];",
+                f"  data_t expected[{width}];",
+                f"  for (int i = 0; i < {width}; ++i) {{",
+                "    lhs[i] = (data_t)((i % 7) - 3);",
+                "    rhs[i] = (data_t)((i % 5) - 2);",
+                "    expected[i] = lhs[i] + rhs[i];",
+                "  }",
                 f"  {top_function}(lhs, rhs, output);",
+                f"  for (int i = 0; i < {width}; ++i) {{",
+                "    double diff = (double)(output[i] - expected[i]);",
+                "    if (diff < 0) diff = -diff;",
+                "    if (diff > tolerance) {",
+                "      std::printf(\"GOLDEN_CHECK_FAILED Add output[%d] diff=%f\\n\", i, diff);",
+                "      failed = 1;",
+                "    }",
+                "  }",
+                "  if (failed) return 1;",
             ]
         )
     return _load_template(template_dir, "testbench.cpp.j2").safe_substitute(
@@ -76,7 +153,7 @@ def _render_testbench(op_type: str, task: dict[str, Any], template_dir: Path) ->
         header_name=header_name,
         dtype=dtype,
         setup_block=setup,
-        output_comment=f"Smoke testbench for {op_type}",
+        output_comment="GOLDEN_CHECK_PASSED",
     )
 
 
@@ -126,6 +203,7 @@ def render_fallback_operator(task: dict[str, Any], output_dir: str) -> dict[str,
     cpp_text = _load_template(template_dir, cpp_template_name).safe_substitute(context)
     tb_text = _render_testbench(op_type, task, template_dir)
     tcl_text = _load_template(template_dir, "run_hls.tcl.j2").safe_substitute(context)
+    reference_result = write_fallback_reference_data(task, generated_dir)
 
     header_path = generated_dir / f"{top_function}.h"
     cpp_path = generated_dir / f"{top_function}.cpp"
@@ -142,6 +220,7 @@ def render_fallback_operator(task: dict[str, Any], output_dir: str) -> dict[str,
         "status": "success",
         "source": "fallback_template",
         "generated_files": [str(header_path), str(cpp_path), str(tb_path), str(tcl_path)],
+        "reference_path": reference_result.get("reference_path"),
     }
 
 
@@ -160,6 +239,8 @@ def generate_operator_hls(arguments: dict[str, Any], context: dict[str, Any]) ->
             suffix = Path(file_path).suffix
             artifact_type = "testbench" if Path(file_path).name == "testbench.cpp" else file_types.get(suffix, "hls_cpp")
             artifact_manager.register_file(file_path, artifact_type)
+        if result.get("reference_path"):
+            artifact_manager.register_file(result["reference_path"], "reference_data")
     return result
 
 
@@ -174,4 +255,3 @@ def generate_testbench(arguments: dict[str, Any], context: dict[str, Any]) -> di
     if artifact_manager:
         artifact_manager.register_file(tb_path, "testbench")
     return {"status": "success", "testbench_path": str(tb_path)}
-

@@ -1,3 +1,5 @@
+import pytest
+
 from dl_op_to_hls.adapters.hls4ml_adapter import HLS4MLAdapter
 
 
@@ -66,8 +68,8 @@ def test_hls4ml_convert_mock(tmp_path):
 
 
 def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch):
-    onnx = __import__("onnx")
-    numpy = __import__("numpy")
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
 
     model_path = tmp_path / "mlp_gemm.onnx"
@@ -113,8 +115,8 @@ def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch
 
 
 def test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern(tmp_path):
-    onnx = __import__("onnx")
-    numpy = __import__("numpy")
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
 
     x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 4])
@@ -140,8 +142,8 @@ def test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern(tmp_path):
 
 
 def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
-    onnx = __import__("onnx")
-    numpy = __import__("numpy")
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
 
     x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 1, 4, 4])
@@ -173,8 +175,8 @@ def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
 
 
 def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():
-    onnx = __import__("onnx")
-    numpy = __import__("numpy")
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
 
     x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 2, 2])
@@ -210,9 +212,8 @@ def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():
 
 
 def test_hls4ml_layer_list_adapter_rejects_branching_dataflow():
-    onnx = __import__("onnx")
-    numpy = __import__("numpy")
-    import pytest
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
 
     x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 4])
