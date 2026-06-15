@@ -18,12 +18,29 @@
   "target": {
     "backend": "VivadoHLS",
     "part": "xc7z020clg400-1",
-    "clock_period": 8
+    "clock_period": 12
   },
   "optimization": {
     "objective": "resource",
     "reuse_factor": 8,
     "pipeline_ii": 2
+  },
+  "optimization_notes": {
+    "source": "real_vivado2018_timing_fix",
+    "reason": "The previous 8ns resource-oriented MatMul run passed golden C simulation but failed timing with estimated clock 9.634ns. A 12ns target is used as the verified baseline for this resource demo.",
+    "reference_run": "matmul_16x16_resource_ecbcd28b",
+    "metrics": {
+      "latency_max_cycles": 2051,
+      "bram": 0,
+      "dsp": 16,
+      "ff": 265,
+      "lut": 624,
+      "timing_met": true
+    },
+    "functional_verification": {
+      "mode": "golden_testbench",
+      "passed": true
+    }
   },
   "demo": {
     "expected_path": "fallback_template",

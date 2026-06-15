@@ -19,6 +19,7 @@ from .finalizer import finalize_state
 from .planner import build_plan
 from .reflector import reflect_on_errors, update_status_from_todos
 from .state import AgentState
+from .status import compute_pipeline_status
 from .todo import DONE_STATUSES, TodoItem, TodoManager
 
 
@@ -66,6 +67,7 @@ class PlanExecuteReactRuntime:
         finally:
             reflect_on_errors(state)
             update_status_from_todos(state)
+            state.pipeline_status = compute_pipeline_status(state)
             trace_path = self.context["run_dir"] / "trace.jsonl"
             if trace_path.exists():
                 self.context["artifact_manager"].register_file(trace_path, "trace")
@@ -121,7 +123,43 @@ class PlanExecuteReactRuntime:
             for item in state.retrieved_memories[:10]
         ]
         state.artifacts["retrieved_memories"] = str(path)
+        state.parameter_advice = self._call_tool(state, "parameter_advisor.recommend", {"state": state.to_dict()})
+        self._apply_parameter_advice(state)
+        advice_path = self.context["artifact_manager"].write_json("parameter_advice.json", state.parameter_advice, "parameter_advice")
+        state.artifacts["parameter_advice"] = str(advice_path)
         return state
+
+    def _apply_parameter_advice(self, state: AgentState) -> None:
+        advice = state.parameter_advice or {}
+        updates = advice.get("recommended_updates") or {}
+        if not isinstance(updates, dict):
+            return
+        policy = state.task.get("parameter_advisor") or {}
+        allow_override = bool(policy.get("allow_override") or policy.get("apply_overrides"))
+        applied: dict[str, dict[str, Any]] = {}
+        proposed: dict[str, dict[str, Any]] = {}
+        for section, section_updates in updates.items():
+            if not isinstance(section_updates, dict):
+                continue
+            target = state.task.setdefault(section, {})
+            if not isinstance(target, dict):
+                proposed[section] = section_updates
+                continue
+            for key, value in section_updates.items():
+                current = target.get(key)
+                if current is None or allow_override:
+                    target[key] = value
+                    applied.setdefault(section, {})[key] = value
+                elif current == value:
+                    applied.setdefault(section, {})[key] = value
+                else:
+                    proposed.setdefault(section, {})[key] = value
+        advice["applied_updates"] = applied
+        advice["proposed_updates"] = proposed
+        advice["auto_apply_policy"] = {
+            "missing_values": True,
+            "override_existing_values": allow_override,
+        }
 
     def plan(self, state: AgentState) -> AgentState:
         state.plan = build_plan(state.task)
@@ -817,6 +855,7 @@ class PlanExecuteReactRuntime:
     def finalize(self, state: AgentState) -> AgentState:
         if not state.report:
             state.report = empty_report("missing")
+        state.pipeline_status = compute_pipeline_status(state)
         report_path = self.context["artifact_manager"].write_json("report.json", state.report, "report_json")
         state.artifacts["report_json"] = str(report_path)
         if state.verification:
@@ -835,6 +874,7 @@ class PlanExecuteReactRuntime:
         compressed_logs_path = self.context["artifact_manager"].write_json("compressed_logs.json", compressed_payload, "report_json")
         state.artifacts["compressed_logs"] = str(compressed_logs_path)
         update_status_from_todos(state)
+        state.pipeline_status = compute_pipeline_status(state)
         if not state.memory_candidates:
             state_path = self._write_memory_ready_state_snapshot(state)
             state.artifacts["state"] = str(state_path)
@@ -882,6 +922,7 @@ class PlanExecuteReactRuntime:
                 state.artifacts.get("compressed_context"),
                 state.artifacts.get("report_json"),
                 state.artifacts.get("verification"),
+                state.artifacts.get("parameter_advice"),
                 state.artifacts.get("compressed_logs"),
                 state.artifacts.get("unsupported_report"),
             ]
@@ -890,6 +931,7 @@ class PlanExecuteReactRuntime:
         if artifact_paths:
             self._call_tool(state, "rag.index_artifact", {"run_id": state.run_id, "artifact_paths": artifact_paths})
         update_status_from_todos(state)
+        state.pipeline_status = compute_pipeline_status(state)
         self._call_tool(
             state,
             "db.save_experiment",
@@ -924,6 +966,7 @@ class PlanExecuteReactRuntime:
             state.status = "success"
         else:
             update_status_from_todos(state)
+        state.pipeline_status = compute_pipeline_status(state)
         return self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
 
     def should_stop(self, state: AgentState) -> bool:

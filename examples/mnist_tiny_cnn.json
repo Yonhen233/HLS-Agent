@@ -15,22 +15,28 @@
     "clock_period": 10
   },
   "hls4ml": {
-    "precision": "fixed<8,3>",
+    "precision": "fixed<10,4>",
     "reuse_factor": 64,
     "strategy": "Resource"
   },
   "objective": "balanced",
   "optimization_notes": {
     "source": "real_vivado2018_single_point",
-    "reason": "The original fixed<16,6>/reuse_factor=32 configuration met timing but exceeded the xc7z020 reference LUT scale. A single focused real Vivado HLS 2018.3 run showed this resource-oriented baseline is much more board-feasible without starting a broad sweep.",
-    "reference_run": "mnist_tiny_cnn_pfixed8_3_rf64_clk10p0_resource_4769edbf",
+    "reason": "The previous fixed<8,3>/reuse_factor=64/10ns configuration synthesized and met timing but narrowly failed functional reference comparison. fixed<10,4> is the current verified baseline.",
+    "reference_run": "mnist_tiny_cnn_trial_fixed10_4_843f9639",
     "metrics": {
-      "latency_max_cycles": 150,
-      "bram": 3,
+      "latency_max_cycles": 3744,
+      "bram": 0,
       "dsp": 0,
-      "ff": 2513,
-      "lut": 6680,
+      "ff": 39976,
+      "lut": 440579,
       "timing_met": true
+    },
+    "functional_verification": {
+      "mode": "hls4ml_reference_compare",
+      "max_abs_error": 0.154643916,
+      "tolerance": 0.25,
+      "passed": true
     }
   },
   "demo": {

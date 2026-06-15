@@ -254,3 +254,50 @@ def test_hls4ml_path_with_missing_report_is_partial_success():
     update_status_from_todos(state)
 
     assert state.status == "partial_success"
+
+
+def test_pipeline_status_distinguishes_synthesis_and_functional_ready():
+    from dl_op_to_hls.main_agent.status import compute_pipeline_status
+
+    state = AgentState(run_id="r1", task={"task_type": "operator", "name": "matmul"}, status="partial_success")
+    state.selected_path = "fallback_template_path"
+    state.hls_project_dir = "runs/r1/generated"
+    state.report = {"status": "success", "timing": {"met": False}}
+    state.verification = {"status": "csim_passed", "passed": True, "mode": "golden_testbench"}
+
+    pipeline = compute_pipeline_status(state)
+
+    assert pipeline["conversion_success"] is True
+    assert pipeline["synthesis_success"] is True
+    assert pipeline["functional_verified"] is True
+    assert pipeline["deployment_ready_candidate"] is False
+    assert pipeline["level"] == "functional_verified"
+
+
+def test_parameter_advice_applies_missing_values_without_overriding_existing_values():
+    from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
+
+    state = AgentState(
+        run_id="r1",
+        task={
+            "task_type": "model",
+            "name": "mnist_mlp_demo",
+            "hls4ml": {"precision": "fixed<12,4>"},
+            "target": {},
+        },
+    )
+    state.parameter_advice = {
+        "recommended_updates": {
+            "hls4ml": {"precision": "fixed<8,3>", "reuse_factor": 512, "strategy": "Resource"},
+            "target": {"clock_period": 10},
+        }
+    }
+
+    runtime = PlanExecuteReactRuntime.__new__(PlanExecuteReactRuntime)
+    runtime._apply_parameter_advice(state)
+
+    assert state.task["hls4ml"]["precision"] == "fixed<12,4>"
+    assert state.task["hls4ml"]["reuse_factor"] == 512
+    assert state.task["hls4ml"]["strategy"] == "Resource"
+    assert state.task["target"]["clock_period"] == 10
+    assert state.parameter_advice["proposed_updates"]["hls4ml"]["precision"] == "fixed<8,3>"

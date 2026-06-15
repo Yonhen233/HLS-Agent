@@ -29,6 +29,7 @@ class AgentState:
     errors: list[dict] = field(default_factory=list)
     report: dict | None = None
     verification: dict | None = None
+    pipeline_status: dict[str, Any] = field(default_factory=dict)
     parameter_advice: dict | None = None
     short_term_memory: dict[str, Any] = field(default_factory=dict)
     retrieved_memories: list[dict[str, Any]] = field(default_factory=list)

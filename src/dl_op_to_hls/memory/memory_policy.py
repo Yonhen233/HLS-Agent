@@ -12,6 +12,12 @@ class MemoryPolicy:
         return verification.get("passed") is True and comparison.get("passed") is True
 
     def classify(self, candidate: dict) -> str:
+        if candidate.get("kind") == "verified_implementation":
+            return "verified_implementation"
+        if candidate.get("kind") == "parameter_experience":
+            return "parameter_experience"
+        if candidate.get("kind") == "synthesis_success":
+            return "synthesis_success"
         if candidate.get("kind") == "skill":
             return "skill"
         if candidate.get("kind") == "failure" or candidate.get("value", {}).get("error_type"):
@@ -31,8 +37,11 @@ class MemoryPolicy:
         value = candidate.get("value", {})
         verification = value.get("verification", {}) if isinstance(value, dict) else {}
         verified = self._is_functionally_verified(verification)
-        if candidate.get("kind") in {"optimization", "implementation"} and not verified:
+        if candidate.get("kind") in {"optimization", "implementation", "verified_implementation", "parameter_experience"} and not verified:
             return False
+        if candidate.get("kind") == "synthesis_success":
+            report = value.get("report", {}) if isinstance(value, dict) else {}
+            return isinstance(report, dict) and report.get("status") == "success" and not verified
         if candidate.get("kind") in {"skill", "failure", "optimization", "semantic", "episodic"}:
             return True
         if value.get("status") == "verified":
@@ -47,7 +56,7 @@ class MemoryPolicy:
             score += 2
         if candidate.get("kind") == "failure":
             score += 2
-        if candidate.get("kind") == "optimization":
+        if candidate.get("kind") in {"optimization", "parameter_experience", "verified_implementation"}:
             score += 2
         if candidate.get("fact"):
             score += 1
@@ -57,4 +66,14 @@ class MemoryPolicy:
 
     def should_index_to_rag(self, memory_item: dict) -> bool:
         memory_type = memory_item.get("memory_type") or memory_item.get("kind")
-        return memory_type in {"episodic", "semantic", "failure", "optimization", "skill", "implementation"}
+        return memory_type in {
+            "episodic",
+            "semantic",
+            "failure",
+            "optimization",
+            "skill",
+            "implementation",
+            "verified_implementation",
+            "parameter_experience",
+            "synthesis_success",
+        }

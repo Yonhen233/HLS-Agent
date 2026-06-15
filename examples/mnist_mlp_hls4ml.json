@@ -12,22 +12,28 @@
     "clock_period": 10
   },
   "hls4ml": {
-    "precision": "fixed<8,3>",
+    "precision": "fixed<12,6>",
     "reuse_factor": 512,
     "strategy": "Resource"
   },
   "objective": "balanced",
   "optimization_notes": {
     "source": "real_vivado2018_sweep",
-    "reason": "The original fixed<16,6>/reuse_factor=64/5ns configuration synthesized but exceeded the xc7z020 reference resource scale and failed timing. This configuration prioritizes a real, board-feasible HLS baseline before accuracy/latency sweeps.",
-    "reference_run": "mnist_mlp_demo_pfixed8_3_rf512_clk10p0_resource_be1ca1bf",
+    "reason": "The previous fixed<8,3>/reuse_factor=512/10ns configuration synthesized and met timing but failed functional reference comparison because fixed-point dynamic range was too narrow. fixed<12,6> is the current verified baseline.",
+    "reference_run": "mnist_mlp_demo_trial_fixed12_6_75e1940e",
     "metrics": {
-      "latency_max_cycles": 1235,
+      "latency_max_cycles": 1237,
       "bram": 33,
-      "dsp": 0,
-      "ff": 26030,
-      "lut": 47977,
+      "dsp": 131,
+      "ff": 19944,
+      "lut": 31804,
       "timing_met": true
+    },
+    "functional_verification": {
+      "mode": "hls4ml_reference_compare",
+      "max_abs_error": 0.12597694,
+      "tolerance": 0.25,
+      "passed": true
     }
   },
   "demo": {

@@ -122,12 +122,14 @@ class RagRetriever:
         self.repository = repository
         self.static_paths = [Path(path) for path in (static_paths or [])]
 
-    def retrieve(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int = 5, domain: str | None = None) -> list[dict[str, Any]]:
         query_tokens = Counter(_tokenize(query))
         anchors = _anchor_tokens(query)
         strong_anchors = _strong_anchor_tokens(query)
         scored_by_text: dict[str, tuple[float, dict[str, Any]]] = {}
         for row in self._candidate_rows():
+            if domain and not self._matches_domain(row, domain):
+                continue
             text = sanitize_memory_text(row["text"])
             if not text:
                 continue
@@ -153,6 +155,23 @@ class RagRetriever:
         scored = list(scored_by_text.values())
         scored.sort(key=lambda item: (item[0], str(item[1].get("source_id", ""))), reverse=True)
         return [item[1] for item in scored[:top_k]]
+
+    def _matches_domain(self, row: dict[str, Any], domain: str) -> bool:
+        metadata = row.get("metadata") or {}
+        row_domain = metadata.get("domain")
+        memory_type = metadata.get("memory_type")
+        source_type = metadata.get("source_type")
+        if row_domain == domain:
+            return True
+        if domain == "parameter":
+            return memory_type in {"parameter_experience", "verified_implementation"} or source_type == "parameter_experience"
+        if domain == "failure":
+            return memory_type == "failure" or source_type in {"failure", "unsupported_report"}
+        if domain == "optimization":
+            return memory_type in {"optimization", "semantic"} or source_type in {"suggestions", "memory_fact", "procedural_memory"}
+        if domain == "episodic":
+            return memory_type == "episodic" or source_type in {"summary", "episodic"}
+        return False
 
     def _candidate_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []

@@ -124,6 +124,21 @@ def _functional_verification_section(state: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _pipeline_status_section(state: dict[str, Any]) -> str:
+    pipeline = state.get("pipeline_status") or {}
+    if not pipeline:
+        return "## Pipeline Status\n\n- Status level: unknown\n"
+    return (
+        "## Pipeline Status\n\n"
+        f"- Status level: {pipeline.get('level')}\n"
+        f"- Conversion success: {pipeline.get('conversion_success')}\n"
+        f"- Synthesis success: {pipeline.get('synthesis_success')}\n"
+        f"- Functional verified: {pipeline.get('functional_verified')}\n"
+        f"- Deployment-ready candidate: {pipeline.get('deployment_ready_candidate')}\n"
+        f"- Timing met: {pipeline.get('timing_met')}\n"
+    )
+
+
 def _parameter_advice_section(state: dict[str, Any]) -> str:
     advice = state.get("parameter_advice") or {}
     if not advice:
@@ -138,6 +153,10 @@ def _parameter_advice_section(state: dict[str, Any]) -> str:
     ]
     if advice.get("reason"):
         lines.append(f"- Reason: {advice.get('reason')}")
+    if advice.get("applied_updates"):
+        lines.append(f"- Applied updates: {advice.get('applied_updates')}")
+    if advice.get("proposed_updates"):
+        lines.append(f"- Proposed updates: {advice.get('proposed_updates')}")
     recommendations = advice.get("recommendations") or []
     if recommendations:
         lines.append("")
@@ -222,6 +241,7 @@ def write_summary(arguments: dict[str, Any], context: dict[str, Any]) -> dict[st
         f"- LUT: {resources.get('lut')}\n"
         f"- FF: {resources.get('ff')}\n"
         f"- Timing met: {timing.get('met')}\n\n"
+        f"{_pipeline_status_section(state)}\n"
         f"{_functional_verification_section(state)}\n"
         "## Errors / Warnings\n"
         f"{_error_lines(state.get('errors', []))}\n\n"

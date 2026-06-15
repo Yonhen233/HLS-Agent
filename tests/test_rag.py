@@ -116,3 +116,25 @@ def test_rag_source_anchor_prioritizes_matching_task_family(tmp_path):
 
     assert results
     assert results[0]["source_id"] == "runs/dense_16x32/suggestions.md"
+
+
+def test_rag_domain_filter_separates_parameter_and_optimization_memory(tmp_path):
+    memory = _memory(tmp_path)
+    memory.index_text(
+        "runs/mnist_mlp/parameter_advice.json",
+        "mnist_mlp_demo verified parameter precision fixed<8,3> reuse_factor 512 clock 10",
+        {"domain": "parameter", "memory_type": "parameter_experience"},
+    )
+    memory.index_text(
+        "runs/dense/suggestions.md",
+        "Dense high DSP can be reduced by increasing reuse factor.",
+        {"domain": "optimization", "memory_type": "optimization"},
+    )
+
+    parameter_results = memory.retrieve("reuse factor precision", top_k=5, domain="parameter")
+    optimization_results = memory.retrieve("reuse factor DSP", top_k=5, domain="optimization")
+
+    assert parameter_results
+    assert all(item["metadata"].get("domain") == "parameter" for item in parameter_results)
+    assert optimization_results
+    assert all(item["metadata"].get("domain") == "optimization" for item in optimization_results)

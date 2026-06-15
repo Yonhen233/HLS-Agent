@@ -6,6 +6,147 @@
 
 ---
 
+## 2026-06-15 23:56:09 +08:00：优化 Demo0-6 至真实 Vivado HLS 闭环，并细化 Advisor/Memory/RAG/Status 契约
+### 1. 本次测试做了什么
+本轮目标是继续把 Demo 从“能运行/能综合”推进到“状态语义清晰、功能验证可追踪、参数经验可复用”：
+
+- 引入 `pipeline_status`，把顶层状态拆成：
+  - `conversion_success`
+  - `synthesis_success`
+  - `functional_verified`
+  - `deployment_ready_candidate`
+- 增强 `ParameterAdvisor`：
+  - 优先读取 functionally verified history。
+  - 没有历史时使用 task-family heuristic。
+  - 只填补缺失参数，默认不覆盖用户显式配置。
+  - 防止 MLP 错用 QONNX/CNN verified history。
+- 增强 Verification-aware Memory：
+  - `verified_implementation` / `parameter_experience` 必须同时满足 csim reference/golden passed 和 csynth report success。
+  - 只有 synthesis report、没有数值验证的 run 只能进入低置信 `synthesis_success` memory。
+- 细化 RAG domain：
+  - parameter
+  - failure
+  - optimization
+  - episodic
+- 用真实 Vivado HLS 2018.3 重新运行 Demo0-6。
+
+关键测试命令：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='0'
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH='D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vivado_hls'
+$env:DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS='1500'
+
+python -m dl_op_to_hls.cli run examples/dense_operator.json
+python -m dl_op_to_hls.cli run examples/matmul_resource.json
+python -m dl_op_to_hls.cli run examples/mnist_mlp_hls4ml.json
+python -m dl_op_to_hls.cli run examples/mnist_tiny_cnn.json
+python -m dl_op_to_hls.cli run examples/mnist_qonnx_cnn.json
+python -m dl_op_to_hls.cli run examples/tiny_residual_block.json
+python -m dl_op_to_hls.cli run examples/resnet18_boundary.json
+
+$env:PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=.pytest-tmp-full3'
+pytest -q
+```
+
+全量测试结果：
+
+```text
+pytest -q：通过，含依赖缺失场景 skip。
+```
+
+真实 Demo 结果：
+
+| Demo | Run ID | 路径 | status | pipeline | Functional Verification | 关键指标 |
+|---|---|---|---|---|---|---|
+| Demo0 Dense | `dense_16x32_af6abf3c_23` | fallback_template | success | deployment_ready_candidate | golden passed | latency 269, DSP 16, LUT 549, timing met |
+| Demo1 MatMul | `matmul_16x16_resource_ecbcd28b` | fallback_template | success | deployment_ready_candidate | golden passed | latency 2051, DSP 16, LUT 624, timing met |
+| Demo2 MLP | `mnist_mlp_demo_ed342c66` | hls4ml | success | deployment_ready_candidate | reference compare passed | max_abs 0.126, latency 1237, DSP 131, LUT 31804 |
+| Demo3 Tiny CNN | `mnist_tiny_cnn_7957cee1` | hls4ml | success | deployment_ready_candidate | reference compare passed | max_abs 0.155, latency 3744, DSP 0, LUT 440579 |
+| Demo4 QONNX CNN | `mnist_qonnx_cnn_bc625576_12` | hls4ml/QONNX | success | deployment_ready_candidate | reference compare passed | max_abs 0.187, latency 5040, DSP 0, LUT 354417 |
+| Demo5 Tiny Residual | `tiny_residual_block_ad48a995_16` | unsupported_path | partial_success | unsupported | not applicable | 正确生成 unsupported boundary |
+| Demo6 ResNet18 Boundary | `resnet18_boundary_demo_cd40d797_24` | unsupported_path | partial_success | unsupported | not applicable | 正确避免过度承诺 |
+
+### 2. 暴露的问题与修复
+#### 问题 A：Demo2 MLP fixed<8,3> 能综合但功能验证失败
+现象：
+
+- `mnist_mlp_demo_1ed09a79_06` synthesis success、timing met。
+- 但 `hls4ml_reference_compare` failed，`max_abs_error=1.3666`。
+
+诊断：
+
+- 用 Python 复现 adapter layer-list 前向，adapter 输出与 ONNX Runtime 误差约 `1e-8`。
+- 因此不是 Gemm rewrite、权重转置或 ONNX adapter 错误。
+- 根因是 `fixed<8,3>` 对该 MLP 的动态范围太窄，HLS fixed-point 输出发生明显量化/溢出偏移。
+
+修复：
+
+- 做单点真实 trial：`fixed<12,6> + reuse_factor=512 + clock=10ns`。
+- run：`mnist_mlp_demo_trial_fixed12_6_75e1940e`。
+- 结果：functional verification passed，`max_abs_error=0.12597694`，timing met。
+- 更新正式 `examples/mnist_mlp_hls4ml.json` 为 `fixed<12,6>`。
+
+#### 问题 B：Demo3 Tiny CNN fixed<8,3> 只差一点但仍不能算 verified
+现象：
+
+- `mnist_tiny_cnn_154bde8b_04` synthesis success、timing met。
+- functional reference compare failed，`max_abs_error=0.2815`，超过 tolerance 0.25。
+
+修复：
+
+- 做单点真实 trial：`fixed<10,4> + reuse_factor=64 + clock=10ns`。
+- run：`mnist_tiny_cnn_trial_fixed10_4_843f9639`。
+- 结果：functional verification passed，`max_abs_error=0.154643916`，timing met。
+- 更新正式 `examples/mnist_tiny_cnn.json` 为 `fixed<10,4>`。
+
+#### 问题 C：Demo1 MatMul 资源路径功能正确但 timing fail
+现象：
+
+- 8ns 目标下 golden testbench passed。
+- 但 estimated clock 9.634ns，timing failed，因此不能叫 deployment-ready candidate。
+
+修复：
+
+- 将 Demo1 resource baseline 的 clock 从 8ns 放宽到 12ns。
+- run：`matmul_16x16_resource_ecbcd28b`。
+- 结果：golden csim passed、csynth report success、timing met。
+
+#### 问题 D：ParameterAdvisor 会跨模型 family 推荐参数
+现象：
+
+- MLP 会匹配到 QONNX CNN 的 verified history，因为二者都有 `mnist/model/resource` 等 token。
+
+修复：
+
+- 给 ParameterAdvisor 增加 task family：
+  - mlp
+  - cnn
+  - quantized_cnn
+  - matmul
+  - residual
+- 如果当前任务和候选历史都有明确 family 且 family 不同，直接过滤，不再靠分数惩罚。
+- 新增测试：`test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp`。
+
+#### 问题 E：RAG 检索仍可能把参数经验、失败经验、优化建议混在一起
+修复：
+
+- `RagMemory.retrieve(..., domain=...)` 支持 domain filter。
+- `RagMemory.index_run()` 按 artifact 类型写入 domain metadata：
+  - `parameter_advice.json` / `verification.json` / `report.json` -> parameter
+  - `suggestions.md` -> optimization
+  - `unsupported_report.md` -> failure
+  - `summary.md` / `compressed_context.json` -> episodic
+- 新增测试：`test_rag_domain_filter_separates_parameter_and_optimization_memory`。
+
+### 3. 未修复/后续观察
+- Demo3/Demo4 虽然已经 functional verified + timing met，但 LUT 仍很高，后续应做 resource-oriented adapter/pragmas 优化，不应在当前阶段假装“上板可用”。
+- Demo5/Demo6 的正确目标不是强行综合，而是生成 unsupported boundary；它们当前是 `partial_success + unsupported`，这是预期结果。
+- 本轮没有启用 LLM API；改动集中在确定性 Advisor、Memory、RAG、Status 与真实 Vivado HLS 链路。
+
 ## 2026-06-15 18:26:30 +08:00：修复 functional verification 与 memory 状态一致性，并复测 Demo1
 ### 1. 本次测试做了什么
 在 Functional Verification Layer 接入后，又针对真实 Demo1 暴露出的状态一致性做了一轮收尾验证：

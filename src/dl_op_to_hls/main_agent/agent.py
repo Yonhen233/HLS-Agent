@@ -218,7 +218,7 @@ class MainAgent:
             ToolSpec(
                 name="memory.retrieve_similar_experiences",
                 description="Retrieve similar episodic or implementation memories.",
-                input_schema=simple_schema({"query": {"type": "string"}}, ["query"]),
+                input_schema=simple_schema({"query": {"type": "string"}, "domain": {"type": "string"}}, ["query"]),
                 output_schema=simple_schema({"status": {"type": "string"}}),
                 permission_level="read",
                 tags=["memory"],
@@ -400,7 +400,11 @@ class MainAgent:
             )
 
     def _rag_retrieve(self, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-        results = self.rag_memory.retrieve(arguments["query"], top_k=int(arguments.get("top_k", 5)))
+        results = self.rag_memory.retrieve(
+            arguments["query"],
+            top_k=int(arguments.get("top_k", 5)),
+            domain=arguments.get("domain"),
+        )
         hooks = context.get("hooks")
         if hooks:
             hooks.emit("RagRetrieved", {"run_id": context.get("run_id"), "query": arguments["query"], "count": len(results)})

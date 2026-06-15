@@ -14,8 +14,9 @@ def build_episodic_candidate(state: dict) -> dict:
             "objective": state.get("objective"),
             "status": state.get("status"),
             "report": state.get("report"),
+            "verification": state.get("verification"),
+            "pipeline_status": state.get("pipeline_status"),
             "errors": state.get("errors", []),
             "suggestions": state.get("suggestions", []),
         },
     }
-

@@ -36,12 +36,34 @@ def _timing_is_usable(value: dict[str, Any]) -> bool:
 
 
 def _task_signature(task: dict[str, Any]) -> set[str]:
+    shape_text = " ".join(str(item) for item in (task.get("input_shape") or task.get("output_shape") or []))
     return _tokens(
         " ".join(
             str(task.get(key, ""))
-            for key in ["name", "op_type", "task_type", "frontend", "objective"]
+            for key in ["name", "op_type", "task_type", "frontend", "objective", "layout"]
         )
+        + " "
+        + shape_text
     )
+
+
+def _task_family(task: dict[str, Any]) -> str | None:
+    text = " ".join(str(task.get(key, "")) for key in ["name", "op_type", "frontend"]).lower()
+    if "resnet" in text or "residual" in text:
+        return "residual"
+    if "qonnx" in text or "qkeras" in text:
+        return "quantized_cnn"
+    if "cnn" in text or "conv" in text:
+        return "cnn"
+    if "mlp" in text or "dense" in text:
+        return "mlp"
+    if "matmul" in text:
+        return "matmul"
+    if "relu" in text:
+        return "relu"
+    if "add" in text:
+        return "add"
+    return None
 
 
 def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
@@ -57,12 +79,70 @@ def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _updates_from_params(params: dict[str, Any]) -> dict[str, Any]:
+    updates = {"hls4ml": {}, "target": {}, "optimization": {}}
+    if params.get("precision") is not None:
+        updates["hls4ml"]["precision"] = params["precision"]
+    if params.get("reuse_factor") is not None:
+        updates["hls4ml"]["reuse_factor"] = params["reuse_factor"]
+        updates["optimization"]["reuse_factor"] = params["reuse_factor"]
+    if params.get("strategy") is not None:
+        updates["hls4ml"]["strategy"] = params["strategy"]
+    if params.get("clock_period") is not None:
+        updates["target"]["clock_period"] = params["clock_period"]
+    if params.get("pipeline_ii") is not None:
+        updates["optimization"]["pipeline_ii"] = params["pipeline_ii"]
+    return {key: value for key, value in updates.items() if value}
+
+
+def _recommendation_rows(params: dict[str, Any], reason: str, source: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key, value in params.items():
+        if value is not None:
+            rows.append(
+                {
+                    "parameter": key,
+                    "recommended_value": value,
+                    "source": source,
+                    "reason": reason,
+                }
+            )
+    return rows
+
+
+def _heuristic_params(task: dict[str, Any]) -> dict[str, Any]:
+    family = _task_family(task)
+    if family == "mlp":
+        return {"precision": "fixed<12,6>", "reuse_factor": 512, "strategy": "Resource", "clock_period": 10}
+    if family == "quantized_cnn":
+        return {"precision": "fixed<8,3>", "reuse_factor": 32, "strategy": "Resource", "clock_period": 10}
+    if family == "cnn":
+        return {"precision": "fixed<10,4>", "reuse_factor": 64, "strategy": "Resource", "clock_period": 10}
+    if family == "matmul":
+        return {"precision": task.get("dtype") or "ap_fixed<12,4>", "reuse_factor": 8, "clock_period": 10, "pipeline_ii": 2}
+    if family in {"add", "relu"}:
+        return {"precision": task.get("dtype") or "ap_fixed<16,6>", "reuse_factor": 1, "clock_period": 5, "pipeline_ii": 1}
+    return {}
+
+
+def _rag_hints_for_task(task: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
+    rag_memory = context.get("rag_memory")
+    if rag_memory is None:
+        return []
+    query = f"{task.get('name')} {_task_family(task) or ''} precision reuse_factor clock verified parameter"
+    try:
+        return rag_memory.retrieve(query, top_k=3, domain="parameter")
+    except TypeError:
+        return rag_memory.retrieve(query, top_k=3)
+
+
 def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     state = arguments.get("state") or {}
     task = state.get("task") or arguments.get("task") or {}
     current_run_id = state.get("run_id")
     repository = context.get("repository")
     current_params = _params_from_task(task)
+    rag_hints = _rag_hints_for_task(task, context)
     if repository is None:
         return {
             "status": "no_repository",
@@ -73,7 +153,7 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
 
     task_tokens = _task_signature(task)
     candidates: list[dict[str, Any]] = []
-    for item in repository.list_memory_items(["optimization", "implementation"]):
+    for item in repository.list_memory_items(["parameter_experience", "verified_implementation", "optimization", "implementation"]):
         if current_run_id and item.get("source_run_id") == current_run_id:
             continue
         value = _load_value(item)
@@ -84,72 +164,70 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
         candidate_task = value.get("task") or {}
         candidate_tokens = _task_signature(candidate_task)
         overlap = len(task_tokens.intersection(candidate_tokens))
+        task_family = _task_family(task)
+        candidate_family = _task_family(candidate_task)
+        same_family = task_family and task_family == candidate_family
+        if task_family and candidate_family and task_family != candidate_family:
+            continue
         if task_tokens and candidate_tokens and overlap == 0:
             continue
         report = value.get("report") if isinstance(value.get("report"), dict) else value
         params = _params_from_task(candidate_task)
+        if not any(value is not None for value in params.values()):
+            continue
         candidates.append(
             {
                 "memory_id": item.get("id"),
                 "source_run_id": item.get("source_run_id"),
-                "score": overlap + float(item.get("importance") or 1) * 0.1,
+                "score": overlap + (2.0 if same_family else 0.0) + float(item.get("importance") or 1) * 0.1,
                 "params": params,
                 "report": report,
                 "verification": value.get("verification"),
+                "task_family": candidate_family,
             }
         )
     candidates.sort(key=lambda item: item["score"], reverse=True)
     if candidates:
         best = candidates[0]
-        recommendations = []
-        for key, value in best["params"].items():
-            if value is not None:
-                recommendations.append(
-                    {
-                        "parameter": key,
-                        "recommended_value": value,
-                        "reason": f"Matched verified run {best.get('source_run_id')} with functional verification passed.",
-                    }
-                )
+        reason = f"Matched verified run {best.get('source_run_id')} with functional verification passed."
+        recommendations = _recommendation_rows(best["params"], reason, "verified_history")
         return {
             "status": "success",
             "mode": "verified_history",
             "confidence": 0.9,
             "source_count": len(candidates),
             "recommendations": recommendations,
+            "recommended_updates": _updates_from_params(best["params"]),
             "matched_history": candidates[:5],
+            "rag_hints": rag_hints,
         }
 
-    bootstrap = []
-    if current_params.get("reuse_factor") is not None:
-        bootstrap.append(
-            {
-                "parameter": "reuse_factor",
-                "recommended_value": current_params["reuse_factor"],
-                "reason": "No verified history exists yet; keep current task setting until a verified run is promoted.",
-            }
-        )
-    if current_params.get("precision") is not None:
-        bootstrap.append(
-            {
-                "parameter": "precision",
-                "recommended_value": current_params["precision"],
-                "reason": "No verified history exists yet; use current precision as bootstrap only.",
-            }
-        )
-    if current_params.get("clock_period") is not None:
-        bootstrap.append(
-            {
-                "parameter": "clock_period",
-                "recommended_value": current_params["clock_period"],
-                "reason": "No verified history exists yet; use current clock target as bootstrap only.",
-            }
-        )
+    heuristic = _heuristic_params(task)
+    if heuristic:
+        reason = "No verified history matched; use a conservative task-family heuristic as bootstrap, not as verified evidence."
+        return {
+            "status": "heuristic_available",
+            "mode": "heuristic_bootstrap",
+            "confidence": 0.45,
+            "source_count": 0,
+            "recommendations": _recommendation_rows({**current_params, **heuristic}, reason, "heuristic"),
+            "recommended_updates": _updates_from_params({**current_params, **heuristic}),
+            "rag_hints": rag_hints,
+            "reason": reason,
+        }
+
+    bootstrap = _recommendation_rows(
+        current_params,
+        "No verified history exists yet; keep current task setting until a verified run is promoted.",
+        "current_task",
+    )
     return {
         "status": "no_verified_history",
         "mode": "bootstrap",
         "confidence": 0.25,
         "source_count": 0,
         "recommendations": bootstrap,
+        "recommended_updates": _updates_from_params(current_params),
+        "rag_hints": rag_hints,
         "reason": "No functionally verified parameter history matched the current task.",
     }

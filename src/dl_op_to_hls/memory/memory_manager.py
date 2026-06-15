@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.memory_hygiene import sanitize_memory_payload, sanitize_memory_text
+from ..main_agent.status import is_functionally_verified
 from .episodic_memory import build_episodic_candidate
 from .memory_policy import MemoryPolicy
 from .semantic_memory import build_semantic_candidates
@@ -112,13 +113,7 @@ def _score(query: str, text: str) -> float:
 
 
 def _is_functionally_verified(verification: dict[str, Any] | None) -> bool:
-    if not verification:
-        return False
-    mode = verification.get("mode")
-    if verification.get("passed") is True and mode in {"golden_testbench", "hls4ml_reference_compare", "reference_compare"}:
-        return True
-    comparison = verification.get("comparison") if isinstance(verification.get("comparison"), dict) else {}
-    return verification.get("passed") is True and comparison.get("passed") is True
+    return is_functionally_verified(verification)
 
 
 class MemoryManager:
@@ -250,18 +245,58 @@ class MemoryManager:
             report = state.get("report") or {}
             verification = state.get("verification") or {}
             if report and report.get("status") == "success" and _is_functionally_verified(verification):
+                verified_value = {
+                    "report": report,
+                    "verification": verification,
+                    "task": state.get("task", {}),
+                    "selected_path": state.get("selected_path"),
+                    "pipeline_status": state.get("pipeline_status", {}),
+                }
+                candidates.append(
+                    {
+                        "kind": "verified_implementation",
+                        "key": f"verified_implementation.{run_id}.metrics",
+                        "summary": "Functionally verified implementation with synthesis metrics.",
+                        "value": verified_value,
+                        "confidence": 1.0,
+                        "domain": "parameter",
+                    }
+                )
+                candidates.append(
+                    {
+                        "kind": "parameter_experience",
+                        "key": f"parameter_experience.{run_id}",
+                        "summary": "Verified parameter experience captured for ParameterAdvisor.",
+                        "value": verified_value,
+                        "confidence": 1.0,
+                        "domain": "parameter",
+                    }
+                )
                 candidates.append(
                     {
                         "kind": "optimization",
                         "key": f"optimization.{run_id}.metrics",
                         "summary": "Functionally verified synthesis metrics captured for later comparison.",
+                        "value": verified_value,
+                        "confidence": 0.95,
+                        "domain": "optimization",
+                    }
+                )
+            elif report and report.get("status") == "success":
+                candidates.append(
+                    {
+                        "kind": "synthesis_success",
+                        "key": f"synthesis_success.{run_id}.metrics",
+                        "summary": "Synthesis completed, but no functional golden/reference verification was proven.",
                         "value": {
                             "report": report,
                             "verification": verification,
                             "task": state.get("task", {}),
                             "selected_path": state.get("selected_path"),
+                            "pipeline_status": state.get("pipeline_status", {}),
                         },
-                        "confidence": 1.0,
+                        "confidence": 0.4,
+                        "domain": "parameter",
                     }
                 )
         candidates = [self._sanitize_candidate(candidate) for candidate in candidates]
@@ -323,15 +358,31 @@ class MemoryManager:
                 self.rag_memory.index_text(
                     f"memory:{memory_id}",
                     text,
-                    {"memory_type": memory_type, "run_id": run_id, "key": candidate["key"]},
+                    {
+                        "memory_type": memory_type,
+                        "run_id": run_id,
+                        "key": candidate["key"],
+                        "domain": candidate.get("domain") or self._domain_for_memory_type(memory_type),
+                    },
                 )
             promoted.append(promoted_item)
         path = self._memory_dir(run_id) / "promoted_memories.json"
         self._write_json(path, {"run_id": run_id, "promoted_memories": promoted})
         return {"status": "success", "promoted_memories": promoted, "path": str(path)}
 
+    def _domain_for_memory_type(self, memory_type: str) -> str:
+        if memory_type in {"parameter_experience", "verified_implementation", "synthesis_success"}:
+            return "parameter"
+        if memory_type == "failure":
+            return "failure"
+        if memory_type in {"optimization", "semantic", "skill"}:
+            return "optimization"
+        if memory_type == "episodic":
+            return "episodic"
+        return "general"
+
     def retrieve_similar_experiences(self, query: str, top_k: int = 5) -> list[dict]:
-        items = self.repository.list_memory_items(["episodic", "implementation", "optimization"])
+        items = self.repository.list_memory_items(["episodic", "implementation", "optimization", "verified_implementation", "parameter_experience"])
         scored = []
         anchors = _anchor_tokens(query)
         for item in items:
@@ -376,7 +427,7 @@ class MemoryManager:
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
-        for item in self.repository.list_memory_items(["optimization", "semantic"]):
+        for item in self.repository.list_memory_items(["optimization", "parameter_experience", "verified_implementation", "semantic"]):
             text = self._memory_item_text(item)
             if not _matches_anchor(anchors, text):
                 continue

@@ -47,6 +47,55 @@ def test_memory_extract_candidates(tmp_path):
     assert candidates
 
 
+def test_memory_extracts_synthesis_success_but_not_verified_without_functional_check(tmp_path):
+    manager = _manager(tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "run_id": "r1",
+        "task": {"task_type": "model", "name": "mlp_demo"},
+        "selected_path": "hls4ml_path",
+        "status": "partial_success",
+        "report": {"status": "success", "timing": {"met": True}},
+        "verification": {"status": "unknown", "passed": None, "mode": "vivado_csim"},
+        "pipeline_status": {"level": "synthesis_success"},
+        "suggestions": [],
+        "errors": [],
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    candidates = manager.extract_memory_candidates("r1")
+    kinds = {item.get("kind") for item in candidates}
+
+    assert "synthesis_success" in kinds
+    assert "verified_implementation" not in kinds
+    assert "parameter_experience" not in kinds
+
+
+def test_memory_extracts_verified_implementation_and_parameter_experience(tmp_path):
+    manager = _manager(tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "run_id": "r1",
+        "task": {"task_type": "model", "name": "mnist_mlp_demo"},
+        "selected_path": "hls4ml_path",
+        "status": "success",
+        "report": {"status": "success", "timing": {"met": True}},
+        "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+        "pipeline_status": {"level": "deployment_ready_candidate"},
+        "suggestions": [],
+        "errors": [],
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    candidates = manager.extract_memory_candidates("r1")
+    kinds = {item.get("kind") for item in candidates}
+
+    assert "verified_implementation" in kinds
+    assert "parameter_experience" in kinds
+
+
 def test_memory_extract_candidates_sanitizes_prior_experience_hint(tmp_path):
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"

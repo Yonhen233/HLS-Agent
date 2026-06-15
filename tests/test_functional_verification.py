@@ -153,7 +153,8 @@ class _ExecutionOnlyRepo:
 def test_parameter_advisor_ignores_execution_only_csim_history():
     state = {"task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 64}}}
     result = recommend_parameters({"state": state}, {"repository": _ExecutionOnlyRepo()})
-    assert result["status"] == "no_verified_history"
+    assert result["mode"] == "heuristic_bootstrap"
+    assert result["source_count"] == 0
 
 
 class _TimingFailedRepo:
@@ -170,4 +171,30 @@ class _TimingFailedRepo:
 def test_parameter_advisor_ignores_timing_failed_history():
     state = {"task": {"name": "matmul_16x16_resource", "task_type": "operator", "optimization": {"reuse_factor": 8}}}
     result = recommend_parameters({"state": state}, {"repository": _TimingFailedRepo()})
-    assert result["status"] == "no_verified_history"
+    assert result["mode"] == "heuristic_bootstrap"
+    assert result["source_count"] == 0
+
+
+class _MismatchedFamilyRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {
+                "name": "mnist_qonnx_cnn",
+                "task_type": "model",
+                "frontend": "qonnx",
+                "hls4ml": {"precision": "fixed<8,3>", "reuse_factor": 32, "strategy": "Resource"},
+                "target": {"clock_period": 10},
+            },
+            "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+            "report": {"status": "success", "timing": {"met": True}},
+        }
+        return [{"id": 4, "source_run_id": "qonnx_cnn_verified", "importance": 5, "value_json": json.dumps(value)}]
+
+
+def test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp():
+    state = {"task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 512}}}
+    result = recommend_parameters({"state": state}, {"repository": _MismatchedFamilyRepo()})
+    assert result["mode"] == "heuristic_bootstrap"
+    assert result["source_count"] == 0
+    assert all(item.get("source") != "verified_history" for item in result["recommendations"])
