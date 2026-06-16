@@ -13,6 +13,7 @@ WARNING_DEPENDENCY_OK_TOOLS = {
     "graph_rewrite.rewrite",
     "fallback.generate_operator_hls",
     "llm.generate_candidate",
+    "llm.generate_hls_candidate",
     "report.write_unsupported",
     "vivado.parse_report",
     "vivado.parse_csynth_report",

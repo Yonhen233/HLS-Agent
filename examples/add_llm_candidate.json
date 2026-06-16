@@ -1,0 +1,47 @@
+{
+  "task_type": "operator",
+  "op_type": "Add",
+  "name": "add_16_llm",
+  "top_function": "add_16_llm",
+  "input_shape": [16],
+  "output_shape": [16],
+  "dtype": "ap_fixed<16,6>",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 5
+  },
+  "optimization": {
+    "objective": "resource",
+    "reuse_factor": 2,
+    "pipeline_ii": 1
+  },
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 6,
+    "verification_required": true
+  },
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "add_16_llm",
+    "required_files": [
+      "candidate/add_16_llm.h",
+      "candidate/add_16_llm.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void add_16_llm(data_t lhs[16], data_t rhs[16], data_t output[16])",
+    "dtype": "ap_fixed<16,6>",
+    "operation": "For each i, compute output[i] = lhs[i] + rhs[i].",
+    "testbench": {
+      "input_rule": "Use deterministic small fixed-point values for lhs and rhs.",
+      "golden_rule": "Compute lhs[i] + rhs[i] in the testbench with tolerance 0.001.",
+      "success_marker": "GOLDEN_CHECK_PASSED",
+      "failure_marker": "GOLDEN_CHECK_FAILED"
+    }
+  },
+  "demo": {
+    "expected_path": "llm_candidate_path",
+    "source_demo": "add_operator.json",
+    "description": "LLM candidate version of the Add fallback demo."
+  }
+}

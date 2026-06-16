@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -53,13 +54,17 @@ class LLMCandidateGenerator:
             )
         sandbox_result = self.sandbox.scan_candidate_payload(result)
         if sandbox_result["status"] != "valid":
+            debug_artifact = self._write_rejected_candidate_artifact(result, sandbox_result, client)
             raise AgentRuntimeError(
                 build_error(
                     "PermissionDeniedError",
                     "CandidateSandbox rejected generated HLS code.",
                     recoverable=False,
                     source="llm.generate_hls_candidate",
-                    details={"violations": sandbox_result["violations"]},
+                    details={
+                        "violations": sandbox_result["violations"],
+                        "llm_debug_artifact": debug_artifact,
+                    },
                 )
             )
         target_root = Path(run_dir).resolve()
@@ -100,3 +105,35 @@ class LLMCandidateGenerator:
             "assumptions": result.get("assumptions", []),
             "sandbox_scan": sandbox_result,
         }
+
+    def _write_rejected_candidate_artifact(self, candidate: dict[str, Any], sandbox_result: dict[str, Any], client) -> str | None:
+        artifact_manager = getattr(client, "context", {}).get("artifact_manager")
+        if artifact_manager is None:
+            return None
+        files = []
+        for item in candidate.get("files", []):
+            content = str(item.get("content", ""))
+            files.append(
+                {
+                    "relative_path": item.get("relative_path"),
+                    "role": item.get("role"),
+                    "content": content,
+                }
+            )
+        payload = {
+            "candidate_name": candidate.get("candidate_name"),
+            "requires_verification": candidate.get("requires_verification"),
+            "assumptions": candidate.get("assumptions", []),
+            "sandbox_scan": sandbox_result,
+            "files": files,
+        }
+        try:
+            return str(
+                artifact_manager.write_json(
+                    f"llm_debug/rejected_candidate_{int(time.time() * 1000)}.json",
+                    payload,
+                    "llm_debug",
+                )
+            )
+        except Exception:
+            return None

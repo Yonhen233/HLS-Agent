@@ -96,6 +96,31 @@ def test_memory_extracts_verified_implementation_and_parameter_experience(tmp_pa
     assert "parameter_experience" in kinds
 
 
+def test_memory_does_not_promote_timing_failed_candidate_as_verified(tmp_path):
+    manager = _manager(tmp_path)
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "run_id": "r1",
+        "task": {"task_type": "operator", "name": "dense_llm"},
+        "selected_path": "llm_candidate_path",
+        "status": "partial_success",
+        "report": {"status": "success", "timing": {"met": False}},
+        "verification": {"status": "csim_passed", "passed": True, "mode": "golden_testbench"},
+        "pipeline_status": {"level": "functional_verified", "timing_met": False},
+        "suggestions": [],
+        "errors": [],
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    candidates = manager.extract_memory_candidates("r1")
+    kinds = {item.get("kind") for item in candidates}
+
+    assert "failure" in kinds
+    assert "verified_implementation" not in kinds
+    assert "parameter_experience" not in kinds
+
+
 def test_memory_extract_candidates_sanitizes_prior_experience_hint(tmp_path):
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"

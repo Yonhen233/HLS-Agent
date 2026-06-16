@@ -96,6 +96,11 @@ class SkillRegistry:
         if not trigger:
             return 1
         score = 0
+        llm_candidate_cfg = task.get("llm_candidate") if isinstance(task.get("llm_candidate"), dict) else {}
+        if llm_candidate_cfg.get("required") and skill.name == "llm_candidate_verification_flow":
+            score += 10
+        if llm_candidate_cfg.get("required") and "optimization" in skill.tags:
+            score -= 3
         task_type = task.get("task_type")
         trigger_task_type = trigger.get("task_type")
         if trigger_task_type:

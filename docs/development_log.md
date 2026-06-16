@@ -6,6 +6,490 @@
 
 ---
 
+## 2026-06-16 11:56:27 +08:00：扩展 LLM Candidate 到 fallback 算子并修复真实运行暴露的 repair/status/memory 问题
+### 1. 本次测试做了什么
+本轮目标是验证：前面依赖 `fallback_template_path` 的简单算子，是否可以改走真实 `llm_candidate_path`，即：
+
+- Main Agent / LLM planner 选择 `llm_candidate_verification_flow`。
+- DeepSeek-V4-Pro 生成 HLS C++ / header / golden testbench。
+- CandidateSandbox + LLMGuard 做路径、内容、安全扫描。
+- Vivado HLS 2018.3 真实运行 csim + csynth。
+- 解析 report，并用 pipeline status 判断是否达到 `deployment_ready_candidate`。
+
+新增 demo：
+
+```text
+examples/dense_llm_candidate.json
+examples/matmul_llm_candidate.json
+examples/relu_llm_candidate.json
+examples/add_llm_candidate.json
+```
+
+复用上一轮新增 demo：
+
+```text
+examples/scale_shift_llm_candidate.json
+```
+
+真实运行配置仍为：
+
+```text
+LLM base_url = https://api.deepseek.com
+LLM model    = deepseek-v4-pro
+HLS tool     = D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat
+mock Vivado  = false
+mock hls4ml  = false
+```
+
+API key 仅通过环境变量注入，没有写入仓库、日志或配置文件。
+
+### 2. 真实运行结果
+本轮真实 DeepSeek + Vivado HLS 2018.3 结果如下：
+
+| Demo | Run ID | Status | Path | Verification | Latency | DSP | FF | LUT | Timing |
+|---|---|---|---|---|---:|---:|---:|---:|---|
+| Dense LLM | `dense_16x32_llm_5e764744_04` | success | llm_candidate_path | golden csim passed | 37 | 16 | 1171 | 2873 | 6.380ns / 8ns met |
+| MatMul LLM | `matmul_16x16_llm_3754d13e_02` | success | llm_candidate_path | golden csim passed | 3073 | 8 | 213 | 520 | 9.634ns / 12ns met |
+| ReLU LLM | `relu_16_llm_68ccedb0` | success | llm_candidate_path | golden csim passed | 10 | 0 | 74 | 300 | 3.234ns / 5ns met |
+| Add LLM | `add_16_llm_4c163640` | success | llm_candidate_path | golden csim passed | 20 | 0 | 230 | 205 | 2.322ns / 5ns met |
+| ScaleShift LLM | `scale_shift_llm_750db7b2_04` | success | llm_candidate_path | golden csim passed | 19 | 0 | 38 | 111 | 4.696ns / 8ns met |
+
+已有 fallback baseline 对照：
+
+| Demo | Run ID | Path | Latency | DSP | FF | LUT | Timing |
+|---|---|---|---:|---:|---:|---:|---|
+| Dense fallback | `dense_16x32_af6abf3c_23` | fallback_template_path | 269 | 16 | 732 | 549 | 4.304ns / 5ns met |
+| MatMul fallback | `matmul_16x16_resource_ecbcd28b` | fallback_template_path | 2051 | 16 | 209 | 624 | 9.634ns / 12ns met |
+
+阶段性结论：
+
+- LLM candidate 可以在 Dense / MatMul / ReLU / Add / ScaleShift 上真实跑通，不是 mock。
+- 不能简单说“LLM 全量替代 fallback 更好”：Dense LLM latency 明显更低，但 FF/LUT 明显更高；MatMul LLM DSP/LUT 更低，但 latency 更高。
+- 更合理的定位是：LLM candidate 是可验证的实现生成路径，适合作为 fallback template 的补充/探索分支；是否替代要看 objective 和 report。
+
+### 3. 暴露的问题与修复
+#### 问题 A：`llm_candidate.required=true` 仍可能把 fallback/hls4ml skill 暴露给 planner
+现象：
+
+- 做“LLM 替代 fallback”测试时，planner 理论上不应该看到 fallback/hls4ml 主路径，否则失败会被绕开。
+
+根因：
+
+- 之前只是提高 `llm_candidate_verification_flow` 的候选分数，但 prompt context 仍可能包含其他 skills。
+
+修复：
+
+- 在 `SkillPromptContextBuilder` 中把 `llm_candidate.required=true` 升级为契约：只暴露 `llm_candidate_verification_flow`。
+- 新增测试：`test_llm_candidate_required_prompt_context_exposes_only_candidate_skill`。
+
+#### 问题 B：Dense LLM 初始候选功能通过但 timing failed
+现象：
+
+- `dense_16x32_llm_5e764744` 通过 golden csim 和 csynth，但最终 report 为 timing not met，status 为 `partial_success`。
+
+根因：
+
+- Runtime 只对 `VerificationFailedError` 做 repair，没有把“功能正确但 timing failed”当作候选质量问题。
+
+修复：
+
+- 新增 timing repair chain：
+  - 检测 `selected_path=llm_candidate_path` 且 Vivado report `timing.met=false`。
+  - 追加 `Repair LLM candidate after timing failure`。
+  - 把上一轮 report/timing 放进 `candidate_generation_context`。
+  - 重新走 Generate → Verify → Vivado → Parse。
+- 新增测试：`test_llm_candidate_timing_failure_appends_repair_chain`。
+
+#### 问题 C：Timing failed candidate 被 Memory 当成高置信 verified implementation
+现象：
+
+- Dense timing failed 时，候选已经通过 csim/csynth，但不应进入 `verified_implementation` / `parameter_experience`。
+
+根因：
+
+- Memory 提升条件只看 functional verification + synthesis success，没有排除 timing failed。
+
+修复：
+
+- `MemoryManager.extract_memory_candidates` 中加入 timing gate。
+- timing failed 的候选只记录为 `failure` / 低置信 `optimization` 经验。
+- 不再作为 ParameterAdvisor 的高置信参数经验。
+- 新增测试：`test_memory_does_not_promote_timing_failed_candidate_as_verified`。
+
+#### 问题 D：CandidateSandbox 拒绝后错误详情丢失，且 generation failure 没有自动 repair
+现象：
+
+- Dense 某次 run 中 LLM 生成候选被 CandidateSandbox 拒绝。
+- state 只看到 `CandidateSandbox rejected generated HLS code`，违规细节丢失。
+- Runtime 直接失败，没有重新生成。
+
+根因：
+
+- `tools/llm_candidate.py` 捕获 `AgentRuntimeError` 时重新包装成普通 `LLMGenerationError`，丢掉 `details`。
+- Runtime 只处理 verification failure，没有处理 generation failure。
+
+修复：
+
+- 保留 sandbox `violations` 到 structured error。
+- 将被拒绝的候选 payload 写到 `runs/<run_id>/llm_debug/rejected_candidate_*.json` artifact，Main Agent 只持有 artifact path 和违规摘要。
+- generation failure 现在会追加 `Repair LLM candidate generation`。
+- 修复后旧 generation todo 标记为 `completed_with_warning`，表示失败已被 repair chain 接管。
+- 新增测试：
+  - `test_llm_candidate_generator_applies_candidate_sandbox`
+  - `test_llm_candidate_generation_failure_schedules_repair`
+
+#### 问题 E：MatMul verification failure 没有进入 repair chain
+现象：
+
+- `matmul_16x16_llm_4192d016` 的 verification 阶段失败，但 runtime 没有追加完整 Generate → Verify → Vivado → Parse repair 链。
+
+根因：
+
+- 旧逻辑依赖 todo title 等于 `Verify LLM candidate`。
+- 真实 LLM planner 写出的 title 是 `Verify HLS candidate`。
+- 这是典型的现代 Agent 运行时问题：不能把自然语言 title 当控制流条件。
+
+修复：
+
+- verification failure 改为 `assigned_tool` 驱动：
+  - `verify_candidate.run`
+  - `verify.run_csim`
+  - `verify.compare_reference`
+- 任何 title 变体只要工具语义正确，都会进入 repair chain。
+- 新增测试：`test_llm_candidate_verification_failure_uses_assigned_tool_not_title`。
+
+#### 问题 F：MatMul fixed-point golden testbench 容差过窄
+现象：
+
+- MatMul 初始候选输出和 golden 差异约 0.02-0.03。
+- 旧 contract 要求 double golden + 0.01 tolerance，导致 fixed-point 量化误差被误判为失败。
+
+根因：
+
+- 对 `ap_fixed<12,4>` 矩阵乘法，golden testbench 应考虑 fixed-point 累加顺序和量化误差。
+
+修复：
+
+- `matmul_llm_candidate.json` 的 contract 改为：
+  - golden 使用相同 `data_t` fixed-point accumulation；或
+  - 使用 0.05 tolerance。
+
+#### 问题 G：被 repair chain 取代的旧 todo 导致最终 status 被降级
+现象：
+
+- MatMul repair 后最终 candidate 已经 deployment-ready，但旧 Vivado todo 被标记为 cancelled，整体 status 仍是 partial_success。
+
+根因：
+
+- 状态聚合器把所有 cancelled 都当成未完成，没有区分“被 repair supersede 的旧链路”。
+
+修复：
+
+- `update_status_from_todos` 中识别 superseded cancellation。
+- 如果 pipeline 已经 `deployment_ready_candidate=true` 且没有未恢复错误，repair superseded 的 cancelled todo 不再降低最终 status。
+- 新增测试：`test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_status`。
+
+#### 问题 H：真实 API 偶发 SSL / 长 reasoning 输出
+现象：
+
+- 一次 Dense run 中 DeepSeek API 返回 `SSL: WRONG_VERSION_NUMBER`。
+- 一次 MatMul run 中模型输出过长 reasoning，触发 `reasoning_content but no final message.content`。
+
+处理：
+
+- 已确认 `https://api.deepseek.com` + `deepseek-v4-pro` 的小 JSON ping 可用。
+- 这类错误现在会进入 generation repair/retry，而不是直接停止。
+- MatMul 真实 run 将 `DL_OP_TO_HLS_LLM_MAX_TOKENS` 提高到 16384 后成功。
+
+### 4. 本轮新增/更新测试
+已运行并通过的重点测试：
+
+```text
+tests/test_demo_examples_schema.py
+tests/test_skill_registry.py
+tests/test_runtime_hybrid.py::test_llm_candidate_timing_failure_appends_repair_chain
+tests/test_runtime_hybrid.py::test_llm_candidate_generation_failure_schedules_repair
+tests/test_runtime_hybrid.py::test_llm_candidate_verification_failure_uses_assigned_tool_not_title
+tests/test_runtime_hybrid.py::test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_status
+tests/test_memory.py::test_memory_does_not_promote_timing_failed_candidate_as_verified
+tests/test_candidate_sandbox.py
+```
+
+### 5. 未完成 / 后续优化
+- 目前 LLM candidate 已经能替代简单 operator fallback 的一部分场景，但不能宣称全量替代 hls4ml。hls4ml 仍更适合模型级转换、层级配置、已有 backend 生态。
+- LLM candidate 的质量有波动，必须保留 CandidateSandbox、golden testbench、Vivado csim/csynth、report parser 和 repair loop。
+- Dense/MatMul 的 LLM 结果体现了 objective trade-off：有时 latency 更好，有时资源更好，需要未来接入 ParameterAdvisor / OptimizationSpecialist 做自动选择。
+- CLI `run-llm` 仍会把完整 state 输出到 stdout，真实长 run 可读性较差，后续建议增加 `--summary-only` 或默认只输出 run_id + summary path。
+
+## 2026-06-16 10:15:37 +08:00：新增并跑通真实 DeepSeek-V4-Pro + Vivado 的 LLM Candidate Demo
+### 1. 本次测试做了什么
+本轮目标是补齐 Demo 矩阵中缺失的 `llm_candidate_path`，并验证它不是 mock / 占位路径，而是真实经历：
+
+- LLM planner 选择 `llm_candidate_verification_flow`。
+- LLM 生成 HLS C++ / header / golden testbench。
+- CandidateSandbox 与 LLMGuard 检查候选文件路径和内容。
+- Vivado HLS 2018.3 真实运行 csim + csynth。
+- report parser 解析 latency/resource/timing。
+- verification-aware memory 只在 csim/csynth 均通过后提升长期记忆。
+
+新增 demo：
+
+```text
+examples/scale_shift_llm_candidate.json
+```
+
+任务含义：
+
+```text
+ScaleShift:
+  input[16] -> output[16]
+  output[i] = input[i] * 2 + 1
+```
+
+该算子故意不放进 fallback template 的 Dense / MatMul / ReLU / Add 支持范围，用于强制触发 LLM candidate 路径。
+
+关键运行配置：
+
+```powershell
+$env:PYTHONPATH='D:\hls_agent\standalone_work\dl-op-to-hls-agent\src'
+$env:DL_OP_TO_HLS_LLM_ENABLED='1'
+$env:DL_OP_TO_HLS_LLM_PROVIDER='openai'
+$env:DL_OP_TO_HLS_LLM_BASE_URL='https://api.deepseek.com'
+$env:DL_OP_TO_HLS_LLM_MODEL='deepseek-v4-pro'
+$env:DL_OP_TO_HLS_MOCK_VIVADO='0'
+$env:DL_OP_TO_HLS_MOCK_HLS4ML='0'
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH='D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat'
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN='vivado_hls'
+$env:DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS='1200'
+
+python -m dl_op_to_hls.cli run-llm examples/scale_shift_llm_candidate.json
+```
+
+API key 仅通过环境变量注入，没有写入仓库、日志或配置文件。
+
+### 2. 真实运行结果
+最终成功 run：
+
+```text
+runs/scale_shift_llm_750db7b2_04
+```
+
+结果：
+
+| 项目 | 结果 |
+|---|---|
+| status | success |
+| selected_path | llm_candidate_path |
+| pipeline_status.level | deployment_ready_candidate |
+| functional verification | csim_passed / golden_testbench |
+| synthesis | csynth success |
+| timing | met |
+| latency | 19 cycles |
+| II / interval | 19 cycles |
+| BRAM | 0 |
+| DSP | 0 |
+| FF | 38 |
+| LUT | 111 |
+| estimated clock | 4.696 ns |
+| target clock | 8.0 ns |
+| effective timing budget | 7.0 ns |
+| Verify todo count | 1 |
+
+生成的候选文件：
+
+```text
+runs/scale_shift_llm_750db7b2_04/candidate/scale_shift_llm.h
+runs/scale_shift_llm_750db7b2_04/candidate/scale_shift_llm.cpp
+runs/scale_shift_llm_750db7b2_04/candidate/testbench.cpp
+```
+
+候选设计代码由 DeepSeek-V4-Pro 生成，核心实现为：
+
+```cpp
+output[i] = input[i] * 2 + 1;
+```
+
+testbench 执行 golden check，并在成功时输出：
+
+```text
+GOLDEN_CHECK_PASSED
+```
+
+### 3. 暴露的问题与修复
+#### 问题 A：旧 Paratera endpoint 不能访问 DeepSeek-V4-Pro
+现象：
+
+- 使用 `https://llmapi.paratera.com` 和模型名 `DeepSeek-V4-Pro` / `deepseek-v4-pro` 测试时，服务端返回：
+
+```text
+team_model_access_denied
+```
+
+诊断：
+
+- 这不是模型名大小写问题。
+- 服务端明确返回该 team 只允许访问 GLM / Paddle / Intern 系列，不包含 DeepSeek。
+- 中间曾用 `GLM-4.5-Flash` 做过框架通路排查，但不计入正式 DeepSeek 结果。
+
+修复：
+
+- 按用户提供的新配置切换到：
+
+```text
+Base URL: https://api.deepseek.com
+Model: deepseek-v4-pro
+```
+
+- 用极小 JSON 请求确认 DeepSeek 返回 `OK` 后，再运行完整 demo。
+
+#### 问题 B：LLM 计划使用旧别名 `llm.generate_hls_candidate`，runtime 只识别新名
+现象：
+
+- LLM planner 选择了正确 skill：`llm_candidate_verification_flow`。
+- 但 Todo 标题为 `Generate HLS candidate for ScaleShift operator`，`assigned_tool=llm.generate_hls_candidate`。
+- ToolRegistry 有 alias，但 runtime 的 candidate 分支只识别 `llm.generate_candidate`。
+- 结果：该 todo 被跳过，提示 `No action mapped for this todo`。
+
+根因：
+
+- ToolRegistry alias、skill YAML、runtime 执行分支之间命名没有完全统一。
+
+修复：
+
+- `runtime._execute_todo_actions()` 同时识别：
+
+```text
+llm.generate_candidate
+llm.generate_hls_candidate
+```
+
+- `todo.WARNING_DEPENDENCY_OK_TOOLS` 也加入旧别名。
+- 保留 alias 兼容，不要求 LLM 必须一字不差使用新工具名。
+
+#### 问题 C：LLM candidate demo 容易被 optimization skill 抢占
+现象：
+
+- `llm_candidate.required=true` 的任务，初始 skill 排序中可能被 `latency_optimization_flow` 抢到前面。
+
+根因：
+
+- SkillRegistry 的打分规则只看 task_type / conditions，无法识别“这是专门验证 LLM candidate 的任务”。
+
+修复：
+
+- `SkillRegistry._match_score()` 对 `task.llm_candidate.required=true` 增加专门优先级。
+- 同时降低 optimization-only skill 对这类任务的排序干扰。
+
+#### 问题 D：候选生成 schema 对文件内容约束不够强
+现象：
+
+- 旧 schema 只要求 `files` 是数组，没有强制每个 file 包含 `relative_path` 和 `content`。
+- 如果模型只返回文件名，后续写文件阶段可能变成运行期错误。
+
+修复：
+
+- `CANDIDATE_GENERATION_SCHEMA` 增加：
+  - `title=CandidateGenerationSchema`
+  - file item required: `relative_path`, `content`
+  - role enum: `hls_header`, `hls_cpp`, `testbench`, `tcl`, `note`
+  - ScaleShift 三文件示例。
+- `LLMGuard.validate_candidate_files()` 增加文件级校验：
+  - files 必须非空。
+  - 每个文件必须是 object。
+  - 必须有相对路径。
+  - 必须有非空 content。
+  - 必须位于 `runs/<run_id>/candidate` 下。
+
+#### 问题 E：候选 prompt 没有明确要求 testbench 和 top function contract
+现象：
+
+- 对真实 Vivado 验证来说，仅生成 `.cpp` 不够，必须有 header 和 testbench。
+- 如果函数名、signature、dtype 与 task 不一致，Vivado csim/csynth 会失败。
+
+修复：
+
+- 强化 `CANDIDATE_GENERATOR_SYSTEM_PROMPT`：
+  - 必须返回完整 `candidate/<top>.h`
+  - 必须返回完整 `candidate/<top>.cpp`
+  - 必须返回完整 `candidate/testbench.cpp`
+  - 必须遵守 `op_spec.candidate_contract`
+  - testbench 必须计算 golden reference
+  - 成功必须打印 `GOLDEN_CHECK_PASSED`
+  - 禁止 system / popen / 网络 / 文件 IO / 动态分配 / 线程 / 异常等不适合 HLS candidate 的行为。
+
+#### 问题 F：repair/regenerate 次数写死为 2
+现象：
+
+- 之前 `Verify LLM candidate` 失败后最多修复 2 次，不适合开发期暴露和修复候选链路问题。
+
+修复：
+
+- 新增 `runtime._max_candidate_repair_attempts(state)`：
+  - 优先读取 `task.max_repair_attempts`
+  - 其次读取 `task.llm_candidate.max_repair_attempts`
+  - 再读取环境变量 `DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS`
+  - 默认 2
+- `scale_shift_llm_candidate.json` 显式设置为 6。
+- 每次重新生成 candidate 时，把 `repair_attempt`、最近错误和上一轮 candidate_dir 传入 `op_spec.candidate_generation_context`。
+
+本轮最终成功路径没有触发 repair，因为 DeepSeek-V4-Pro 生成的第一个候选实现已经通过真实 Vivado 验证。
+
+#### 问题 G：候选生成成功后重复追加 Verify todo
+现象：
+
+- LLM plan 已经包含 `verify_candidate.run`。
+- runtime 在 candidate 生成成功后又追加了一个新的 `Verify LLM candidate`。
+- 结果：一次 run 中出现两个验证 todo。
+
+修复：
+
+- candidate 生成成功后，runtime 优先复用已有 active `verify_candidate.run` todo。
+- 只有计划中没有验证节点时才追加新的 Verify todo。
+- 复测后最终 run 中 `verify_count=1`。
+
+#### 问题 H：DeepSeek suggestion 阶段偶发缺少顶层 summary
+现象：
+
+- `OptimizationSuggestionSchema` 要求顶层 `summary`。
+- DeepSeek 一次返回缺少该字段，触发 `LLMJsonRepairStarted`。
+- repair 成功，最终建议正常生成。
+
+修复：
+
+- 强化 `OPTIMIZER_SYSTEM_PROMPT`：
+  - 明确顶层必须包含 `summary`
+  - 必须包含 `suggestions`
+  - 必须包含 `memory_used`
+  - 禁止返回 bare array。
+
+### 4. 测试结果
+相关回归测试：
+
+```powershell
+$env:PYTHONPATH='D:\hls_agent\standalone_work\dl-op-to-hls-agent\src'
+$env:PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=.pytest-tmp-candidate4'
+python -m pytest tests/test_demo_examples_schema.py tests/test_skill_registry.py tests/test_llm_candidate_guard.py tests/test_runtime_hybrid.py -q
+```
+
+结果：
+
+```text
+38 passed
+```
+
+新增/覆盖的测试点：
+
+- `scale_shift_llm_candidate.json` schema 合法。
+- `llm_candidate_verification_flow` 支持候选路径。
+- `llm_candidate.required=true` 优先匹配 candidate skill。
+- LLM candidate 文件必须包含 content。
+- task 级 repair attempt override 生效。
+
+### 5. 未修复或后续可优化
+- 本轮没有触发真实 repair/regenerate，因为第一次 DeepSeek candidate 已通过；后续可以增加一个专门的“故意错误 candidate”测试来验证自动 repair loop。
+- suggestion 阶段仍耗时较长，约 60 秒；已强化 prompt，但是否能稳定避免 JSON repair 需要更多真实样本验证。
+- 当前 LLM candidate demo 是简单 elementwise 算子，后续可以扩展到更复杂但仍可验证的 unsupported operator，例如 `LeakyReLU`、`Clamp` 或小型 fused affine activation。
+
 ## 2026-06-15 23:56:09 +08:00：优化 Demo0-6 至真实 Vivado HLS 闭环，并细化 Advisor/Memory/RAG/Status 契约
 ### 1. 本次测试做了什么
 本轮目标是继续把 Demo 从“能运行/能综合”推进到“状态语义清晰、功能验证可追踪、参数经验可复用”：

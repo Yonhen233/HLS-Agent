@@ -1,0 +1,47 @@
+{
+  "task_type": "operator",
+  "op_type": "ReLU",
+  "name": "relu_16_llm",
+  "top_function": "relu_16_llm",
+  "input_shape": [16],
+  "output_shape": [16],
+  "dtype": "ap_fixed<16,6>",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 5
+  },
+  "optimization": {
+    "objective": "latency",
+    "reuse_factor": 1,
+    "pipeline_ii": 1
+  },
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 6,
+    "verification_required": true
+  },
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "relu_16_llm",
+    "required_files": [
+      "candidate/relu_16_llm.h",
+      "candidate/relu_16_llm.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void relu_16_llm(data_t input[16], data_t output[16])",
+    "dtype": "ap_fixed<16,6>",
+    "operation": "For each i, compute output[i] = input[i] > 0 ? input[i] : 0.",
+    "testbench": {
+      "input_rule": "Use deterministic values that include negative, zero, and positive inputs.",
+      "golden_rule": "Compute max(input[i], 0) in the testbench with exact fixed-point comparison tolerance 0.001.",
+      "success_marker": "GOLDEN_CHECK_PASSED",
+      "failure_marker": "GOLDEN_CHECK_FAILED"
+    }
+  },
+  "demo": {
+    "expected_path": "llm_candidate_path",
+    "source_demo": "relu_operator.json",
+    "description": "LLM candidate version of the ReLU fallback demo."
+  }
+}

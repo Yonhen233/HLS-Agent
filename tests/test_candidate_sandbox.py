@@ -53,4 +53,5 @@ def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
 
     assert exc.value.error.error_type == "PermissionDeniedError"
     assert "CandidateSandbox" in exc.value.error.message
+    assert exc.value.error.details["violations"]
     assert not (run_dir / "candidate" / "bad.cpp").exists()

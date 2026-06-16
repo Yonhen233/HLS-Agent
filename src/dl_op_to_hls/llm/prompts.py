@@ -42,7 +42,14 @@ Produce strict JSON recovery decisions and valid follow-up todos."""
 OPTIMIZER_SYSTEM_PROMPT = """You are an FPGA HLS optimization advisor.
 Use current metrics and retrieved memories to produce actionable suggestions.
 
-Return strict JSON only. Each suggestions item must be a concrete object:
+Return strict JSON only. The top-level object must include:
+- summary: one concise string
+- suggestions: an array of concrete suggestion objects
+- memory_used: an array, empty if no memory was used
+
+Do not return a bare array. Do not omit summary or memory_used.
+
+Each suggestions item must be a concrete object:
 {
   "title": "Increase reuse_factor to reduce DSP",
   "reason": "Current DSP is 16 and the objective is resource; increasing reuse_factor trades latency for fewer parallel multipliers.",
@@ -55,4 +62,26 @@ Tie every suggestion to at least one current metric, objective, timing status, o
 
 CANDIDATE_GENERATOR_SYSTEM_PROMPT = """You generate HLS candidate code for unsupported operators.
 Return strict JSON only.
-Output files only under candidate/ and always require verification."""
+Output files only under candidate/ and always require verification.
+
+The returned files array must contain objects with:
+- relative_path: a path under candidate/
+- content: complete file content
+
+For simple operator tasks, generate a complete Vivado HLS-ready project fragment:
+- candidate/<top_function>.h
+- candidate/<top_function>.cpp
+- candidate/testbench.cpp
+
+Follow any op_spec.candidate_contract exactly. If it provides a top_function,
+signature, dimensions, dtype, or operation formula, do not invent a different
+interface. The testbench must call the generated top function, compute a golden
+reference, print GOLDEN_CHECK_PASSED on success, and return non-zero on failure.
+If op_spec.candidate_generation_context.repair_reason is timing_not_met,
+regenerate the implementation to improve timing closure while preserving the
+same interface and golden behavior. Prefer shorter critical paths, explicit
+pipeline pragmas, local accumulators with clear reset semantics, and resource
+sharing or staged reductions when useful. It is acceptable to trade latency for
+timing closure if the objective or repair context says timing failed.
+Do not use system(), popen(), networking, filesystem access, dynamic allocation,
+threads, exceptions, or non-synthesizable side effects in candidate design code."""

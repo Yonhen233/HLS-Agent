@@ -70,6 +70,33 @@ def test_resnet_boundary_schema_valid():
     assert data["name"] == "resnet18_boundary_demo"
 
 
+def test_scale_shift_llm_candidate_schema_valid():
+    data = _validate_example("scale_shift_llm_candidate.json")
+    assert data["task_type"] == "operator"
+    assert data["op_type"] == "ScaleShift"
+    assert data["demo"]["expected_path"] == "llm_candidate_path"
+    assert data["max_repair_attempts"] == 6
+    assert data["candidate_contract"]["top_function"] == data["top_function"]
+
+
+@pytest.mark.parametrize(
+    ("filename", "op_type"),
+    [
+        ("dense_llm_candidate.json", "Dense"),
+        ("matmul_llm_candidate.json", "MatMul"),
+        ("relu_llm_candidate.json", "ReLU"),
+        ("add_llm_candidate.json", "Add"),
+    ],
+)
+def test_fallback_operator_llm_candidate_schema_valid(filename, op_type):
+    data = _validate_example(filename)
+    assert data["task_type"] == "operator"
+    assert data["op_type"] == op_type
+    assert data["llm_candidate"]["required"] is True
+    assert data["demo"]["expected_path"] == "llm_candidate_path"
+    assert data["candidate_contract"]["top_function"] == data["top_function"]
+
+
 def test_graph_rewrite_suggests_gemm_decomposition():
     result = rewrite_graph({"task": {"task_type": "operator", "op_type": "Gemm"}}, {})
     assert result["status"] == "rewrite_suggested"

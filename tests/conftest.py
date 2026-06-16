@@ -47,6 +47,11 @@ def temp_workspace(tmp_path: Path) -> Path:
         "tiny_residual_block.json",
         "resnet18_boundary.json",
         "existing_hls_project.json",
+        "scale_shift_llm_candidate.json",
+        "dense_llm_candidate.json",
+        "matmul_llm_candidate.json",
+        "relu_llm_candidate.json",
+        "add_llm_candidate.json",
     ]:
         shutil.copy2(ROOT / "examples" / filename, tmp_path / "examples" / filename)
     for filename in ["existing_dense_project.h", "existing_dense_project.cpp", "testbench.cpp", "run_hls.tcl"]:

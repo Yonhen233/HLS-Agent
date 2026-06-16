@@ -109,8 +109,21 @@ class LLMGuard:
         run_path = Path(run_dir).resolve()
         if candidate.get("status") == "verified":
             errors.append("Candidate cannot be marked verified before verification pipeline.")
-        for file_item in candidate.get("files", []):
+        files = candidate.get("files")
+        if not isinstance(files, list) or not files:
+            errors.append("Candidate must include a non-empty files list.")
+            return {"status": "invalid" if errors else "valid", "errors": errors}
+        for index, file_item in enumerate(files, start=1):
+            if not isinstance(file_item, dict):
+                errors.append(f"Candidate file #{index} must be an object.")
+                continue
             rel = file_item.get("relative_path", "")
+            content = file_item.get("content")
+            if not rel:
+                errors.append(f"Candidate file #{index} is missing relative_path.")
+                continue
+            if not isinstance(content, str) or not content.strip():
+                errors.append(f"Candidate file {rel} is missing non-empty content.")
             if Path(rel).is_absolute():
                 errors.append(f"Candidate file path must be relative: {rel}")
                 continue

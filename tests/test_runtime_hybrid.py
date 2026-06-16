@@ -274,6 +274,49 @@ def test_pipeline_status_distinguishes_synthesis_and_functional_ready():
     assert pipeline["level"] == "functional_verified"
 
 
+def test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_status():
+    state = AgentState(run_id="r1", task={"task_type": "operator", "name": "matmul"}, status="partial_success")
+    state.selected_path = "llm_candidate_path"
+    state.report = {"status": "success", "timing": {"met": True}}
+    state.verification = {"status": "csim_passed", "passed": True, "mode": "golden_testbench"}
+    state.pipeline_status = {
+        "deployment_ready_candidate": True,
+        "timing_met": True,
+    }
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Old Vivado synthesis",
+            description="Old chain.",
+            status="cancelled",
+            priority=1,
+            dependencies=[],
+            assigned_tool="vivado.run_csynth",
+            assigned_specialist="VivadoSpecialist",
+            inputs={},
+            outputs=None,
+            error={"message": "Verification failed; a repaired LLM candidate must be generated before synthesis."},
+        ),
+        TodoItem(
+            id="todo_002",
+            title="Repaired synthesis",
+            description="New chain.",
+            status="completed",
+            priority=2,
+            dependencies=[],
+            assigned_tool="vivado.run_csynth",
+            assigned_specialist="VivadoSpecialist",
+            inputs={},
+            outputs={"status": "success"},
+            error=None,
+        ),
+    ]
+
+    update_status_from_todos(state)
+
+    assert state.status == "success"
+
+
 def test_parameter_advice_applies_missing_values_without_overriding_existing_values():
     from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
 
@@ -301,3 +344,182 @@ def test_parameter_advice_applies_missing_values_without_overriding_existing_val
     assert state.task["hls4ml"]["strategy"] == "Resource"
     assert state.task["target"]["clock_period"] == 10
     assert state.parameter_advice["proposed_updates"]["hls4ml"]["precision"] == "fixed<8,3>"
+
+
+def test_candidate_repair_attempts_read_task_override(monkeypatch):
+    from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
+
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS", "2")
+    runtime = PlanExecuteReactRuntime.__new__(PlanExecuteReactRuntime)
+    state = AgentState(
+        run_id="r1",
+        task={
+            "task_type": "operator",
+            "name": "scale_shift_llm",
+            "llm_candidate": {"max_repair_attempts": 6},
+        },
+    )
+
+    assert runtime._max_candidate_repair_attempts(state) == 6
+
+
+def test_llm_candidate_timing_failure_appends_repair_chain(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = PlanExecuteReactRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Seed"], state.task)
+    initial = runtime.todo_manager.append_item(
+        title="Generate LLM candidate HLS",
+        description="Initial candidate.",
+        priority=1,
+        assigned_tool="llm.generate_hls_candidate",
+        dependencies=[],
+        inputs={},
+    )
+    initial.status = "completed"
+    synth = runtime.todo_manager.append_item(
+        title="Run Vivado synthesis",
+        description="Synthesis produced timing warning.",
+        priority=2,
+        assigned_tool="vivado.run_csynth",
+        assigned_specialist="VivadoSpecialist",
+        dependencies=[initial.id],
+        inputs={},
+    )
+    parse = runtime.todo_manager.append_item(
+        title="Parse Vivado synthesis report",
+        description="Old parse todo should be cancelled.",
+        priority=3,
+        assigned_tool="vivado.parse_report",
+        assigned_specialist="VivadoSpecialist",
+        dependencies=[synth.id],
+        inputs={},
+    )
+    memory = runtime.todo_manager.append_item(
+        title="Promote successful run to long-term memory",
+        description="Memory must wait for repaired parse.",
+        priority=4,
+        assigned_tool="memory.promote_to_long_term",
+        assigned_specialist="MemorySpecialist",
+        dependencies=[parse.id],
+        inputs={},
+    )
+    state.todos = runtime.todo_manager.todo_list.items
+    state.selected_path = "llm_candidate_path"
+    state.hls_project_dir = str(temp_workspace / "runs" / state.run_id / "candidate")
+    state.report = {
+        "status": "success",
+        "timing": {"target_ns": 8.0, "estimated_ns": 9.4, "met": False},
+    }
+
+    runtime.reflect(
+        state,
+        synth,
+        {
+            "status": "completed_with_warning",
+            "observation": {"summary": "timing was not met"},
+        },
+    )
+
+    repair = next(item for item in runtime.todo_manager.todo_list.items if item.title == "Repair LLM candidate after timing failure")
+    repaired_parse = next(item for item in runtime.todo_manager.todo_list.items if item.title == "Parse repaired synthesis report")
+    assert repair.inputs["repair_reason"] == "timing_not_met"
+    assert parse.status == "cancelled"
+    assert repaired_parse.id in memory.dependencies
+
+
+def test_llm_candidate_generation_failure_schedules_repair(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = PlanExecuteReactRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Seed"], state.task)
+    generate = runtime.todo_manager.append_item(
+        title="Generate HLS candidate",
+        description="Initial LLM candidate generation.",
+        priority=1,
+        assigned_tool="llm.generate_hls_candidate",
+        dependencies=[],
+        inputs={},
+    )
+    verify = runtime.todo_manager.append_item(
+        title="Verify candidate",
+        description="Waits for a valid candidate.",
+        priority=2,
+        assigned_tool="verify_candidate.run",
+        assigned_specialist="VerificationSpecialist",
+        dependencies=[generate.id],
+        inputs={},
+    )
+    error = {
+        "error_type": "LLMGenerationError",
+        "message": "CandidateSandbox rejected generated HLS code.",
+        "source": "llm_candidate.generate",
+        "details": {"violations": [{"rule": "system_call"}]},
+    }
+    state.errors.append(error)
+    state.todos = runtime.todo_manager.todo_list.items
+
+    runtime.reflect(
+        state,
+        generate,
+        {
+            "status": "failed",
+            "observation": {"status": "failed", "error": error},
+        },
+    )
+
+    retry = next(item for item in runtime.todo_manager.todo_list.items if item.title == "Repair LLM candidate generation")
+    assert retry.inputs["repair_reason"] == "candidate_generation_failed"
+    assert verify.dependencies == [retry.id]
+    assert generate.status == "completed_with_warning"
+    assert state.errors == []
+
+
+def test_llm_candidate_verification_failure_uses_assigned_tool_not_title(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = PlanExecuteReactRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "matmul_llm_candidate.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Seed"], state.task)
+    verify = runtime.todo_manager.append_item(
+        title="Verify HLS candidate",
+        description="LLM-authored verification title variant.",
+        priority=1,
+        assigned_tool="verify_candidate.run",
+        assigned_specialist="VerificationSpecialist",
+        dependencies=[],
+        inputs={},
+    )
+    old_synth = runtime.todo_manager.append_item(
+        title="Run Vivado C Synthesis",
+        description="Must be cancelled until repaired candidate passes verification.",
+        priority=2,
+        assigned_tool="vivado.run_csynth",
+        assigned_specialist="VivadoSpecialist",
+        dependencies=[verify.id],
+        inputs={},
+    )
+    state.selected_path = "llm_candidate_path"
+    error = {
+        "error_type": "VivadoSynthesisError",
+        "message": "csim_design failed",
+        "source": "vivado.run_csynth",
+    }
+    state.errors.append(error)
+    state.todos = runtime.todo_manager.todo_list.items
+
+    runtime.reflect(
+        state,
+        verify,
+        {
+            "status": "failed",
+            "observation": {"status": "failed", "error": error},
+        },
+    )
+
+    repair = next(item for item in runtime.todo_manager.todo_list.items if item.title == "Repair LLM candidate after verification failure")
+    repaired_verify = next(item for item in runtime.todo_manager.todo_list.items if item.title == "Verify repaired LLM candidate")
+    assert repair.inputs["repair_reason"] == "verification_failed"
+    assert repaired_verify.dependencies == [repair.id]
+    assert old_synth.status == "cancelled"
+    assert verify.status == "completed_with_warning"
+    assert state.errors == []

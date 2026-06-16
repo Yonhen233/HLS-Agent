@@ -245,6 +245,7 @@ class MemoryManager:
             report = state.get("report") or {}
             verification = state.get("verification") or {}
             if report and report.get("status") == "success" and _is_functionally_verified(verification):
+                timing = report.get("timing") if isinstance(report.get("timing"), dict) else {}
                 verified_value = {
                     "report": report,
                     "verification": verification,
@@ -252,36 +253,62 @@ class MemoryManager:
                     "selected_path": state.get("selected_path"),
                     "pipeline_status": state.get("pipeline_status", {}),
                 }
-                candidates.append(
-                    {
-                        "kind": "verified_implementation",
-                        "key": f"verified_implementation.{run_id}.metrics",
-                        "summary": "Functionally verified implementation with synthesis metrics.",
-                        "value": verified_value,
-                        "confidence": 1.0,
-                        "domain": "parameter",
-                    }
-                )
-                candidates.append(
-                    {
-                        "kind": "parameter_experience",
-                        "key": f"parameter_experience.{run_id}",
-                        "summary": "Verified parameter experience captured for ParameterAdvisor.",
-                        "value": verified_value,
-                        "confidence": 1.0,
-                        "domain": "parameter",
-                    }
-                )
-                candidates.append(
-                    {
-                        "kind": "optimization",
-                        "key": f"optimization.{run_id}.metrics",
-                        "summary": "Functionally verified synthesis metrics captured for later comparison.",
-                        "value": verified_value,
-                        "confidence": 0.95,
-                        "domain": "optimization",
-                    }
-                )
+                if timing.get("met") is False:
+                    candidates.append(
+                        {
+                            "kind": "failure",
+                            "key": f"failure.{run_id}.timing_not_met",
+                            "summary": "Candidate passed functional verification and synthesis but failed timing closure.",
+                            "value": {
+                                **verified_value,
+                                "error_type": "TimingNotMetError",
+                                "error_message": "Functional verification passed, but Vivado timing was not met.",
+                            },
+                            "confidence": 0.7,
+                            "domain": "failure",
+                        }
+                    )
+                    candidates.append(
+                        {
+                            "kind": "optimization",
+                            "key": f"optimization.{run_id}.timing_not_met",
+                            "summary": "Timing failed after functional verification; use as optimization guidance, not as a verified implementation.",
+                            "value": verified_value,
+                            "confidence": 0.6,
+                            "domain": "optimization",
+                        }
+                    )
+                else:
+                    candidates.append(
+                        {
+                            "kind": "verified_implementation",
+                            "key": f"verified_implementation.{run_id}.metrics",
+                            "summary": "Functionally verified implementation with synthesis metrics.",
+                            "value": verified_value,
+                            "confidence": 1.0,
+                            "domain": "parameter",
+                        }
+                    )
+                    candidates.append(
+                        {
+                            "kind": "parameter_experience",
+                            "key": f"parameter_experience.{run_id}",
+                            "summary": "Verified parameter experience captured for ParameterAdvisor.",
+                            "value": verified_value,
+                            "confidence": 1.0,
+                            "domain": "parameter",
+                        }
+                    )
+                    candidates.append(
+                        {
+                            "kind": "optimization",
+                            "key": f"optimization.{run_id}.metrics",
+                            "summary": "Functionally verified synthesis metrics captured for later comparison.",
+                            "value": verified_value,
+                            "confidence": 0.95,
+                            "domain": "optimization",
+                        }
+                    )
             elif report and report.get("status") == "success":
                 candidates.append(
                     {

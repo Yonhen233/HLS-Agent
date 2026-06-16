@@ -69,7 +69,7 @@
   "failure_policy": {
     "VerificationFailedError": {
       "recommended_action": "repair_or_reject",
-      "max_repair_attempts": 2
+      "max_repair_attempts": 4
     },
     "VivadoSynthesisError": {
       "recommended_action": "reject_candidate_or_repair"

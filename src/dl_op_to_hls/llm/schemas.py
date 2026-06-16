@@ -110,14 +110,59 @@ OPTIMIZATION_SUGGESTION_SCHEMA: dict[str, Any] = {
 }
 
 CANDIDATE_GENERATION_SCHEMA: dict[str, Any] = {
+    "title": "CandidateGenerationSchema",
     "type": "object",
     "required": ["candidate_name", "files", "assumptions", "requires_verification"],
     "properties": {
         "candidate_name": {"type": "string"},
-        "files": {"type": "array"},
+        "files": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["relative_path", "content"],
+                "properties": {
+                    "relative_path": {
+                        "type": "string",
+                        "description": "Relative path under candidate/, for example candidate/scale_shift_llm.cpp.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Complete file content; no placeholders.",
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": ["hls_header", "hls_cpp", "testbench", "tcl", "note"],
+                    },
+                },
+            },
+        },
         "assumptions": {"type": "array"},
         "requires_verification": {"type": "boolean"},
     },
+    "examples": [
+        {
+            "candidate_name": "scale_shift_llm",
+            "files": [
+                {
+                    "relative_path": "candidate/scale_shift_llm.h",
+                    "role": "hls_header",
+                    "content": "#ifndef SCALE_SHIFT_LLM_H\n#define SCALE_SHIFT_LLM_H\n#include \"ap_fixed.h\"\ntypedef ap_fixed<16,6> data_t;\nvoid scale_shift_llm(data_t input[16], data_t output[16]);\n#endif\n",
+                },
+                {
+                    "relative_path": "candidate/scale_shift_llm.cpp",
+                    "role": "hls_cpp",
+                    "content": "#include \"scale_shift_llm.h\"\nvoid scale_shift_llm(data_t input[16], data_t output[16]) {\n  for (int i = 0; i < 16; ++i) {\n#pragma HLS PIPELINE II=1\n    output[i] = input[i] * (data_t)2 + (data_t)1;\n  }\n}\n",
+                },
+                {
+                    "relative_path": "candidate/testbench.cpp",
+                    "role": "testbench",
+                    "content": "#include \"scale_shift_llm.h\"\n#include <cstdio>\nint main() { data_t input[16]; data_t output[16]; int failed = 0; for (int i = 0; i < 16; ++i) { input[i] = (data_t)(i - 8); } scale_shift_llm(input, output); for (int i = 0; i < 16; ++i) { data_t expected = input[i] * (data_t)2 + (data_t)1; double diff = (double)(output[i] - expected); if (diff < 0) diff = -diff; if (diff > 0.001) { std::printf(\"GOLDEN_CHECK_FAILED %d\\n\", i); failed = 1; } } if (failed) return 1; std::printf(\"GOLDEN_CHECK_PASSED\\n\"); return 0; }\n",
+                },
+            ],
+            "assumptions": ["Static shape [16]."],
+            "requires_verification": True,
+        }
+    ],
 }
 
 

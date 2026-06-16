@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -787,68 +788,23 @@ class PlanExecuteReactRuntime:
             else:
                 self.todo_manager.add_dependency(todo.id, existing.id)
             state.todos = self.todo_manager.todo_list.items
+        elif self._is_llm_candidate_timing_not_met(state, todo, observation):
+            self._append_llm_candidate_repair_chain(
+                state,
+                todo,
+                repair_reason="timing_not_met",
+                details={
+                    "report": state.report,
+                    "timing": (state.report or {}).get("timing") if isinstance(state.report, dict) else None,
+                    "summary": "Candidate passed functional verification, but Vivado timing was not met.",
+                },
+            )
         elif todo.title == "Run Vivado HLS synthesis" and observation.get("error_type") == "VivadoNotFoundError":
             state.status = "partial_success"
-        elif todo.title == "Verify LLM candidate" and observation.get("error_type") == "VerificationFailedError":
-            attempts = sum(
-                1
-                for item in self.todo_manager.todo_list.items
-                if item.title == "Verify LLM candidate" and item.status in {"completed_with_warning", "failed"}
-            )
-            if attempts < 2:
-                repair_todo = self.todo_manager.append_item(
-                    title="Generate LLM candidate",
-                    description="Repair and regenerate LLM candidate.",
-                    priority=todo.priority + 1,
-                    assigned_tool="llm.generate_candidate",
-                    dependencies=[todo.id],
-                    inputs={"task": state.task, "repair_attempt": attempts},
-                )
-                self._add_dependency_to_title(state, "Run Vivado HLS synthesis", repair_todo.id)
-            else:
-                unsupported_todo = self.todo_manager.append_item(
-                    title="Generate unsupported report",
-                    description="Candidate failed verification too many times.",
-                    priority=todo.priority + 1,
-                    assigned_tool="report.write_unsupported",
-                    dependencies=[todo.id],
-                    inputs={"reason": "LLM candidate failed verification after max repair attempts."},
-                )
-                self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
-                self._switch_finalization_to_terminal(state, unsupported_todo.id)
-                self._add_dependency_to_tool(
-                    state,
-                    {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
-                    unsupported_todo.id,
-                )
-                for item in self.todo_manager.todo_list.items:
-                    if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
-                        self.todo_manager.mark_cancelled(item.id, "Verification failed and the runtime switched to unsupported report generation.")
-            state.todos = self.todo_manager.todo_list.items
-        elif todo.title == "Generate LLM candidate" and observation.get("status") == "failed":
-            unsupported_todo = self.todo_manager.append_item(
-                title="Generate unsupported report",
-                description="LLM candidate generation failed; emit actionable unsupported report.",
-                priority=todo.priority + 1,
-                assigned_tool="report.write_unsupported",
-                dependencies=[],
-                inputs={"reason": "LLM candidate generation failed and no verified fallback implementation is available."},
-            )
-            self._add_dependency_to_title(state, "Write run summary", unsupported_todo.id)
-            self._switch_finalization_to_terminal(state, unsupported_todo.id)
-            self._add_dependency_to_tool(
-                state,
-                {"suggestion.suggest_optimization", "summary.write_summary", "memory.promote_to_long_term"},
-                unsupported_todo.id,
-            )
-            for item in self.todo_manager.todo_list.items:
-                if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
-                    self.todo_manager.mark_cancelled(item.id, "No valid HLS candidate was available.")
-            state.selected_path = "unsupported_path"
-            if state.report is None:
-                state.report = empty_report("missing")
-            state.status = "partial_success"
-            state.todos = self.todo_manager.todo_list.items
+        elif self._is_llm_candidate_verification_failure(todo, observation):
+            self._append_llm_candidate_verification_repair_chain(state, todo, observation)
+        elif self._is_llm_candidate_generation_failure(todo, observation):
+            self._append_llm_candidate_generation_retry(state, todo, observation)
         update_status_from_todos(state)
         return state
 
@@ -975,6 +931,313 @@ class PlanExecuteReactRuntime:
         terminal_todos = [item for item in state.todos if item.title == "Generate unsupported report" and item.status == "completed"]
         return bool(terminal_todos and state.selected_path == "unsupported_path")
 
+    def _max_candidate_repair_attempts(self, state: AgentState) -> int:
+        """Return the verification-failure budget before switching to unsupported."""
+
+        candidate_cfg = state.task.get("llm_candidate") if isinstance(state.task.get("llm_candidate"), dict) else {}
+        raw_value = (
+            state.task.get("max_repair_attempts")
+            or candidate_cfg.get("max_repair_attempts")
+            or os.environ.get("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS")
+            or "2"
+        )
+        try:
+            return max(0, int(raw_value))
+        except (TypeError, ValueError):
+            return 2
+
+    def _llm_candidate_repair_count(self) -> int:
+        return sum(
+            1
+            for item in self.todo_manager.todo_list.items
+            if item.assigned_tool in {"llm.generate_candidate", "llm.generate_hls_candidate"}
+            and isinstance(item.inputs, dict)
+            and bool(item.inputs.get("repair_reason"))
+        )
+
+    def _is_llm_candidate_timing_not_met(self, state: AgentState, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        if state.selected_path != "llm_candidate_path":
+            return False
+        if todo.assigned_tool not in {"vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"}:
+            return False
+        timing = (state.report or {}).get("timing") if isinstance(state.report, dict) else None
+        if isinstance(timing, dict) and timing.get("met") is False:
+            return True
+        error_timing = (todo.error or {}).get("timing") if isinstance(todo.error, dict) else None
+        return isinstance(error_timing, dict) and error_timing.get("met") is False
+
+    def _append_llm_candidate_repair_chain(
+        self,
+        state: AgentState,
+        todo: TodoItem,
+        *,
+        repair_reason: str,
+        details: dict[str, Any],
+    ) -> None:
+        repair_count = self._llm_candidate_repair_count()
+        max_attempts = self._max_candidate_repair_attempts(state)
+        self._cancel_pending_tools(
+            {"vivado.parse_report", "vivado.parse_csynth_report"},
+            "A timing repair candidate will replace the previous Vivado report.",
+        )
+        if repair_count >= max_attempts:
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="LLM candidate repair budget exhausted before timing closure.",
+                priority=todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[todo.id],
+                inputs={
+                    "reason": (
+                        f"LLM candidate did not meet timing after {max_attempts} repair attempt(s). "
+                        "Functional verification passed, but the design is not deployment-ready."
+                    ),
+                    "details": details,
+                },
+            )
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+            return
+
+        repair_todo = self.todo_manager.append_item(
+            title="Repair LLM candidate after timing failure",
+            description="Regenerate the candidate with timing-closure guidance from the latest Vivado report.",
+            priority=todo.priority + 1,
+            assigned_tool="llm.generate_candidate",
+            dependencies=[todo.id],
+            inputs={
+                "task": state.task,
+                "repair_attempt": repair_count + 1,
+                "repair_reason": repair_reason,
+                "last_report": state.report,
+                "timing": details.get("timing"),
+                "instruction": (
+                    "The previous candidate passed golden functional verification but failed timing. "
+                    "Preserve the same top_function signature and testbench contract, but reduce the critical path."
+                ),
+            },
+        )
+        verify_todo = self.todo_manager.append_item(
+            title="Verify repaired LLM candidate",
+            description="Run golden csim and csynth verification for the repaired candidate.",
+            priority=repair_todo.priority + 1,
+            assigned_tool="verify_candidate.run",
+            assigned_specialist="VerificationSpecialist",
+            dependencies=[repair_todo.id],
+            inputs={},
+        )
+        synth_todo = self.todo_manager.append_item(
+            title="Run Vivado synthesis on repaired candidate",
+            description="Run Vivado HLS after repaired candidate verification.",
+            priority=verify_todo.priority + 1,
+            assigned_tool="vivado.run_csynth",
+            assigned_specialist="VivadoSpecialist",
+            dependencies=[verify_todo.id],
+            inputs={"task": state.task},
+        )
+        parse_todo = self.todo_manager.append_item(
+            title="Parse repaired synthesis report",
+            description="Parse Vivado HLS report for the repaired candidate.",
+            priority=synth_todo.priority + 1,
+            assigned_tool="vivado.parse_report",
+            assigned_specialist="VivadoSpecialist",
+            dependencies=[synth_todo.id],
+            inputs={"task": state.task},
+        )
+        self._switch_finalization_to_terminal(state, parse_todo.id)
+        state.status = "partial_success"
+        state.todos = self.todo_manager.todo_list.items
+
+    def _is_llm_candidate_generation_failure(self, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        if todo.assigned_tool not in {"llm.generate_candidate", "llm.generate_hls_candidate"}:
+            return False
+        if observation.get("status") == "failed":
+            return True
+        observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
+        return observed.get("status") == "failed"
+
+    def _is_llm_candidate_verification_failure(self, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        if todo.assigned_tool not in {"verify_candidate.run", "verify.run_csim", "verify.compare_reference"}:
+            return False
+        if observation.get("error_type") in {"VerificationFailedError", "VivadoSynthesisError"}:
+            return True
+        observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
+        error = observed.get("error") if isinstance(observed.get("error"), dict) else {}
+        return error.get("error_type") in {"VerificationFailedError", "VivadoSynthesisError"}
+
+    def _append_llm_candidate_verification_repair_chain(
+        self,
+        state: AgentState,
+        todo: TodoItem,
+        observation: dict[str, Any],
+    ) -> None:
+        observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
+        error = observed.get("error") or observation.get("error") or todo.error or {}
+        repair_count = self._llm_candidate_repair_count()
+        max_attempts = self._max_candidate_repair_attempts(state)
+        self._cancel_pending_tools(
+            {"vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"},
+            "Verification failed; a repaired LLM candidate must be generated before synthesis.",
+        )
+        if repair_count >= max_attempts:
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="LLM candidate verification repair budget exhausted.",
+                priority=todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[],
+                inputs={
+                    "reason": f"LLM candidate failed verification after {max_attempts} repair attempt(s).",
+                    "error": error,
+                },
+            )
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+            return
+
+        self.todo_manager.mark_completed_with_warning(
+            todo.id,
+            todo.outputs or observed or {"status": "failed"},
+            {
+                "message": "LLM candidate verification failed but a repair generation was scheduled.",
+                "original_error": error,
+            },
+        )
+        self._remove_recovered_error(state, error)
+        repair_todo = self.todo_manager.append_item(
+            title="Repair LLM candidate after verification failure",
+            description="Regenerate candidate using verification failure details.",
+            priority=todo.priority + 1,
+            assigned_tool="llm.generate_candidate",
+            dependencies=[],
+            inputs={
+                "task": state.task,
+                "repair_attempt": repair_count + 1,
+                "repair_reason": "verification_failed",
+                "last_error": error,
+                "instruction": (
+                    "The previous candidate failed golden verification or csim. "
+                    "Regenerate the same top_function contract and fix the design/testbench mismatch. "
+                    "For fixed-point math, compute golden values with matching fixed-point accumulation or an explicitly justified tolerance."
+                ),
+            },
+        )
+        verify_todo = self.todo_manager.append_item(
+            title="Verify repaired LLM candidate",
+            description="Verify repaired candidate through golden csim/csynth.",
+            priority=repair_todo.priority + 1,
+            assigned_tool="verify_candidate.run",
+            assigned_specialist="VerificationSpecialist",
+            dependencies=[repair_todo.id],
+            inputs={},
+        )
+        synth_todo = self.todo_manager.append_item(
+            title="Run Vivado synthesis on repaired candidate",
+            description="Run Vivado HLS after repaired candidate verification.",
+            priority=verify_todo.priority + 1,
+            assigned_tool="vivado.run_csynth",
+            assigned_specialist="VivadoSpecialist",
+            dependencies=[verify_todo.id],
+            inputs={"task": state.task},
+        )
+        parse_todo = self.todo_manager.append_item(
+            title="Parse repaired synthesis report",
+            description="Parse Vivado HLS report for the repaired candidate.",
+            priority=synth_todo.priority + 1,
+            assigned_tool="vivado.parse_report",
+            assigned_specialist="VivadoSpecialist",
+            dependencies=[synth_todo.id],
+            inputs={"task": state.task},
+        )
+        self._switch_finalization_to_terminal(state, parse_todo.id)
+        state.status = "partial_success"
+        state.todos = self.todo_manager.todo_list.items
+
+    def _append_llm_candidate_generation_retry(
+        self,
+        state: AgentState,
+        todo: TodoItem,
+        observation: dict[str, Any],
+    ) -> None:
+        observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
+        error = observed.get("error") or observation.get("error") or todo.error or {}
+        repair_count = self._llm_candidate_repair_count()
+        max_attempts = self._max_candidate_repair_attempts(state)
+        if repair_count >= max_attempts:
+            unsupported_todo = self.todo_manager.append_item(
+                title="Generate unsupported report",
+                description="LLM candidate generation repair budget exhausted.",
+                priority=todo.priority + 1,
+                assigned_tool="report.write_unsupported",
+                dependencies=[],
+                inputs={
+                    "reason": "LLM candidate generation failed after repair attempts and no verified implementation is available.",
+                    "error": error,
+                },
+            )
+            self._switch_finalization_to_terminal(state, unsupported_todo.id)
+            self._cancel_pending_tools(
+                {"verify_candidate.run", "vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"},
+                "No valid HLS candidate was available after the repair budget was exhausted.",
+            )
+            state.selected_path = "unsupported_path"
+            if state.report is None:
+                state.report = empty_report("missing")
+            state.status = "partial_success"
+            state.todos = self.todo_manager.todo_list.items
+            return
+
+        self.todo_manager.mark_completed_with_warning(
+            todo.id,
+            todo.outputs or observed or {"status": "failed"},
+            {
+                "message": "LLM candidate generation failed but a repair generation was scheduled.",
+                "original_error": error,
+            },
+        )
+        self._remove_recovered_error(state, error)
+        retry_todo = self.todo_manager.append_item(
+            title="Repair LLM candidate generation",
+            description="Regenerate a candidate after guard or sandbox rejection.",
+            priority=todo.priority + 1,
+            assigned_tool="llm.generate_candidate",
+            dependencies=list(todo.dependencies or []),
+            inputs={
+                "task": state.task,
+                "repair_attempt": repair_count + 1,
+                "repair_reason": "candidate_generation_failed",
+                "last_error": error,
+                "instruction": (
+                    "The previous LLM candidate was rejected before verification. "
+                    "Regenerate strict JSON with candidate_name, complete file contents, paths under candidate/, "
+                    "and avoid any sandbox-prohibited APIs or includes."
+                ),
+            },
+        )
+        for item in self.todo_manager.todo_list.items:
+            if item.assigned_tool in {"verify_candidate.run", "verify.run_csim"} and item.status in {"pending", "blocked"}:
+                self._replace_dependencies(item.id, [retry_todo.id])
+        state.status = "partial_success"
+        state.todos = self.todo_manager.todo_list.items
+
+    def _remove_recovered_error(self, state: AgentState, error: dict[str, Any]) -> None:
+        if not error:
+            return
+        error_type = error.get("error_type")
+        message = error.get("message")
+        source = error.get("source")
+        state.errors = [
+            item
+            for item in state.errors
+            if not (
+                item.get("error_type") == error_type
+                and item.get("message") == message
+                and item.get("source") == source
+            )
+        ]
+
     def _call_tool(self, state: AgentState, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return self.executor.call_and_record(state, tool_name, arguments)
 
@@ -1090,25 +1353,45 @@ class PlanExecuteReactRuntime:
             self.todo_manager.mark_completed_with_warning(todo.id, result, result.get("error", {}))
             return {"status": "completed_with_warning", "action": {"tool": "fallback.generate_operator_hls"}, "observation": result}
 
-        if todo.title == "Generate LLM candidate" or todo.assigned_tool == "llm.generate_candidate":
+        if todo.title == "Generate LLM candidate" or todo.assigned_tool in {"llm.generate_candidate", "llm.generate_hls_candidate"}:
             candidate_dir = self.context["artifact_manager"].run_dir / "candidate"
+            op_spec = dict(state.task)
+            if todo.inputs:
+                op_spec["candidate_generation_context"] = {
+                    "repair_attempt": todo.inputs.get("repair_attempt", 0),
+                    "repair_reason": todo.inputs.get("repair_reason"),
+                    "last_error": todo.inputs.get("last_error"),
+                    "recent_errors": state.errors[-5:],
+                    "previous_candidate_dir": state.hls_project_dir,
+                    "last_report": todo.inputs.get("last_report"),
+                    "timing": todo.inputs.get("timing"),
+                    "instruction": todo.inputs.get(
+                        "instruction",
+                        "Regenerate a complete candidate if prior verification failed; preserve the same top_function contract.",
+                    ),
+                }
             result = self._call_tool(
                 state,
                 "llm.generate_candidate",
-                {"op_spec": state.task, "rag_context": state.rag_context, "output_dir": str(candidate_dir)},
+                {"op_spec": op_spec, "rag_context": state.rag_context, "output_dir": str(candidate_dir)},
             )
             if result.get("status") == "candidate_generated":
                 state.selected_path = "llm_candidate_path"
                 state.hls_project_dir = str(candidate_dir)
                 self.todo_manager.mark_completed(todo.id, result)
-                verify_todo = self.todo_manager.append_item(
-                    title="Verify LLM candidate",
-                    description="Verify candidate with csim/csynth flow.",
-                    priority=todo.priority + 1,
-                    assigned_tool="verify_candidate.run",
-                    dependencies=[todo.id],
-                    inputs={"candidate_dir": str(candidate_dir)},
-                )
+                verify_todo = self._first_active_tool({"verify_candidate.run", "verify.run_csim"})
+                if verify_todo is not None:
+                    verify_todo.inputs = {**(verify_todo.inputs or {}), "candidate_dir": str(candidate_dir)}
+                    self._replace_dependencies(verify_todo.id, [todo.id])
+                else:
+                    verify_todo = self.todo_manager.append_item(
+                        title="Verify LLM candidate",
+                        description="Verify candidate with csim/csynth flow.",
+                        priority=todo.priority + 1,
+                        assigned_tool="verify_candidate.run",
+                        dependencies=[todo.id],
+                        inputs={"candidate_dir": str(candidate_dir)},
+                    )
                 self._rewire_vivado_chain_after_implementation(state, verify_todo.id)
                 state.todos = self.todo_manager.todo_list.items
                 return {"status": "completed", "action": {"tool": "llm.generate_candidate"}, "observation": result}
@@ -1121,7 +1404,14 @@ class PlanExecuteReactRuntime:
             result = self._call_tool(
                 state,
                 "verify_candidate.run",
-                {"candidate_dir": state.hls_project_dir, "report_dir": str(report_dir), "force_fail": bool(state.task.get("force_fail"))},
+                {
+                    "candidate_dir": state.hls_project_dir,
+                    "report_dir": str(report_dir),
+                    "force_fail": bool(state.task.get("force_fail")),
+                    "top_function": state.task.get("top_function") or state.task.get("name"),
+                    "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
+                    "clock_period": state.task.get("target", {}).get("clock_period", 5),
+                },
             )
             if result.get("status") == "verified":
                 report_path = result.get("csynth", {}).get("report_path")

@@ -1,0 +1,47 @@
+{
+  "task_type": "operator",
+  "op_type": "Dense",
+  "name": "dense_16x32_llm",
+  "top_function": "dense_16x32_llm",
+  "input_shape": [16],
+  "output_shape": [32],
+  "dtype": "ap_fixed<16,6>",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 8
+  },
+  "optimization": {
+    "objective": "latency",
+    "reuse_factor": 1,
+    "pipeline_ii": 1
+  },
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 6,
+    "verification_required": true
+  },
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "dense_16x32_llm",
+    "required_files": [
+      "candidate/dense_16x32_llm.h",
+      "candidate/dense_16x32_llm.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void dense_16x32_llm(data_t input[16], data_t weights[16][32], data_t bias[32], data_t output[32])",
+    "dtype": "ap_fixed<16,6>",
+    "operation": "For each output o, compute output[o] = bias[o] + sum_i input[i] * weights[i][o].",
+    "testbench": {
+      "input_rule": "Use deterministic small fixed-point values for input, weights, and bias.",
+      "golden_rule": "Compute the same dense formula in the testbench with a tolerance of 0.01.",
+      "success_marker": "GOLDEN_CHECK_PASSED",
+      "failure_marker": "GOLDEN_CHECK_FAILED"
+    }
+  },
+  "demo": {
+    "expected_path": "llm_candidate_path",
+    "source_demo": "dense_operator.json",
+    "description": "LLM candidate version of the Dense fallback demo; used to test whether generated HLS can replace local fallback templates under real Vivado verification."
+  }
+}

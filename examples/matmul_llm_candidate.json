@@ -1,0 +1,48 @@
+{
+  "task_type": "operator",
+  "op_type": "MatMul",
+  "name": "matmul_16x16_llm",
+  "top_function": "matmul_16x16_llm",
+  "input_shape": [16, 16],
+  "weight_shape": [16, 16],
+  "output_shape": [16, 16],
+  "dtype": "ap_fixed<12,4>",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 12
+  },
+  "optimization": {
+    "objective": "resource",
+    "reuse_factor": 8,
+    "pipeline_ii": 2
+  },
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 6,
+    "verification_required": true
+  },
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "matmul_16x16_llm",
+    "required_files": [
+      "candidate/matmul_16x16_llm.h",
+      "candidate/matmul_16x16_llm.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void matmul_16x16_llm(data_t lhs[16][16], data_t rhs[16][16], data_t output[16][16])",
+    "dtype": "ap_fixed<12,4>",
+    "operation": "For each row r and column c, compute output[r][c] = sum_k lhs[r][k] * rhs[k][c].",
+    "testbench": {
+      "input_rule": "Use deterministic small fixed-point values for lhs and rhs.",
+      "golden_rule": "Compute the golden result with the same data_t fixed-point accumulation order as the design, or use a tolerance of 0.05 to account for ap_fixed<12,4> quantization.",
+      "success_marker": "GOLDEN_CHECK_PASSED",
+      "failure_marker": "GOLDEN_CHECK_FAILED"
+    }
+  },
+  "demo": {
+    "expected_path": "llm_candidate_path",
+    "source_demo": "matmul_resource.json",
+    "description": "LLM candidate version of the MatMul resource demo; used to compare generated HLS against the deterministic fallback path."
+  }
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..core.errors import build_error, error_result
+from ..core.errors import AgentRuntimeError, build_error, error_result
 from ..llm.candidate_generator import LLMCandidateGenerator as RuntimeCandidateGenerator
 from ..llm.client import LLMClient
 
@@ -27,6 +27,8 @@ class LLMCandidateGenerator:
                     client=self.llm_client,
                     permission_gate=context["permission_gate"],
                 )
+            except AgentRuntimeError as exc:
+                return error_result(exc.error, status="failed")
             except Exception as exc:
                 return error_result(
                     build_error(
