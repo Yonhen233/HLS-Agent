@@ -7,3 +7,5 @@ runs/*
 dfx_runtime.txt
 logs/
 tmp/
+vivado_hls.log
+models/mnist_recognition/data/

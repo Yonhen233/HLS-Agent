@@ -1,0 +1,25 @@
+{
+  "status": "success",
+  "architecture": "MLP(784,64,32,10)",
+  "best_eval_accuracy": 0.9176,
+  "target_accuracy": 0.9,
+  "eval_samples": 5000,
+  "reference_samples": 20,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6680133749961853,
+      "eval_accuracy": 0.8962
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2579108981649081,
+      "eval_accuracy": 0.9176
+    }
+  ],
+  "state_dict_path": "models\\mnist_recognition\\mnist_mlp_trained.pt",
+  "onnx_path": "models\\mnist_recognition\\mnist_mlp_trained.onnx",
+  "reference_input_path": "models\\mnist_recognition\\mnist_test_inputs_20.dat",
+  "labels_path": "models\\mnist_recognition\\mnist_test_labels_20.json",
+  "python_predictions_path": "models\\mnist_recognition\\mnist_test_python_predictions_20.json"
+}

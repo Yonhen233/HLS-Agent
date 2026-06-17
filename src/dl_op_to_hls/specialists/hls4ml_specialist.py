@@ -152,6 +152,7 @@ class HLS4MLSpecialist(BaseSpecialist):
             "frontend": scoped.get("frontend") or "onnx",
             "config_path": scoped.get("hls4ml_config_path"),
             "output_dir": f"{scoped.get('run_dir')}/hls_project",
+            "reference_data": task.get("reference_data") or {},
         }
 
     def _compress_result(self, result: dict[str, Any]) -> dict[str, Any]:

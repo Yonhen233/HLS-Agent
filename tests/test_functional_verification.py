@@ -51,6 +51,26 @@ def test_parse_csim_verification_compares_hls4ml_outputs(tmp_path):
     assert result["comparison"]["max_abs_error"] == pytest.approx(0.1)
 
 
+def test_parse_csim_verification_accepts_classification_pass_with_numeric_drift(tmp_path):
+    tb_data = tmp_path / "tb_data"
+    tb_data.mkdir()
+    (tb_data / "tb_output_predictions.dat").write_text("1 9 0\n8 1 0\n", encoding="utf-8")
+    (tb_data / "csim_results.log").write_text("0 100 0\n80 0 0\n", encoding="utf-8")
+    labels = tmp_path / "labels.json"
+    labels.write_text(json.dumps({"labels": [1, 0]}), encoding="utf-8")
+    (tb_data / "reference_manifest.json").write_text(
+        json.dumps({"labels_path": str(labels), "classification_min_accuracy": 1.0, "argmax_match_min": 1.0}),
+        encoding="utf-8",
+    )
+    log = tmp_path / "csynth.log"
+    log.write_text("C simulation completed\n", encoding="utf-8")
+    result = parse_csim_verification(log, work_dir=tmp_path, tolerance=0.25)
+    assert result["status"] == "csim_passed"
+    assert result["comparison"]["numeric_passed"] is False
+    assert result["comparison"]["recognition_passed"] is True
+    assert result["classification"]["hls_accuracy"] == 1.0
+
+
 def test_parse_csim_verification_finds_vivado_csim_build_output(tmp_path):
     tb_data = tmp_path / "tb_data"
     build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"

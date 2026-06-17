@@ -214,6 +214,54 @@ python -m dl_op_to_hls.cli run examples/dense_operator.json --mock-tools
 | Demo 5 | `examples/tiny_residual_block.json` | model | partial / rewrite / boundary | 展示 residual block 边界处理 |
 | Demo 6 | `examples/resnet18_boundary.json` | model | unsupported_report | 展示 Agent 不盲目承诺 |
 
+## 真实 MNIST 识别 Demo
+
+如果要演示“生成的 HLS 代码真的能识别数字”，需要使用训练好的权重和带 label 的测试样本，而不是随机初始化模型。当前项目新增了一个真实识别 demo：
+
+```text
+examples/mnist_recognition_mlp.json
+```
+
+训练或重新生成模型：
+
+```powershell
+$env:PYTHONPATH="src"
+python scripts/train_mnist_recognition_mlp.py --epochs 4 --eval-samples 5000 --reference-samples 20 --target-accuracy 0.90
+```
+
+真实 hls4ml + Vivado HLS 2018.3 运行：
+
+```powershell
+$env:PYTHONPATH="src"
+$env:DL_OP_TO_HLS_MOCK_HLS4ML="0"
+$env:DL_OP_TO_HLS_MOCK_VIVADO="0"
+$env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vivado_hls"
+$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vivado"
+$env:DL_OP_TO_HLS_VIVADO_HLS_PATH="D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"
+python -m dl_op_to_hls.cli run examples/mnist_recognition_mlp.json
+```
+
+已验证的真实 run：
+
+```text
+runs/mnist_recognition_mlp_234d539d
+```
+
+关键结果：
+
+| 指标 | 结果 |
+|---|---:|
+| Run status | success |
+| Pipeline level | deployment_ready_candidate |
+| Python/ONNX reference accuracy | 95% |
+| HLS csim accuracy | 95% |
+| HLS vs ONNX argmax match rate | 100% |
+| Timing met | true |
+| Latency max | 1237 cycles |
+| DSP / BRAM / LUT / FF | 133 / 48 / 31792 / 21275 |
+
+说明：该 demo 的 fixed-point logits 数值误差较大，但 HLS argmax 和 ONNX argmax 完全一致，且 HLS 对 20 个样本的识别准确率达到 95%。因此 summary 中会同时保留 numeric drift 和 recognition verification 两类指标。
+
 递进运行：
 
 ```powershell

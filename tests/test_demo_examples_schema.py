@@ -40,6 +40,14 @@ def test_mnist_mlp_schema_valid():
     assert data["frontend"] == "onnx"
 
 
+def test_mnist_recognition_mlp_schema_valid():
+    data = _validate_example("mnist_recognition_mlp.json")
+    assert data["task_type"] == "model"
+    assert data["frontend"] == "onnx"
+    assert data["demo"]["expected_path"] == "hls4ml"
+    assert data["reference_data"]["classification_min_accuracy"] >= 0.9
+
+
 def test_mnist_tiny_cnn_schema_valid():
     data = _validate_example("mnist_tiny_cnn.json")
     assert data["task_type"] == "model"

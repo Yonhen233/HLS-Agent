@@ -113,6 +113,19 @@ def _functional_verification_section(state: dict[str, Any]) -> str:
                 f"- Tolerance: {comparison.get('tolerance')}",
             ]
         )
+    classification = verification.get("classification")
+    if not classification and comparison:
+        classification = comparison.get("classification")
+    if classification:
+        lines.extend(
+            [
+                f"- Recognition samples: {classification.get('sample_count')}",
+                f"- Python/ONNX reference accuracy: {classification.get('reference_accuracy')}",
+                f"- HLS csim accuracy: {classification.get('hls_accuracy')}",
+                f"- HLS vs reference argmax match rate: {classification.get('argmax_match_rate')}",
+                f"- HLS correct predictions: {classification.get('hls_correct')}",
+            ]
+        )
     if verification.get("log_path"):
         lines.append(f"- CSim log: {verification.get('log_path')}")
     if verification.get("reference_path"):

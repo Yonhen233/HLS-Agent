@@ -83,6 +83,19 @@ class HLS4MLAdapter:
             return "Vivado"
         return text
 
+    def _write_reference_data_for_args(self, model_path: str, output_dir: Path, arguments: dict[str, Any]) -> dict[str, Any]:
+        reference_cfg = arguments.get("reference_data") if isinstance(arguments.get("reference_data"), dict) else {}
+        return write_onnx_reference_data(
+            model_path=model_path,
+            project_dir=output_dir,
+            num_samples=int(reference_cfg.get("num_samples", arguments.get("reference_num_samples", 2))),
+            seed=int(reference_cfg.get("seed", arguments.get("reference_seed", 7))),
+            input_data_path=reference_cfg.get("input_path"),
+            labels_path=reference_cfg.get("labels_path"),
+            classification_min_accuracy=reference_cfg.get("classification_min_accuracy"),
+            argmax_match_min=reference_cfg.get("argmax_match_min"),
+        )
+
     def _tensor_shapes(self, model: Any) -> dict[str, list[int]]:
         shapes: dict[str, list[int]] = {}
         for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]:
@@ -1007,7 +1020,7 @@ class HLS4MLAdapter:
             log_dir.mkdir(parents=True, exist_ok=True)
             log_path = log_dir / "hls4ml_convert.log"
             log_path.write_text("Mock hls4ml conversion completed successfully.", encoding="utf-8")
-            reference_result = write_onnx_reference_data(model_path=arguments.get("model_path", ""), project_dir=output_dir)
+            reference_result = self._write_reference_data_for_args(str(arguments.get("model_path", "")), output_dir, arguments)
             return {
                 "status": "success",
                 "hls_project_dir": str(output_dir),
@@ -1123,7 +1136,7 @@ class HLS4MLAdapter:
                 ),
                 encoding="utf-8",
             )
-            reference_result = write_onnx_reference_data(model_path=model_path, project_dir=output_dir)
+            reference_result = self._write_reference_data_for_args(model_path, output_dir, arguments)
             return {
                 "status": "success",
                 "hls_project_dir": str(output_dir),
@@ -1167,7 +1180,7 @@ class HLS4MLAdapter:
                         ),
                         encoding="utf-8",
                     )
-                    reference_result = write_onnx_reference_data(model_path=model_path, project_dir=output_dir)
+                    reference_result = self._write_reference_data_for_args(model_path, output_dir, arguments)
                     return {
                         "status": "success",
                         "hls_project_dir": str(output_dir),
