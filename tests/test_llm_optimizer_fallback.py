@@ -62,6 +62,23 @@ def test_llm_optimizer_falls_back_to_rules():
     assert result["suggestions"]
 
 
+def test_rule_suggestions_use_current_reuse_factor():
+    suggestions = build_suggestions(
+        {
+            "resources": {"dsp": 67, "lut": 20400, "bram": 47},
+            "interval": {"max_ii": 2141},
+            "timing": {"met": True},
+        },
+        [],
+        "balanced",
+        {"task": {"hls4ml": {"reuse_factor": 1024}}},
+    )
+
+    dumped = "\n".join(suggestions)
+    assert "reuse_factor=2048" in dumped
+    assert "from 1 to 2 or 4" not in dumped
+
+
 def test_rule_suggestions_ignore_raw_episodic_memory_json():
     suggestions = build_suggestions(
         {

@@ -25,7 +25,7 @@ from .todo import DONE_STATUSES, TodoItem, TodoManager
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
 def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:

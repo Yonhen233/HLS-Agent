@@ -2,7 +2,7 @@ from pathlib import Path
 
 from dl_op_to_hls.main_agent.agent import MainAgent
 from dl_op_to_hls.main_agent.reflector import update_status_from_todos
-from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
+from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime, _load_json
 from dl_op_to_hls.main_agent.state import AgentState
 from dl_op_to_hls.main_agent.todo import TodoItem
 from dl_op_to_hls.main_agent.workflow import run_task
@@ -12,6 +12,13 @@ def test_runtime_plan_execute_react_flow(temp_workspace):
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert (temp_workspace / "runs" / state.run_id / "todos.json").exists()
     assert state.todos
+
+
+def test_runtime_load_json_accepts_utf8_bom(tmp_path):
+    task_path = tmp_path / "task.json"
+    task_path.write_text('{"task_type": "operator", "name": "dense"}', encoding="utf-8-sig")
+
+    assert _load_json(task_path)["task_type"] == "operator"
 
 
 def test_runtime_react_step_recorded(temp_workspace):

@@ -13,8 +13,12 @@
   },
   "hls4ml": {
     "precision": "fixed<12,6>",
-    "reuse_factor": 512,
+    "reuse_factor": 1024,
     "strategy": "Resource"
+  },
+  "optimization": {
+    "reuse_factor": 1024,
+    "note": "Verified resource-optimized setting: keeps 95% HLS accuracy and 100% argmax match on the 20-sample recognition check while reducing DSP/FF/LUT/BRAM versus RF512."
   },
   "reference_data": {
     "input_path": "models/mnist_recognition/mnist_test_inputs_20.dat",
@@ -22,8 +26,8 @@
     "num_samples": 20,
     "seed": 7,
     "tolerance": 0.25,
-    "classification_min_accuracy": 0.9,
-    "argmax_match_min": 0.95
+    "classification_min_accuracy": 0.95,
+    "argmax_match_min": 1.0
   },
   "objective": "balanced",
   "demo": {

@@ -113,7 +113,7 @@ def _recommendation_rows(params: dict[str, Any], reason: str, source: str) -> li
 def _heuristic_params(task: dict[str, Any]) -> dict[str, Any]:
     family = _task_family(task)
     if family == "mlp":
-        return {"precision": "fixed<12,6>", "reuse_factor": 512, "strategy": "Resource", "clock_period": 10}
+        return {"precision": "fixed<12,6>", "reuse_factor": 1024, "strategy": "Resource", "clock_period": 10}
     if family == "quantized_cnn":
         return {"precision": "fixed<8,3>", "reuse_factor": 32, "strategy": "Resource", "clock_period": 10}
     if family == "cnn":

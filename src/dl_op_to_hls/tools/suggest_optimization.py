@@ -12,7 +12,27 @@ def _report_value(report: dict[str, Any], group: str, key: str) -> Any:
     return (report.get(group) or {}).get(key)
 
 
-def build_suggestions(report: dict[str, Any], rag_context: list[dict], objective: str | None) -> list[str]:
+def _current_reuse_factor(state: dict[str, Any] | None) -> int | None:
+    if not state:
+        return None
+    task = state.get("task") if isinstance(state.get("task"), dict) else state
+    if not isinstance(task, dict):
+        return None
+    hls4ml = task.get("hls4ml") if isinstance(task.get("hls4ml"), dict) else {}
+    optimization = task.get("optimization") if isinstance(task.get("optimization"), dict) else {}
+    value = hls4ml.get("reuse_factor") or optimization.get("reuse_factor")
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def build_suggestions(
+    report: dict[str, Any],
+    rag_context: list[dict],
+    objective: str | None,
+    state: dict[str, Any] | None = None,
+) -> list[str]:
     objective_name = objective or "latency"
     suggestions: list[str] = []
     ii = _report_value(report, "interval", "max_ii")
@@ -20,6 +40,7 @@ def build_suggestions(report: dict[str, Any], rag_context: list[dict], objective
     lut = _report_value(report, "resources", "lut")
     bram = _report_value(report, "resources", "bram")
     timing_met = _report_value(report, "timing", "met")
+    reuse_factor = _current_reuse_factor(state)
 
     if objective_name == "latency":
         if ii and ii > 1:
@@ -30,7 +51,13 @@ def build_suggestions(report: dict[str, Any], rag_context: list[dict], objective
             suggestions.append("Timing meets target and DSP usage is moderate; try more parallelism or lower reuse_factor for lower latency.")
     else:
         if dsp is not None and dsp > 16:
-            suggestions.append("DSP usage is relatively high; try increasing reuse_factor from 1 to 2 or 4.")
+            if reuse_factor:
+                suggestions.append(
+                    f"DSP usage is still noticeable; try reuse_factor={reuse_factor * 2} only if the latency budget allows it, "
+                    "and re-check LUT/FF because very high reuse can trade DSP for control/mux logic."
+                )
+            else:
+                suggestions.append("DSP usage is relatively high; try increasing reuse_factor and re-check latency/LUT/FF trade-offs.")
         if lut is not None and lut > 4000:
             suggestions.append("LUT pressure is noticeable; reduce unroll/partition aggressiveness and simplify interfaces.")
         if bram is not None and bram > 0:
@@ -190,7 +217,7 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
                     "expected_tradeoff": "n/a",
                     "confidence": 0.5,
                 }
-                for item in build_suggestions(report, rag_context, objective)
+                for item in build_suggestions(report, rag_context, objective, state)
             ],
             "memory_used": rag_context[:3],
         }
@@ -260,7 +287,7 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
                     details={"fallback_mode": fallback_mode},
                 )
             )
-        suggestions = build_suggestions(report, rag_context, objective)
+        suggestions = build_suggestions(report, rag_context, objective, state)
     markdown = render_suggestions_markdown(report, rag_context, objective, suggestions)
     path = _write_suggestions_markdown(context, markdown)
     return {

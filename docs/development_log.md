@@ -6,6 +6,108 @@
 
 ---
 
+## 2026-06-18 20:55:51 +08:00：MNIST 真实识别 demo 资源优化与验收口径收紧
+### 1. 本次测试做了什么
+围绕真实 MNIST 识别 demo：
+
+```text
+examples/mnist_recognition_mlp.json
+```
+
+继续使用真实 hls4ml + Vivado HLS 2018.3 路径做资源优化，目标是在 HLS csim 识别正确率不下降的前提下降低 FPGA 资源。
+
+本轮真实跑过的候选：
+
+| Run | Precision | ReuseFactor | 结论 |
+|---|---:|---:|---|
+| `mnist_recognition_mlp_p8_3_rf512_257dd391` | `fixed<8,3>` | 512 | 拒绝：HLS accuracy 25%，argmax match 25% |
+| `mnist_recognition_mlp_p10_4_rf512_484f0799` | `fixed<10,4>` | 512 | 拒绝：HLS accuracy 90%，低于基线 95% |
+| `mnist_recognition_mlp_p10_5_rf512_216b0208` | `fixed<10,5>` | 512 | 拒绝：HLS accuracy 70% |
+| `mnist_recognition_mlp_p12_6_rf1024_97289a57` | `fixed<12,6>` | 1024 | 采用：正确率不降，BRAM/DSP/FF/LUT 均下降 |
+| `mnist_recognition_mlp_p12_6_rf2048_a3a74568` | `fixed<12,6>` | 2048 | 备选：DSP 更低，但 LUT/FF/latency 不如 RF1024 |
+| `mnist_recognition_mlp_p11_5_rf1024_b08500b5` | `fixed<11,5>` | 1024 | 备选：BRAM/FF 更低，但 LUT 高于默认推荐 |
+| `mnist_recognition_mlp_p11_6_rf1024_e95b40bc` | `fixed<11,6>` | 1024 | 拒绝：HLS accuracy 70% |
+
+最终默认推荐：
+
+```text
+precision = fixed<12,6>
+reuse_factor = 1024
+clock_period = 10 ns
+strategy = Resource
+```
+
+更新 `examples/mnist_recognition_mlp.json` 后已重新运行主任务：
+
+```text
+runs/mnist_recognition_mlp_90d53ccc
+```
+
+该 run 在更严格阈值 `classification_min_accuracy=0.95`、`argmax_match_min=1.0` 下通过，状态为 `success` / `deployment_ready_candidate`。
+
+与原基线 `fixed<12,6>, RF512` 对比：
+
+| 指标 | 基线 RF512 | 优化 RF1024 | 变化 |
+|---|---:|---:|---:|
+| BRAM | 48 | 47 | -2.1% |
+| DSP | 133 | 67 | -49.6% |
+| FF | 21275 | 10265 | -51.8% |
+| LUT | 31792 | 20400 | -35.8% |
+| Latency max | 1237 | 2141 | +73.1% |
+| HLS accuracy | 95% | 95% | 不下降 |
+| Argmax match | 100% | 100% | 不下降 |
+
+### 2. 遇到的问题与根因
+1. `fixed<8,3>`、`fixed<10,5>`、`fixed<11,6>` 虽然能降低部分资源，但识别准确率明显下降。根因是全模型统一降位宽会破坏 logits 的分类排序，资源下降不能直接等同于可用实现。
+2. `fixed<10,4>` 在旧阈值下会被标为 success，但 HLS accuracy 从 95% 降到 90%。根因是任务验收阈值之前设置为 `classification_min_accuracy=0.9`、`argmax_match_min=0.95`，不符合本轮“正确率保持一致”的目标。
+3. 使用 PowerShell 生成候选 JSON 时写入了 UTF-8 BOM，运行时报 `JSONDecodeError: Unexpected UTF-8 BOM`。根因是 runtime 读取任务文件时只用 `utf-8`，没有兼容 Windows 常见 BOM 文件。
+4. 优化建议里仍然出现“increase reuse_factor from 1 to 2 or 4”这类旧文案。根因是 `suggest_optimization` 没有读取当前 task 的实际 `reuse_factor`，规则建议过于静态。
+
+### 3. 已完成修复
+1. 将 `examples/mnist_recognition_mlp.json` 默认配置改为已验证的 `fixed<12,6>, reuse_factor=1024, clock=10ns`。
+2. 将 MNIST demo 的分类验收阈值收紧为：
+
+```json
+{
+  "classification_min_accuracy": 0.95,
+  "argmax_match_min": 1.0
+}
+```
+
+3. 修复 runtime JSON 读取，改为 `utf-8-sig`，兼容 PowerShell/Windows 生成的 BOM JSON。
+4. 更新 `ParameterAdvisor` 的 MLP heuristic bootstrap，将默认 RF 从 512 更新为 1024；同时真实 verified history 仍优先于 heuristic。
+5. 更新 `suggest_optimization`，让规则建议读取当前 `reuse_factor`，例如当前 RF1024 时建议下一步测试 RF2048，并明确提示 DSP、LUT、FF、latency 之间存在 trade-off。
+6. 新增资源优化记录文档：
+
+```text
+docs/mnist_resource_optimization.md
+```
+
+7. 新增/更新测试：
+
+```text
+tests/test_runtime_hybrid.py::test_runtime_load_json_accepts_utf8_bom
+tests/test_llm_optimizer_fallback.py::test_rule_suggestions_use_current_reuse_factor
+```
+
+已运行：
+
+```powershell
+$env:TEMP=(Resolve-Path .\runs\tmp_pytest).Path
+$env:TMP=$env:TEMP
+pytest tests\test_llm_optimizer_fallback.py tests\test_runtime_hybrid.py::test_runtime_load_json_accepts_utf8_bom -q
+```
+
+结果：`9 passed`。
+
+### 4. 未完成或后续建议
+1. 还没有做 per-layer precision / layer-wise reuse factor，这可能进一步降低 BRAM/LUT/FF，同时比全模型统一降位宽更稳。
+2. 当前 MNIST HLS csim 仍使用 20 个样本，适合演示；如果要更接近产品化，应增加 100/1000 样本验证 profile。
+3. RF2048 是低 DSP 备选，但不适合作为默认，因为 LUT/FF/latency 不如 RF1024。
+4. `fixed<11,5>, RF1024` 是低 BRAM/FF 备选，但 LUT 高于 `fixed<12,6>, RF1024`，因此暂不设为默认。
+
+---
+
 ## 2026-06-17 16:35:53 +08:00：整理工作区并打通真实 MNIST 识别到 HLS/Vivado 的端到端 demo
 ### 1. 本次测试做了什么
 本轮目标有两个：
