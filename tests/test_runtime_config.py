@@ -50,3 +50,25 @@ def test_runtime_vitis_toolchain_defaults_hls4ml_backend(tmp_path, monkeypatch):
     assert config.hls_toolchain == "vitis_hls"
     assert config.hls4ml_backend == "Vitis"
     assert config.vitis_hls_path.endswith("vitis-run.bat")
+
+
+def test_runtime_generic_mock_tools_env_controls_both_adapters(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_TOOLS", "0")
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_HLS4ML", raising=False)
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
+
+    config = AppConfig.load(tmp_path)
+
+    assert config.mock_hls4ml is False
+    assert config.mock_vivado is False
+
+
+def test_runtime_specific_mock_env_overrides_generic(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_TOOLS", "0")
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_HLS4ML", "1")
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
+
+    config = AppConfig.load(tmp_path)
+
+    assert config.mock_hls4ml is True
+    assert config.mock_vivado is False

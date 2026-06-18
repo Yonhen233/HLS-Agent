@@ -69,6 +69,10 @@ def test_runtime_timing_failed_is_partial_success_even_when_function_verified():
 
 def test_runtime_vivado_missing_marks_todo_skipped(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    monkeypatch.setattr(
+        "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
+        lambda self, configured_path=None: None,
+    )
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     synth_todo = next(item for item in state.todos if item.title == "Run Vivado HLS synthesis")
@@ -77,6 +81,10 @@ def test_runtime_vivado_missing_marks_todo_skipped(temp_workspace, monkeypatch):
 
 def test_runtime_partial_success(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    monkeypatch.setattr(
+        "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
+        lambda self, configured_path=None: None,
+    )
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     assert state.status == "partial_success"

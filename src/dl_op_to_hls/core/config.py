@@ -123,6 +123,8 @@ class AppConfig:
         hls4ml_backend = os.environ.get("DL_OP_TO_HLS_HLS4ML_BACKEND") or toolchain_section.get("hls4ml_backend")
         if not hls4ml_backend and hls_toolchain == "vitis_hls":
             hls4ml_backend = "Vitis"
+        generic_mock_tools = os.environ.get("DL_OP_TO_HLS_MOCK_TOOLS")
+        default_mock = "1" if generic_mock_tools is None else generic_mock_tools
         return cls(
             workspace_root=root,
             runs_root=root / "runs",
@@ -134,8 +136,8 @@ class AppConfig:
             llm_fallback_policy=llm_fallback_policy,
             optimization_fallback_mode=optimization_fallback_mode,
             specialist_llm_decider_enabled=specialist_llm_decider_enabled_value,
-            mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", "1") != "0",
-            mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", "1") != "0",
+            mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", default_mock) != "0",
+            mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", default_mock) != "0",
             hls_toolchain=hls_toolchain,
             hls4ml_backend=hls4ml_backend,
             vivado_hls_path=os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH"),

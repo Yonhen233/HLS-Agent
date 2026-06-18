@@ -61,6 +61,71 @@ class HLS4MLAdapter:
         except Exception:
             return {}
 
+    def _normalize_layer_overrides(self, value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        normalized: dict[str, Any] = {}
+        for layer_name, layer_config in value.items():
+            if not isinstance(layer_name, str) or not isinstance(layer_config, dict):
+                continue
+            clean_config: dict[str, Any] = {}
+            for key, raw in layer_config.items():
+                if key in {"ReuseFactor", "reuse_factor"}:
+                    clean_config["ReuseFactor"] = int(raw)
+                elif key in {"Precision", "precision"}:
+                    clean_config["Precision"] = raw
+                elif key in {"Strategy", "strategy"}:
+                    clean_config["Strategy"] = raw
+                elif key in {"BramFactor", "bram_factor"}:
+                    clean_config["BramFactor"] = raw
+            if clean_config:
+                normalized[layer_name] = clean_config
+        return normalized
+
+    def _normalize_model_overrides(self, value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        key_map = {
+            "BramFactor": "BramFactor",
+            "bram_factor": "BramFactor",
+            "PipelineStyle": "PipelineStyle",
+            "pipeline_style": "PipelineStyle",
+            "PipelineInterval": "PipelineInterval",
+            "pipeline_interval": "PipelineInterval",
+            "TargetCycles": "TargetCycles",
+            "target_cycles": "TargetCycles",
+            "Compression": "Compression",
+            "compression": "Compression",
+        }
+        normalized: dict[str, Any] = {}
+        for key, raw in value.items():
+            mapped = key_map.get(str(key))
+            if not mapped:
+                continue
+            if mapped in {"BramFactor", "PipelineInterval", "TargetCycles"}:
+                normalized[mapped] = int(raw)
+            elif mapped == "Compression":
+                normalized[mapped] = int(bool(raw))
+            else:
+                normalized[mapped] = raw
+        return normalized
+
+    def _apply_hls4ml_config_extensions(self, payload: dict[str, Any], arguments: dict[str, Any]) -> None:
+        io_type = arguments.get("io_type") or arguments.get("IOType")
+        if io_type:
+            payload["io_type"] = str(io_type)
+        model_overrides = self._normalize_model_overrides(arguments.get("model_overrides") or arguments.get("Model"))
+        if model_overrides:
+            hls_config = payload.setdefault("hls_config", {})
+            model_config = hls_config.setdefault("Model", {})
+            model_config.update(model_overrides)
+        layer_overrides = self._normalize_layer_overrides(
+            arguments.get("layer_overrides") or arguments.get("LayerName")
+        )
+        if layer_overrides:
+            hls_config = payload.setdefault("hls_config", {})
+            hls_config["LayerName"] = layer_overrides
+
     def _is_h5_frontend(self, model_path: str, frontend: str | None = None) -> bool:
         return (frontend or "").lower() in {"keras", "qkeras", "h5"} or Path(model_path).suffix.lower() in {".h5", ".hdf5"}
 
@@ -582,6 +647,13 @@ class HLS4MLAdapter:
             part=part,
             clock_period=clock_period,
         )
+        io_type = hls_config.get("IOType") or hls_config.get("io_type")
+        if not io_type:
+            # The Agent-facing config stores IOType at the payload top level.
+            io_type = hls_config.get("__io_type")
+        if io_type:
+            config["IOType"] = str(io_type)
+        hls_config.pop("__io_type", None)
         config["HLSConfig"] = {}
         config["HLSConfig"]["Model"] = _check_model_config(hls_config.get("Model", {}))
         _check_hls_config(config, hls_config)
@@ -940,6 +1012,7 @@ class HLS4MLAdapter:
                 payload["hls_config"]["Model"]["Precision"] = precision
                 payload["hls_config"]["Model"]["ReuseFactor"] = reuse_factor
                 payload["hls_config"]["Model"]["Strategy"] = strategy
+            self._apply_hls4ml_config_extensions(payload, arguments)
             config_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
             stdout_text = stdout_buffer.getvalue().strip()
             if stdout_text:
@@ -976,6 +1049,7 @@ class HLS4MLAdapter:
                         "rewrites": rewrites,
                         "default_parser_error": str(exc),
                     }
+                    self._apply_hls4ml_config_extensions(payload, arguments)
                     config_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
                     return {"status": "success", "config_path": str(config_path), "frontend_adapter": "onnx_layer_list"}
             except Exception:
@@ -1076,6 +1150,9 @@ class HLS4MLAdapter:
                         "Strategy": arguments.get("strategy", "Latency"),
                     }
                 }
+            elif config_payload.get("io_type"):
+                hls_config = dict(hls_config)
+                hls_config["__io_type"] = config_payload.get("io_type")
             top_function = str(config_payload.get("project_name") if isinstance(config_payload, dict) else "") or "myproject"
             backend = self._resolve_backend(
                 config_payload.get("backend")

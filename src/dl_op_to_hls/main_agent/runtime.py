@@ -1282,20 +1282,38 @@ class PlanExecuteReactRuntime:
             return {"status": "completed", "action": {"tool": "graph_rewrite.rewrite"}, "observation": result}
 
         if todo.title == "Generate hls4ml config" or todo.assigned_tool == "hls4ml.generate_config":
+            hls4ml_args = {
+                "model_path": state.task["model_path"],
+                "frontend": state.task.get("frontend", "onnx"),
+                "backend": state.task.get("target", {}).get("backend", "Vivado"),
+                "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
+                "clock_period": state.task.get("target", {}).get("clock_period", 5),
+                "precision": state.task.get("hls4ml", {}).get("precision", "fixed<16,6>"),
+                "reuse_factor": state.task.get("hls4ml", {}).get("reuse_factor", 1),
+                "strategy": state.task.get("hls4ml", {}).get("strategy", "Latency"),
+                "output_dir": str(self.context["artifact_manager"].run_dir),
+            }
+            io_type = state.task.get("hls4ml", {}).get("io_type") or state.task.get("hls4ml", {}).get("IOType")
+            if io_type:
+                hls4ml_args["io_type"] = io_type
+            layer_overrides = (
+                state.task.get("hls4ml", {}).get("layer_overrides")
+                or state.task.get("hls4ml", {}).get("LayerName")
+                or {}
+            )
+            if layer_overrides:
+                hls4ml_args["layer_overrides"] = layer_overrides
+            model_overrides = (
+                state.task.get("hls4ml", {}).get("model_overrides")
+                or state.task.get("hls4ml", {}).get("Model")
+                or {}
+            )
+            if model_overrides:
+                hls4ml_args["model_overrides"] = model_overrides
             result = self._call_tool(
                 state,
                 "hls4ml.generate_config",
-                {
-                    "model_path": state.task["model_path"],
-                    "frontend": state.task.get("frontend", "onnx"),
-                    "backend": state.task.get("target", {}).get("backend", "Vivado"),
-                    "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
-                    "clock_period": state.task.get("target", {}).get("clock_period", 5),
-                    "precision": state.task.get("hls4ml", {}).get("precision", "fixed<16,6>"),
-                    "reuse_factor": state.task.get("hls4ml", {}).get("reuse_factor", 1),
-                    "strategy": state.task.get("hls4ml", {}).get("strategy", "Latency"),
-                    "output_dir": str(self.context["artifact_manager"].run_dir),
-                },
+                hls4ml_args,
             )
             state.hls4ml_config_path = result.get("config_path")
             if result.get("status") == "success":

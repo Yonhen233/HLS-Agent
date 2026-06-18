@@ -18,6 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("task_path")
     run_parser.add_argument("--mock-tools", action="store_true", help="Force mock hls4ml/Vivado tools for demo runs.")
+    run_parser.add_argument("--real-tools", action="store_true", help="Force real hls4ml/Vivado tools for toolchain validation.")
 
     run_llm_parser = subparsers.add_parser("run-llm")
     run_llm_parser.add_argument("task_input")
@@ -91,10 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("task_path")
     inspect_parser.add_argument("--mock-tools", action="store_true", help="Force mock hls4ml/Vivado tools for demo runs.")
+    inspect_parser.add_argument("--real-tools", action="store_true", help="Force real hls4ml/Vivado tools for toolchain validation.")
 
     convert_parser = subparsers.add_parser("convert")
     convert_parser.add_argument("task_path")
     convert_parser.add_argument("--mock-tools", action="store_true", help="Force mock hls4ml/Vivado tools for demo runs.")
+    convert_parser.add_argument("--real-tools", action="store_true", help="Force real hls4ml/Vivado tools for toolchain validation.")
 
     synth_parser = subparsers.add_parser("synth")
     synth_parser.add_argument("run_id_or_path")
@@ -104,8 +107,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _build_agent(*, mock_tools: bool = False) -> MainAgent:
-    if mock_tools:
+def _build_agent(*, mock_tools: bool = False, real_tools: bool = False) -> MainAgent:
+    if mock_tools and real_tools:
+        raise ValueError("--mock-tools and --real-tools are mutually exclusive.")
+    if real_tools:
+        os.environ["DL_OP_TO_HLS_MOCK_TOOLS"] = "0"
+        os.environ["DL_OP_TO_HLS_MOCK_HLS4ML"] = "0"
+        os.environ["DL_OP_TO_HLS_MOCK_VIVADO"] = "0"
+    elif mock_tools:
+        os.environ["DL_OP_TO_HLS_MOCK_TOOLS"] = "1"
         os.environ["DL_OP_TO_HLS_MOCK_HLS4ML"] = "1"
         os.environ["DL_OP_TO_HLS_MOCK_VIVADO"] = "1"
     return MainAgent(console=False)
@@ -125,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        agent = _build_agent(mock_tools=args.mock_tools)
+        agent = _build_agent(mock_tools=args.mock_tools, real_tools=args.real_tools)
         state = run_task(args.task_path, agent=agent)
         print(json.dumps(state.to_dict(), indent=2, ensure_ascii=False))
         return 0
@@ -270,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
         print(agent.read_specialist_trace(args.run_id_or_path, args.specialist_name))
         return 0
     if args.command == "inspect":
-        agent = _build_agent(mock_tools=args.mock_tools)
+        agent = _build_agent(mock_tools=args.mock_tools, real_tools=args.real_tools)
         task = json.loads(Path(args.task_path).read_text(encoding="utf-8"))
         if task.get("task_type") == "model":
             result = agent.registry.call(
@@ -283,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(task, indent=2, ensure_ascii=False))
         return 0
     if args.command == "convert":
-        agent = _build_agent(mock_tools=args.mock_tools)
+        agent = _build_agent(mock_tools=args.mock_tools, real_tools=args.real_tools)
         state = run_task(args.task_path, agent=agent)
         print(state.hls_project_dir or "")
         return 0

@@ -6,6 +6,114 @@
 
 ---
 
+## 2026-06-18 23:56:44 +08:00：MNIST per-layer precision + clock 资源优化、真实工具开关修复
+### 1. 本次测试做了什么
+继续围绕真实 MNIST 识别 demo 做资源压缩，目标是不改变模型拓扑、不写定制 RTL，在 HLS csim 识别正确率不下降的前提下尽量降低 FPGA 资源。
+
+本轮新增真实候选均使用 hls4ml + Vivado HLS 2018.3，并通过 ONNX reference 对比校验：
+
+| Run | 关键配置 | Clock | BRAM | DSP | FF | LUT | HLS acc | Argmax | 结论 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| `mnist_recognition_mlp_relu0_9_middle8_final9_ff25b67f` | 第一 ReLU 9 位，中间 8 位，输出 9 位 | 10ns | 47 | 64 | 8548 | 19720 | 95% | 100% | 10ns balanced profile |
+| `mnist_recognition_mlp_relu0_9_middle8_final8_8d6ac7cd_03` | 输出层降到 8 位 | 10ns | 47 | 64 | 8528 | 19720 | 85% | 90% | 拒绝：输出 logits 8 位不稳 |
+| `mnist_recognition_mlp_relu0_9_middle7_final9_a07ae725_03` | 中间层降到 7 位 | 10ns | 47 | 64 | 8349 | 19616 | 80% | 85% | 拒绝：隐藏表示 7 位不稳 |
+| `mnist_recognition_mlp_relu0_9_linear1_8_relu1_7_final9_0c1412c6_03` | 第二 ReLU 单独降到 7 位 | 10ns | 47 | 64 | 8415 | 19648 | 90% | 95% | 拒绝：准确率下降 |
+| `mnist_recognition_mlp_relu0_9_middle8_final9_weight8_1af80ae7_03` | best profile + weight 8 位 | 10ns | 33 | 63 | 8820 | 20439 | 90% | 95% | 拒绝：权重量化影响分类 |
+| `mnist_recognition_mlp_relu0_9_middle8_final9_clock15_cb07b6df_03` | best profile + 15ns target | 15ns | 47 | 64 | 5999 | 17899 | 95% | 100% | 采用：最终资源优先默认 |
+| `mnist_recognition_mlp_relu0_9_middle8_final9_clock20_6f40239b` | best profile + 20ns target | 20ns | 47 | 64 | 5999 | 17899 | 95% | 100% | 与 15ns 同资源，无额外收益 |
+
+最终将 `examples/mnist_recognition_mlp.json` 更新为资源优先 profile：
+
+```text
+precision = fixed<12,6>
+reuse_factor = 1024
+clock_period = 15 ns
+node_relu     = fixed<9,4>
+node_linear_1 = fixed<8,3>
+node_relu_1   = fixed<8,3>
+node_linear_2 = fixed<9,4>
+```
+
+相对最早 RF512 10ns 基线：
+
+| 指标 | 基线 | 最终 profile | 变化 |
+|---|---:|---:|---:|
+| BRAM | 48 | 47 | -2.1% |
+| DSP | 133 | 64 | -51.9% |
+| FF | 21275 | 5999 | -71.8% |
+| LUT | 31792 | 17899 | -43.7% |
+| HLS accuracy | 95% | 95% | 不下降 |
+| Argmax match | 100% | 100% | 不下降 |
+
+更新默认 demo 后重新运行：
+
+```text
+runs/mnist_recognition_mlp_592ff534
+```
+
+该 run 结果：
+
+```text
+status = success
+pipeline level = deployment_ready_candidate
+selected_path = hls4ml_path
+clock = 15ns
+latency max = 2135
+BRAM = 47
+DSP = 64
+FF = 5999
+LUT = 17899
+HLS accuracy = 95%
+Argmax match = 100%
+```
+
+### 2. 遇到的问题与根因
+1. 误用 `DL_OP_TO_HLS_MOCK_TOOLS=0` 时，旧配置没有识别这个通用环境变量，实际仍使用 `mock_hls4ml/mock_vivado`，导致生成了固定 sample report：45 cycles、DSP32、FF2100、LUT3500。
+2. 这些 sample/mock run 一度被 Memory/ParameterAdvisor 当作 functionally verified history 检索到。根因是 Advisor 只判断 verification passed，没有额外识别 sample fixture 指标。
+3. 强制真实工具后，Vivado 初次报 `VivadoNotFoundError`。根因是当前 shell 没有设置 `DL_OP_TO_HLS_VIVADO_HLS_PATH`，而 adapter 没有自动探测 Windows 常见安装路径。
+4. 多个进一步降位宽候选都综合成功，但 HLS accuracy 下降。根因是输出 logits 和隐藏表示的低位宽会改变分类排序，功能验证必须作为资源优化的硬约束。
+
+### 3. 已完成修复
+1. `AppConfig` 支持通用环境变量 `DL_OP_TO_HLS_MOCK_TOOLS`，并仍允许 `DL_OP_TO_HLS_MOCK_HLS4ML` / `DL_OP_TO_HLS_MOCK_VIVADO` 分别覆盖。
+2. CLI 新增 `--real-tools`，显式强制真实 hls4ml/Vivado adapter；保留 `--mock-tools` 用于快速 demo 和单元测试。
+3. `VivadoHLSAdapter` 增加 Windows 默认路径探测，自动识别：
+
+```text
+D:/Xilinx/Vivado/2018.3/bin/vivado_hls.bat
+C:/Xilinx/Vivado/2018.3/bin/vivado_hls.bat
+```
+
+4. `ParameterAdvisor` 增加 sample fixture guard，忽略模型任务中固定的 mock/sample report 指标，避免将假结果作为参数经验。
+5. hls4ml adapter、ContextEnvelope、HLS4MLSpecialist、runtime 已支持 `io_type`、`layer_overrides`、`model_overrides` 透传到 hls4ml config。
+6. 更新 `docs/mnist_resource_optimization.md`，记录真实候选矩阵、拒绝原因、最终默认 profile 和 10ns balanced profile。
+7. 修正与真实 Vivado 自动探测冲突的 missing-binary 单测：测试现在显式 patch 掉 `_resolve_vivado_executable`，避免本机真实安装影响 graceful fallback 测试。
+
+已运行测试：
+
+```powershell
+$env:TEMP=(Resolve-Path .\runs\tmp_pytest).Path
+$env:TMP=$env:TEMP
+$env:PYTHONPATH=(Resolve-Path .\src).Path
+pytest -p no:cacheprovider -q tests\test_runtime_config.py tests\test_functional_verification.py tests\test_hls4ml_mcp.py tests\test_vivado_hls_mcp.py tests\test_runtime_hybrid.py tests\test_specialists.py tests\test_memory.py tests\test_summary_sections.py tests\test_main_agent.py
+```
+
+结果：核心路径测试通过，含 config、functional verification、hls4ml/Vivado adapter、runtime、specialists、memory、summary、main agent。
+
+全量：
+
+```powershell
+pytest -p no:cacheprovider -q
+```
+
+在 5 分钟预算内超时，未拿到失败栈；已确认本轮改动相关核心组通过。后续若要做 CI，应拆分慢测试或给全量套件更长 timeout。
+
+### 4. 未完成或后续建议
+1. 当前最终 profile 是 20 样本验证通过，适合面试演示；如要接近产品化，应扩展到 100/1000 样本再确认。
+2. 本轮没有使用 LLM 生成定制 RTL，因为目标约束是不改变模型形式、不写非常定制 RTL；LLM 更适合用于解释候选、生成优化计划或处理 unsupported operator。
+3. 10ns balanced profile 仍建议保留，适合强调 100MHz 级别时钟的场景；15ns profile 适合强调资源压缩。
+
+---
+
 ## 2026-06-18 20:55:51 +08:00：MNIST 真实识别 demo 资源优化与验收口径收紧
 ### 1. 本次测试做了什么
 围绕真实 MNIST 识别 demo：

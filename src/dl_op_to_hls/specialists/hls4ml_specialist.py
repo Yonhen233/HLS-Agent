@@ -134,7 +134,7 @@ class HLS4MLSpecialist(BaseSpecialist):
         if tool in {"hls4ml.check_support", "hls4ml.check_hls4ml_support"}:
             return {"task": task}
         if tool in {"hls4ml.generate_config", "hls4ml.generate_hls4ml_config"}:
-            return {
+            args = {
                 "model_path": scoped.get("model_path"),
                 "frontend": scoped.get("frontend") or "onnx",
                 "backend": scoped.get("backend") or "Vivado",
@@ -145,6 +145,13 @@ class HLS4MLSpecialist(BaseSpecialist):
                 "strategy": scoped.get("strategy") or "Latency",
                 "output_dir": scoped.get("run_dir"),
             }
+            if scoped.get("io_type"):
+                args["io_type"] = scoped["io_type"]
+            if scoped.get("layer_overrides"):
+                args["layer_overrides"] = scoped["layer_overrides"]
+            if scoped.get("model_overrides"):
+                args["model_overrides"] = scoped["model_overrides"]
+            return args
         if tool in {"hls4ml.run_csim", "hls4ml.run_hls4ml_csim"}:
             return {"hls_project_dir": scoped.get("hls_project_dir")}
         return {

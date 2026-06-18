@@ -218,3 +218,68 @@ def test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp():
     assert result["mode"] == "heuristic_bootstrap"
     assert result["source_count"] == 0
     assert all(item.get("source") != "verified_history" for item in result["recommendations"])
+
+
+class _SampleFixtureRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {
+                "name": "mnist_recognition_mlp_mock",
+                "task_type": "model",
+                "hls4ml": {"precision": "fixed<12,6>", "reuse_factor": 1024, "strategy": "Resource"},
+                "target": {"clock_period": 10},
+            },
+            "verification": {"status": "csim_passed", "passed": True, "mode": "golden_testbench"},
+            "report": {
+                "status": "success",
+                "latency": {"min_cycles": 45, "max_cycles": 45},
+                "resources": {"bram": 0, "dsp": 32, "ff": 2100, "lut": 3500},
+                "timing": {"estimated_ns": 4.3, "met": True},
+            },
+        }
+        return [{"id": 5, "source_run_id": "mock_fixture", "importance": 5, "value_json": json.dumps(value)}]
+
+
+def test_parameter_advisor_ignores_sample_fixture_history():
+    state = {"task": {"name": "mnist_recognition_mlp", "task_type": "model", "hls4ml": {"reuse_factor": 1024}}}
+    result = recommend_parameters({"state": state}, {"repository": _SampleFixtureRepo()})
+    assert result["mode"] == "heuristic_bootstrap"
+    assert result["source_count"] == 0
+
+
+class _ResourceRankingRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+
+        def item(memory_id, run_id, clock, ff, lut):
+            value = {
+                "task": {
+                    "name": "mnist_recognition_mlp",
+                    "task_type": "model",
+                    "hls4ml": {"precision": "fixed<12,6>", "reuse_factor": 1024, "strategy": "Resource"},
+                    "target": {"clock_period": clock},
+                    "objective": "resource",
+                },
+                "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+                "report": {
+                    "status": "success",
+                    "latency": {"min_cycles": 2135, "max_cycles": 2139},
+                    "resources": {"bram": 47, "dsp": 64, "ff": ff, "lut": lut},
+                    "timing": {"estimated_ns": 8.0, "met": True},
+                },
+            }
+            return {"id": memory_id, "source_run_id": run_id, "importance": 3, "value_json": json.dumps(value)}
+
+        return [
+            item(6, "ten_ns_verified", 10, 8548, 19720),
+            item(7, "fifteen_ns_verified", 15, 5999, 17899),
+        ]
+
+
+def test_parameter_advisor_ranks_verified_history_by_resource_cost():
+    state = {"task": {"name": "mnist_recognition_mlp", "task_type": "model", "objective": "resource", "hls4ml": {}}}
+    result = recommend_parameters({"state": state}, {"repository": _ResourceRankingRepo()})
+    assert result["mode"] == "verified_history"
+    assert result["matched_history"][0]["source_run_id"] == "fifteen_ns_verified"
+    assert any(item["parameter"] == "clock_period" and item["recommended_value"] == 15 for item in result["recommendations"])

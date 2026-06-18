@@ -9,16 +9,30 @@
   "target": {
     "backend": "Vivado",
     "part": "xc7z020clg400-1",
-    "clock_period": 10
+    "clock_period": 15
   },
   "hls4ml": {
     "precision": "fixed<12,6>",
     "reuse_factor": 1024,
-    "strategy": "Resource"
+    "strategy": "Resource",
+    "layer_overrides": {
+      "node_relu": {
+        "Precision": "fixed<9,4>"
+      },
+      "node_linear_1": {
+        "Precision": "fixed<8,3>"
+      },
+      "node_relu_1": {
+        "Precision": "fixed<8,3>"
+      },
+      "node_linear_2": {
+        "Precision": "fixed<9,4>"
+      }
+    }
   },
   "optimization": {
     "reuse_factor": 1024,
-    "note": "Verified resource-optimized setting: keeps 95% HLS accuracy and 100% argmax match on the 20-sample recognition check while reducing DSP/FF/LUT/BRAM versus RF512."
+    "note": "Verified resource-priority setting: keeps 95% HLS accuracy and 100% argmax match on the 20-sample recognition check. Compared with the original fixed<12,6>/RF1024/10ns profile, this layer precision profile plus 15ns target reduces DSP 67->64, FF 10265->5999, and LUT 20400->17899 without changing the model topology."
   },
   "reference_data": {
     "input_path": "models/mnist_recognition/mnist_test_inputs_20.dat",

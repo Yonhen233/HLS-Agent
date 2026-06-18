@@ -35,6 +35,22 @@ def _timing_is_usable(value: dict[str, Any]) -> bool:
     return not (isinstance(timing, dict) and timing.get("met") is False)
 
 
+def _looks_like_sample_fixture(value: dict[str, Any]) -> bool:
+    """Guard ParameterAdvisor against mock/sample Vivado reports promoted during demo runs."""
+    report = value.get("report") if isinstance(value.get("report"), dict) else value
+    if not isinstance(report, dict):
+        return False
+    resources = report.get("resources") if isinstance(report.get("resources"), dict) else {}
+    latency = report.get("latency") if isinstance(report.get("latency"), dict) else {}
+    timing = report.get("timing") if isinstance(report.get("timing"), dict) else {}
+    sample_resources = resources == {"bram": 0, "dsp": 32, "ff": 2100, "lut": 3500}
+    sample_latency = latency.get("min_cycles") == 45 and latency.get("max_cycles") == 45
+    sample_timing = float(timing.get("estimated_ns", -1)) == 4.3
+    verification = value.get("verification") if isinstance(value.get("verification"), dict) else {}
+    model_task = (value.get("task") or {}).get("task_type") == "model"
+    return bool(model_task and sample_resources and sample_latency and sample_timing and verification.get("mode") == "golden_testbench")
+
+
 def _task_signature(task: dict[str, Any]) -> set[str]:
     shape_text = " ".join(str(item) for item in (task.get("input_shape") or task.get("output_shape") or []))
     return _tokens(
@@ -66,6 +82,11 @@ def _task_family(task: dict[str, Any]) -> str | None:
     return None
 
 
+def _objective(task: dict[str, Any]) -> str:
+    optimization = task.get("optimization") if isinstance(task.get("optimization"), dict) else {}
+    return str(task.get("objective") or optimization.get("objective") or "balanced").lower()
+
+
 def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
     hls4ml = task.get("hls4ml") or {}
     target = task.get("target") or {}
@@ -93,6 +114,23 @@ def _updates_from_params(params: dict[str, Any]) -> dict[str, Any]:
     if params.get("pipeline_ii") is not None:
         updates["optimization"]["pipeline_ii"] = params["pipeline_ii"]
     return {key: value for key, value in updates.items() if value}
+
+
+def _resource_cost(report: dict[str, Any], objective: str) -> float:
+    resources = report.get("resources") if isinstance(report.get("resources"), dict) else {}
+    latency = report.get("latency") if isinstance(report.get("latency"), dict) else {}
+    lut = float(resources.get("lut") if resources.get("lut") is not None else 1_000_000)
+    ff = float(resources.get("ff") if resources.get("ff") is not None else 1_000_000)
+    dsp = float(resources.get("dsp") if resources.get("dsp") is not None else 10_000)
+    bram = float(resources.get("bram") if resources.get("bram") is not None else 10_000)
+    latency_cycles = float(latency.get("max_cycles") if latency.get("max_cycles") is not None else 1_000_000)
+    # Weighted cost keeps units comparable enough for ranking verified profiles.
+    cost = lut + 0.1 * ff + 100.0 * dsp + 50.0 * bram
+    if objective == "latency":
+        return latency_cycles + 0.02 * cost
+    if objective == "balanced":
+        return cost + 0.5 * latency_cycles
+    return cost
 
 
 def _recommendation_rows(params: dict[str, Any], reason: str, source: str) -> list[dict[str, Any]]:
@@ -152,6 +190,7 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
         }
 
     task_tokens = _task_signature(task)
+    objective = _objective(task)
     candidates: list[dict[str, Any]] = []
     for item in repository.list_memory_items(["parameter_experience", "verified_implementation", "optimization", "implementation"]):
         if current_run_id and item.get("source_run_id") == current_run_id:
@@ -160,6 +199,8 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
         if not _verified(value):
             continue
         if not _timing_is_usable(value):
+            continue
+        if _looks_like_sample_fixture(value):
             continue
         candidate_task = value.get("task") or {}
         candidate_tokens = _task_signature(candidate_task)
@@ -180,13 +221,14 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
                 "memory_id": item.get("id"),
                 "source_run_id": item.get("source_run_id"),
                 "score": overlap + (2.0 if same_family else 0.0) + float(item.get("importance") or 1) * 0.1,
+                "resource_cost": _resource_cost(report, objective),
                 "params": params,
                 "report": report,
                 "verification": value.get("verification"),
                 "task_family": candidate_family,
             }
         )
-    candidates.sort(key=lambda item: item["score"], reverse=True)
+    candidates.sort(key=lambda item: (-item["score"], item["resource_cost"]))
     if candidates:
         best = candidates[0]
         reason = f"Matched verified run {best.get('source_run_id')} with functional verification passed."

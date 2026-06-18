@@ -76,6 +76,8 @@ def test_vivado_run_csynth_mock(tmp_path):
 def test_vivado_missing_binary_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)
     adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path="")
+    adapter.vivado_hls_path = None
+    monkeypatch.setattr(adapter, "_resolve_vivado_executable", lambda configured_path=None: None)
     result = adapter.run_csynth({"work_dir": str(tmp_path), "tcl_path": str(tmp_path / "run.tcl"), "top_function": "demo"})
     assert result["status"] == "skipped"
     assert result["error"]["error_type"] == "VivadoNotFoundError"

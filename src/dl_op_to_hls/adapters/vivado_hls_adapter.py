@@ -43,7 +43,7 @@ class VivadoHLSAdapter:
         vitis_hls_path: str | None = None,
     ):
         self.mock_mode = mock_mode
-        self.vivado_hls_path = vivado_hls_path
+        self.vivado_hls_path = self._resolve_vivado_executable(vivado_hls_path)
         self.hls_toolchain = self._normalize_toolchain(hls_toolchain)
         self.vitis_hls_path = vitis_hls_path
 
@@ -57,6 +57,33 @@ class VivadoHLSAdapter:
         if text in {"vitis", "vitis_hls", "vitis_run", "vitisrun", "modern_vitis"}:
             return "vitis_hls"
         return "vivado_hls"
+
+    def _resolve_vivado_executable(self, configured_path: str | None = None) -> str | None:
+        candidates: list[Path] = []
+        if configured_path:
+            configured = Path(configured_path)
+            if configured.is_file():
+                candidates.append(configured)
+            else:
+                candidates.extend(
+                    [
+                        configured / "bin" / "vivado_hls.bat",
+                        configured / "Vivado" / "2018.3" / "bin" / "vivado_hls.bat",
+                        configured / "2018.3" / "bin" / "vivado_hls.bat",
+                    ]
+                )
+        candidates.extend(
+            [
+                Path("D:/Xilinx/Vivado/2018.3/bin/vivado_hls.bat"),
+                Path("C:/Xilinx/Vivado/2018.3/bin/vivado_hls.bat"),
+                Path("D:/Xilinx/Vivado/2018.3/bin/vivado_hls.exe"),
+                Path("C:/Xilinx/Vivado/2018.3/bin/vivado_hls.exe"),
+            ]
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        return shutil.which("vivado_hls") or shutil.which("vivado_hls.bat")
 
     def _resolve_vitis_executable(self) -> str | None:
         candidates: list[Path] = []
@@ -104,7 +131,7 @@ class VivadoHLSAdapter:
     def _binary_available(self) -> bool:
         if self.hls_toolchain == "vitis_hls":
             return self._resolve_vitis_executable() is not None
-        return bool(self.vivado_hls_path and Path(self.vivado_hls_path).exists()) or shutil.which("vivado_hls") is not None or shutil.which("vivado_hls.bat") is not None
+        return self._resolve_vivado_executable(self.vivado_hls_path) is not None
 
     def _run_vitis_with_existing_tcl(self, tcl_path: str, work_dir: Path, timeout_seconds: int | None = None) -> dict[str, Any]:
         executable = self._resolve_vitis_executable()

@@ -252,6 +252,10 @@ def test_vivado_specialist_parse_report_uses_assigned_tool_not_title_case(temp_w
 
 def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    monkeypatch.setattr(
+        "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
+        lambda self, configured_path=None: None,
+    )
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = VivadoSpecialist(context)
