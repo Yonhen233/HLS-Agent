@@ -53,9 +53,9 @@ SCHEMA = {
 }
 
 
-SYSTEM_PROMPT = """You are a senior FPGA HLS engineer.
+SYSTEM_PROMPT_BASE = """You are a senior FPGA HLS engineer.
 Return strict JSON only.
-Design a resource-minimized Vivado HLS 2018.3 C++ implementation body for a fixed MNIST MLP:
+Design a Vivado HLS 2018.3 C++ implementation body for a fixed MNIST MLP:
 784 inputs -> Dense64 -> ReLU -> Dense32 -> ReLU -> Dense10 logits.
 
 The final code will already provide:
@@ -70,11 +70,50 @@ void mnist_llm_candidate(data_t input[784], data_t output[10]) { ... }
 Rules:
 - Use only synthesizable C++ accepted by Vivado HLS 2018.3.
 - No dynamic allocation, no STL containers, no file IO, no system calls.
-- Prefer resource sharing over latency. Do not fully unroll dense loops.
 - Use simple loops over the real weight arrays.
+- Weight indexing is output-major: W1[out64][in784], W2[out32][in64], W3[out10][in32].
+- Use acc_t for accumulators. accum_t is available as an alias, but acc_t is preferred.
 - Keep the top contract unchanged.
 - The output logits must preserve argmax accuracy on MNIST samples.
 """
+
+
+OBJECTIVE_RULES = {
+    "resource": [
+        "Primary goal: minimize BRAM/DSP/FF/LUT.",
+        "Prefer resource sharing over latency.",
+        "Do not fully unroll dense loops.",
+        "Serial or lightly parallel loops are acceptable.",
+    ],
+    "balanced": [
+        "Primary goal: improve latency/interval versus the serial resource candidate while keeping resource_score below the hls4ml baseline resource_score=41398.",
+        "Use the verified safe numeric starting point unless you justify a wider type: data_t=ap_fixed<16,4,AP_RND,AP_SAT>, weight_t=ap_fixed<8,4,AP_RND,AP_SAT>, acc_t=ap_fixed<20,16,AP_RND>.",
+        "Do not use unsafe tiny types such as ap_fixed<8,1> or ap_fixed<8,2>; previous attempts with those types failed golden accuracy.",
+        "Do not omit AP_SAT on data_t; default AP_WRAP can break classification accuracy.",
+        "Use moderate parallelism such as output-neuron blocking, partial sums, small unroll factors 2-8, and local array partitioning.",
+        "Do not fully partition the large W1/W2/W3 constant matrices.",
+        "Avoid complete partitioning of large hidden activation arrays unless the resource estimate is still below baseline.",
+        "Do not apply ARRAY_PARTITION complete to W1/W2/W3; use local partial-sum arrays instead.",
+        "Avoid exploding LUT/FF; a moderate DSP budget is acceptable if II/latency improves materially.",
+    ],
+    "throughput": [
+        "Primary goal: minimize latency and top interval / II.",
+        "Use numerically safe types first: data_t at least ap_fixed<16,4>, weight_t at least ap_fixed<8,4>, acc_t at least 20 total bits with 16 integer bits.",
+        "Do not use unsafe tiny types such as ap_fixed<8,1> or ap_fixed<8,2>; previous attempts with those types failed golden accuracy.",
+        "Do not omit AP_SAT on data_t; default AP_WRAP can break classification accuracy.",
+        "Use HLS pragmas, local partial sums, unroll factors, and partitioned local arrays where useful.",
+        "It is acceptable to use more DSP/LUT/FF than the resource candidate if throughput improves.",
+        "A known verified high-resource parallel candidate used W1 dim=2 cyclic factor=16 and W2/W3 dim=2 cyclic factor=4 and reached latency/II=857; try to match or improve that.",
+        "Avoid DATAFLOW with STREAM pragmas on ordinary arrays unless you use real hls::stream producer/consumer structure; a previous array-stream dataflow candidate synthesized to II=25282.",
+        "Do not fully partition the large W1/W2/W3 constant matrices unless the code remains realistic for Vivado HLS 2018.3.",
+        "Prefer local partial-sum arrays over full W1/W2/W3 partitioning.",
+    ],
+}
+
+
+def _system_prompt(objective: str) -> str:
+    rules = "\n".join(f"- {rule}" for rule in OBJECTIVE_RULES.get(objective, OBJECTIVE_RULES["resource"]))
+    return f"{SYSTEM_PROMPT_BASE}\nObjective-specific rules:\n{rules}\n"
 
 
 def _read_json(path: Path) -> Any:
@@ -170,6 +209,87 @@ def _sanitize_ap_fixed_type(value: str, default: str) -> str:
     return f"ap_fixed<{','.join(rendered)}>"
 
 
+def _ap_fixed_parts(value: str) -> tuple[int, int] | None:
+    text = _sanitize_ap_fixed_type(value, "")
+    if not text:
+        return None
+    body = text[len("ap_fixed<") : -1]
+    parts = [part.strip() for part in body.split(",")]
+    return int(parts[0]), int(parts[1])
+
+
+def _ap_fixed_tokens(value: str) -> set[str]:
+    text = _sanitize_ap_fixed_type(value, "")
+    if not text:
+        return set()
+    body = text[len("ap_fixed<") : -1]
+    return {part.strip() for part in body.split(",")[2:]}
+
+
+def _validate_plan_for_objective(plan: dict[str, Any], objective: str) -> dict[str, Any]:
+    if objective == "resource":
+        return {"status": "valid", "violations": []}
+    checks = [
+        ("data_type", 16, 4),
+        ("weight_type", 8, 4),
+        ("accum_type", 20, 16),
+    ]
+    violations: list[dict[str, Any]] = []
+    for key, min_width, min_integer in checks:
+        parts = _ap_fixed_parts(str(plan.get(key) or ""))
+        if parts is None:
+            violations.append({"field": key, "message": f"{key} must be a valid ap_fixed type."})
+            continue
+        width, integer = parts
+        if width < min_width or integer < min_integer:
+            violations.append(
+                {
+                    "field": key,
+                    "message": f"{key}={plan.get(key)} is unsafe for {objective}; require width>={min_width}, integer>={min_integer}.",
+                }
+            )
+    quantization_requirements = {
+        "data_type": {"AP_RND", "AP_SAT"},
+        "weight_type": {"AP_RND", "AP_SAT"},
+        "accum_type": {"AP_RND"},
+    }
+    for key, required_tokens in quantization_requirements.items():
+        tokens = _ap_fixed_tokens(str(plan.get(key) or ""))
+        missing = sorted(required_tokens - tokens)
+        if missing:
+            violations.append(
+                {
+                    "field": key,
+                    "message": f"{key}={plan.get(key)} is unsafe for {objective}; missing quantization/overflow mode(s): {', '.join(missing)}.",
+                }
+            )
+    body = str(plan.get("function_body") or "")
+    invalid_pragma_fragments = [
+        "ARRAY_PARTITION variable=W1 type=cyclic",
+        "ARRAY_PARTITION variable=W2 type=cyclic",
+        "ARRAY_PARTITION variable=W3 type=cyclic",
+        "ARRAY_PARTITION variable=W1 cyclic factor",
+        "ARRAY_PARTITION variable=W2 cyclic factor",
+        "ARRAY_PARTITION variable=W3 cyclic factor",
+    ]
+    for fragment in invalid_pragma_fragments:
+        if fragment in body:
+            violations.append(
+                {
+                    "field": "function_body",
+                    "message": f"Vivado HLS 2018.3 rejected this ARRAY_PARTITION syntax before: {fragment}. Use 'variable=W1 dim=2 cyclic factor=N'.",
+                }
+            )
+    if objective == "throughput" and "#pragma HLS STREAM" in body and "hls::stream" not in body:
+        violations.append(
+            {
+                "field": "function_body",
+                "message": "Throughput candidates must not use STREAM pragmas on ordinary arrays; previous array-stream dataflow code synthesized to poor II.",
+            }
+        )
+    return {"status": "invalid" if violations else "valid", "violations": violations}
+
+
 def _build_header(plan: dict[str, Any], weights: dict[str, np.ndarray]) -> str:
     data_type = _sanitize_ap_fixed_type(plan.get("data_type"), "ap_fixed<12,6>")
     weight_type = _sanitize_ap_fixed_type(plan.get("weight_type"), "ap_fixed<12,4>")
@@ -187,6 +307,7 @@ def _build_header(plan: dict[str, Any], weights: dict[str, np.ndarray]) -> str:
 typedef {data_type} data_t;
 typedef {weight_type} weight_t;
 typedef {accum_type} acc_t;
+typedef acc_t accum_t;
 
 static const weight_t W1[64][784] = {{
 {_format_2d(weights["fc1.weight"])}
@@ -285,9 +406,39 @@ def _prompt_for_plan(
     baseline: dict[str, Any],
     previous_results: list[dict[str, Any]],
     attempt: int,
+    objective: str,
 ) -> str:
+    goals = {
+        "resource": "Generate a direct HLS candidate that minimizes LUT/DSP/FF/BRAM while keeping MNIST accuracy >= baseline.",
+        "balanced": "Generate a balanced HLS candidate that improves latency/II versus the serial LLM resource candidate while retaining a substantial resource reduction versus hls4ml.",
+        "throughput": "Generate a throughput-priority HLS candidate that improves latency and top interval/II as much as possible while preserving MNIST accuracy.",
+    }
+    def summarize_attempt(item: dict[str, Any]) -> dict[str, Any]:
+        report = (item.get("verification") or {}).get("report") or {}
+        synthesis = (item.get("verification") or {}).get("synthesis") or {}
+        error = synthesis.get("error") or item.get("error")
+        plan = item.get("plan") or {}
+        return {
+            "attempt": item.get("attempt"),
+            "status": item.get("status"),
+            "candidate_name": plan.get("candidate_name"),
+            "effective_types": plan.get("effective_types"),
+            "resource_score": item.get("resource_score"),
+            "objective_score": item.get("objective_score"),
+            "latency": report.get("latency"),
+            "interval": report.get("interval"),
+            "resources": report.get("resources"),
+            "verification": synthesis.get("verification"),
+            "error": error,
+            "notes": [
+                "If accuracy failed, do not repeat the same precision/indexing pattern.",
+                "If compile failed due to a type name, use acc_t/accum_t consistently.",
+            ],
+        }
+
     prompt = {
-        "goal": "Generate a direct HLS candidate that minimizes LUT/DSP/FF/BRAM while keeping MNIST accuracy >= baseline.",
+        "goal": goals.get(objective, goals["resource"]),
+        "objective": objective,
         "attempt": attempt,
         "model": {
             "topology": "784 -> Dense64 -> ReLU -> Dense32 -> ReLU -> Dense10",
@@ -295,7 +446,7 @@ def _prompt_for_plan(
             "weights_available_as_constants": ["W1", "B1", "W2", "B2", "W3", "B3"],
         },
         "baseline_to_beat": baseline,
-        "previous_attempt_results": previous_results[-3:],
+        "previous_attempt_results": [summarize_attempt(item) for item in previous_results[-5:]],
         "required_output": {
             "candidate_name": "short identifier",
             "data_type": "ap_fixed<W,I>",
@@ -307,9 +458,16 @@ def _prompt_for_plan(
         },
         "hard_constraints": [
             "Do not use unsupported includes or host APIs.",
-            "Do not fully unroll dense loops.",
             "Do not change the top function signature.",
             "Use constants W1/B1/W2/B2/W3/B3 exactly as declared.",
+            "Use W1[out][in], W2[out][in], and W3[out][in]. Never use W1[in][out].",
+            "For balanced/throughput objectives, keep data_type integer bits >= 4, weight_type integer bits >= 4, and accum_type integer bits >= 16.",
+            "For balanced/throughput objectives, data_type must include AP_RND and AP_SAT; weight_type should include AP_RND and AP_SAT; accum_type should include AP_RND.",
+            "If you introduce partial-sum arrays, keep their sizes explicit and compatible with Vivado HLS 2018.3.",
+            "Do not partition the full W1/W2/W3 matrices complete; prefer local partial arrays or limited unroll factors.",
+            "Use Vivado HLS 2018.3 pragma syntax: '#pragma HLS ARRAY_PARTITION variable=W1 dim=2 cyclic factor=16'. Do not use 'type=cyclic'.",
+            "For balanced objective, resource_score = LUT + FF + 200*DSP + 100*BRAM must stay below 41398.",
+            "For throughput objective, latency and interval should beat the hls4ml baseline latency=2135 and interval=1024; resources may increase.",
             "Return JSON only.",
         ],
     }
@@ -367,12 +525,49 @@ def _score(report: dict[str, Any]) -> int:
     return int(resources.get("lut") or 0) + int(resources.get("ff") or 0) + 200 * int(resources.get("dsp") or 0) + 100 * int(resources.get("bram") or 0)
 
 
+def _objective_score(report: dict[str, Any], objective: str, baseline: dict[str, Any]) -> float:
+    resource_score = _score(report)
+    latency = float((report.get("latency") or {}).get("max_cycles") or 10**12)
+    interval = float((report.get("interval") or {}).get("max_ii") or latency)
+    base_resource = float(baseline.get("resource_score") or 1)
+    base_latency = float(baseline.get("latency_cycles") or 1)
+    base_interval = float(baseline.get("interval_cycles") or base_latency)
+    resource_ratio = resource_score / max(base_resource, 1.0)
+    latency_ratio = latency / max(base_latency, 1.0)
+    interval_ratio = interval / max(base_interval, 1.0)
+    if objective == "throughput":
+        return 0.45 * latency_ratio + 0.45 * interval_ratio + 0.10 * resource_ratio
+    if objective == "balanced":
+        return 0.35 * latency_ratio + 0.35 * interval_ratio + 0.30 * resource_ratio
+    return float(resource_score)
+
+
+def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, Any]) -> bool:
+    resource_score = _score(report)
+    latency = float((report.get("latency") or {}).get("max_cycles") or 10**12)
+    interval = float((report.get("interval") or {}).get("max_ii") or latency)
+    if objective == "balanced":
+        serial = baseline.get("known_resource_best_llm_candidate") or {}
+        return (
+            resource_score < float(baseline.get("resource_score") or 0)
+            and latency < float(serial.get("latency_cycles") or 10**12)
+            and interval < float(serial.get("interval_cycles") or 10**12)
+        )
+    if objective == "throughput":
+        return (
+            latency < float(baseline.get("latency_cycles") or 0)
+            and interval < float(baseline.get("interval_cycles") or 0)
+        )
+    return resource_score < float(baseline.get("resource_score") or 0)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate and verify direct LLM HLS candidates for the MNIST MLP.")
     parser.add_argument("--model", default="models/mnist_recognition/mnist_mlp_trained.onnx")
     parser.add_argument("--samples", default="models/mnist_recognition/mnist_test_inputs_20.dat")
     parser.add_argument("--labels", default="models/mnist_recognition/mnist_test_labels_20.json")
-    parser.add_argument("--output-root", default="runs/llm_mnist_hls_candidate")
+    parser.add_argument("--output-root", default=None)
+    parser.add_argument("--objective", choices=["resource", "balanced", "throughput"], default="resource")
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--required-correct", type=int, default=19)
     parser.add_argument("--clock-period", type=float, default=15.0)
@@ -381,7 +576,12 @@ def main() -> int:
     parser.add_argument("--continue-run", action="store_true", help="Load existing summary/attempts and append more LLM repair attempts.")
     args = parser.parse_args()
 
-    output_root = (REPO_ROOT / args.output_root).resolve()
+    output_root_value = args.output_root or (
+        "runs/llm_mnist_hls_candidate"
+        if args.objective == "resource"
+        else f"runs/llm_mnist_hls_candidate_{args.objective}"
+    )
+    output_root = (REPO_ROOT / output_root_value).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     weights = _load_onnx_weights((REPO_ROOT / args.model).resolve())
     samples, labels = _load_samples((REPO_ROOT / args.samples).resolve(), (REPO_ROOT / args.labels).resolve())
@@ -392,8 +592,27 @@ def main() -> int:
         "accuracy": "19/20",
         "argmax_match": "20/20 against Python reference",
         "latency_cycles": 2135,
+        "interval_cycles": 1024,
+        "pipeline_type": "dataflow",
         "resources": {"bram": 47, "dsp": 64, "ff": 5999, "lut": 17899},
         "resource_score": 41398,
+        "known_resource_best_llm_candidate": {
+            "candidate": "mnist_narrow_accum_20",
+            "latency_cycles": 157953,
+            "interval_cycles": 157953,
+            "pipeline_type": "none",
+            "resources": {"bram": 18, "dsp": 0, "ff": 347, "lut": 899},
+            "resource_score": 3046,
+        },
+        "known_parallel_llm_candidate": {
+            "candidate": "balanced_UF16_inner_par",
+            "latency_cycles": 857,
+            "interval_cycles": 857,
+            "pipeline_type": "none",
+            "resources": {"bram": 0, "dsp": 0, "ff": 49485, "lut": 73605},
+            "resource_score": 123090,
+            "note": "Verified but high LUT/FF. Treat as throughput evidence, not balanced.",
+        },
     }
     summary_path = output_root / "summary.json"
     previous_results: list[dict[str, Any]] = []
@@ -407,7 +626,9 @@ def main() -> int:
         verification = (((previous.get("verification") or {}).get("synthesis") or {}).get("verification") or {})
         if previous.get("status") == "success" and report.get("status") == "success" and verification.get("passed") is True:
             previous.setdefault("resource_score", _score(report))
-            if best is None or previous["resource_score"] < best.get("resource_score", 10**12):
+            previous.setdefault("objective_score", _objective_score(report, args.objective, baseline))
+            previous.setdefault("objective_met", _objective_met(report, args.objective, baseline))
+            if previous["objective_met"] and (best is None or previous["objective_score"] < best.get("objective_score", 10**12)):
                 best = previous
 
     last_attempt = max([int(item.get("attempt") or 0) for item in previous_results] or [0])
@@ -415,9 +636,9 @@ def main() -> int:
         new_best_this_attempt = False
         attempt_dir = output_root / f"attempt_{attempt:02d}"
         candidate_dir = attempt_dir / "candidate"
-        prompt = _prompt_for_plan(baseline=baseline, previous_results=previous_results, attempt=attempt)
+        prompt = _prompt_for_plan(baseline=baseline, previous_results=previous_results, attempt=attempt, objective=args.objective)
         try:
-            plan = client.complete_json(SYSTEM_PROMPT, prompt, SCHEMA, temperature=0.15)
+            plan = client.complete_json(_system_prompt(args.objective), prompt, SCHEMA, temperature=0.15)
         except AgentRuntimeError as exc:
             failure = {"attempt": attempt, "status": "llm_failed", "error": exc.error.to_dict() if hasattr(exc, "error") else str(exc)}
             previous_results.append(failure)
@@ -426,31 +647,38 @@ def main() -> int:
             continue
 
         try:
-            _write_plan_artifacts(candidate_dir, plan, weights, samples, labels, args.required_correct)
-            scan = _scan_candidate(candidate_dir)
-            if scan["status"] != "valid":
-                result = {"attempt": attempt, "status": "sandbox_failed", "plan": plan, "sandbox": scan}
+            plan_guard = _validate_plan_for_objective(plan, args.objective)
+            if plan_guard["status"] != "valid":
+                result = {"attempt": attempt, "status": "guard_failed", "plan": plan, "plan_guard": plan_guard}
             else:
-                verification = _verify_with_vivado(candidate_dir, attempt_dir, args.part, args.clock_period, args.vivado_hls_path)
-                result = {"attempt": attempt, "status": verification.get("status"), "plan": plan, "sandbox": scan, "verification": verification}
-                report = verification.get("report") or {}
-                csim = (verification.get("synthesis") or {}).get("verification") or {}
-                if verification.get("status") == "success" and report.get("status") == "success" and csim.get("passed") is True:
-                    result["resource_score"] = _score(report)
-                    if best is None or result["resource_score"] < best.get("resource_score", 10**12):
-                        best = result
-                        new_best_this_attempt = True
+                _write_plan_artifacts(candidate_dir, plan, weights, samples, labels, args.required_correct)
+                scan = _scan_candidate(candidate_dir)
+                if scan["status"] != "valid":
+                    result = {"attempt": attempt, "status": "sandbox_failed", "plan": plan, "sandbox": scan}
+                else:
+                    verification = _verify_with_vivado(candidate_dir, attempt_dir, args.part, args.clock_period, args.vivado_hls_path)
+                    result = {"attempt": attempt, "status": verification.get("status"), "plan": plan, "sandbox": scan, "verification": verification}
+                    report = verification.get("report") or {}
+                    csim = (verification.get("synthesis") or {}).get("verification") or {}
+                    if verification.get("status") == "success" and report.get("status") == "success" and csim.get("passed") is True:
+                        result["resource_score"] = _score(report)
+                        result["objective_score"] = _objective_score(report, args.objective, baseline)
+                        result["objective_met"] = _objective_met(report, args.objective, baseline)
+                        if result["objective_met"] and (best is None or result["objective_score"] < best.get("objective_score", 10**12)):
+                            best = result
+                            new_best_this_attempt = True
         except Exception as exc:
             result = {"attempt": attempt, "status": "exception", "plan": plan, "error": str(exc)}
 
         previous_results.append(result)
         (attempt_dir / "attempt_result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
-        if new_best_this_attempt and best and best.get("resource_score", 10**12) < baseline["resource_score"]:
+        if args.objective == "resource" and new_best_this_attempt and best and best.get("objective_met"):
             break
 
     summary = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        "objective": args.objective,
         "baseline": baseline,
         "reference_predictions": reference_predictions,
         "required_correct": args.required_correct,

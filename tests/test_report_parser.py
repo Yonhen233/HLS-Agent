@@ -33,3 +33,29 @@ def test_report_parser_parses_vitis_timing_with_ns_units(tmp_path):
     assert result["timing"]["effective_budget_ns"] == 7.3
     assert result["timing"]["met"] is False
     assert result["resources"]["lut"] == 111638
+
+
+def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
+    report = tmp_path / "myproject_csynth.rpt"
+    report.write_text(
+        "\n".join(
+            [
+                "+ Latency (clock cycles):",
+                "    * Summary:",
+                "    +------+------+------+------+----------+",
+                "    |   Latency   |   Interval  | Pipeline |",
+                "    |  min |  max |  min |  max |   Type   |",
+                "    +------+------+------+------+----------+",
+                "    |  2132|  2135|  1024|  1024| dataflow |",
+                "    +------+------+------+------+----------+",
+                "|Total            |       47|   64|    5999|  17899|",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = parse_csynth_report_file(str(report))
+
+    assert result["latency"]["max_cycles"] == 2135
+    assert result["interval"]["min_ii"] == 1024
+    assert result["interval"]["max_ii"] == 1024

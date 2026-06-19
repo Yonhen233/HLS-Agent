@@ -74,10 +74,13 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         flags=re.IGNORECASE,
     )
     if latency_table:
-        latency_min = latency_min if latency_min is not None else int(latency_table.group(1))
-        latency_max = latency_max if latency_max is not None else int(latency_table.group(2))
-        ii_min = ii_min if ii_min is not None else int(latency_table.group(3))
-        ii_max = ii_max if ii_max is not None else int(latency_table.group(4))
+        # The summary table is more reliable than broad label regexes for real
+        # Vivado reports because the word "Interval" appears in the header
+        # before the latency row. Always let the top summary row win.
+        latency_min = int(latency_table.group(1))
+        latency_max = int(latency_table.group(2))
+        ii_min = int(latency_table.group(3))
+        ii_max = int(latency_table.group(4))
     uncertainty_ns = None
     timing_match = re.search(
         r"Timing\s*\(ns\)\s*:\s*Target\s*=\s*([0-9.]+)\s*,\s*Estimated\s*=\s*([0-9.]+)",

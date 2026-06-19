@@ -78,3 +78,41 @@ The result is useful because it demonstrates two complementary paths:
 
 The golden testbench is the safety gate. Attempt 8 shows that a plausible LLM suggestion can be rejected when real C simulation proves accuracy loss.
 
+## Objective-Specific Follow-Up: Resource / Balanced / Throughput
+
+After the resource-first run, the script was extended with explicit objectives:
+
+```powershell
+python scripts\llm_mnist_hls_candidate.py --objective resource --continue-run --attempts 1 --clock-period 15 --required-correct 19
+python scripts\llm_mnist_hls_candidate.py --objective balanced --continue-run --attempts 3 --clock-period 15 --required-correct 19
+python scripts\llm_mnist_hls_candidate.py --objective throughput --continue-run --attempts 4 --clock-period 15 --required-correct 19
+```
+
+Objective contracts:
+
+| Objective | Contract |
+|---|---|
+| `resource` | Minimize resource score while passing golden CSim. |
+| `balanced` | Keep resource score below hls4ml baseline and improve latency/II versus the serial LLM resource candidate. |
+| `throughput` | Improve latency and top interval/II versus hls4ml baseline; resources may increase. |
+
+The script now records `objective_met` separately from CSim/csynth success. This matters because a candidate can be functionally correct and synthesizable but still miss the chosen design objective.
+
+## Pareto Points Found
+
+| Path | Candidate | Golden CSim | Latency | II / Interval | BRAM | DSP | FF | LUT | Resource Score | Interpretation |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| hls4ml baseline | hls4ml resource profile | passed | 2135 | 1024 | 47 | 64 | 5999 | 17899 | 41398 | Standard hls4ml project with dataflow. |
+| LLM resource-first | `mnist_narrow_accum_20` | passed | 157953 | 157953 | 18 | 0 | 347 | 899 | 3046 | Very small area, very low throughput. |
+| LLM balanced | `balanced_UF8_layerwise` | passed | 6776 | 6776 | 24 | 0 | 1391 | 4158 | 7949 | About 23x faster than serial LLM while still far below hls4ml resources. |
+| LLM throughput-first | `throughput_pipe_II1` | passed | 465 | 465 | 0 | 0 | 38783 | 68311 | 107094 | Beats hls4ml II/latency, but LUT exceeds the current xc7z020 capacity. |
+
+## Lessons From Real HLS Feedback
+
+- The LLM can generate qualitatively different HLS architectures when the objective is explicit.
+- A high-parallelism candidate is not automatically a balanced candidate; objective-specific acceptance checks are necessary.
+- `ap_fixed<W,I>` without `AP_SAT` may pass width checks but fail golden accuracy because default overflow can wrap.
+- Vivado HLS 2018.3 pragma syntax must be guarded. The tool rejected `type=cyclic` in generated `ARRAY_PARTITION` pragmas.
+- `DATAFLOW` and `STREAM` pragmas on ordinary arrays may look parallel but can synthesize poorly; real report feedback is the judge.
+
+The most interview-relevant takeaway is that this is not a one-shot code generation demo. The Agent records real synthesis and verification observations, tightens prompts and guards, and uses objective-specific scoring to explore the HLS Pareto surface.

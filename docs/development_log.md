@@ -6,6 +6,126 @@
 
 ---
 
+## 2026-06-19 10:17:56 +08:00：MNIST LLM candidate 并行度优先 / 均衡目标真实实验
+### 1. 本次测试做了什么
+继续围绕 MNIST 真实识别 demo，测试 LLM 是否不仅能生成资源极省的串行 HLS，还能根据不同目标生成更并行的 HLS 方案。
+
+真实测试链路：
+
+```text
+DeepSeek-V4-Pro
+  -> scripts/llm_mnist_hls_candidate.py --objective balanced / throughput
+  -> 注入真实 ONNX 权重与 20 张 MNIST golden 样本
+  -> CandidateSandbox / objective guard
+  -> Vivado HLS 2018.3 csim_design + csynth_design
+  -> 解析 latency / top interval / resource / timing
+```
+
+运行环境：
+
+```text
+LLM base_url = https://api.deepseek.com
+LLM model    = deepseek-v4-pro
+HLS tool     = D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat
+clock        = 15ns
+```
+
+### 2. 关键结果
+本轮把 LLM direct HLS 的三个 Pareto 点区分清楚：
+
+| Path | Candidate | CSim | Latency | II / Interval | BRAM | DSP | FF | LUT | Score | 说明 |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| hls4ml resource baseline | hls4ml | passed | 2135 | 1024 | 47 | 64 | 5999 | 17899 | 41398 | 标准 hls4ml 路径 |
+| LLM resource-first | `mnist_narrow_accum_20` | passed | 157953 | 157953 | 18 | 0 | 347 | 899 | 3046 | 极省资源，但吞吐很低 |
+| LLM balanced | `balanced_UF8_layerwise` | passed | 6776 | 6776 | 24 | 0 | 1391 | 4158 | 7949 | 比串行快约 23x，资源仍远低于 hls4ml |
+| LLM throughput-first | `throughput_pipe_II1` | passed | 465 | 465 | 0 | 0 | 38783 | 68311 | 107094 | 并行度最好，但 LUT 超出当前 xc7z020，不能直接视为上板候选 |
+
+结论：
+
+```text
+LLM 能在真实 HLS feedback 下生成不同优化目标的设计：
+- resource-first：牺牲 latency/II，极大降低 LUT/DSP/FF/BRAM
+- balanced：资源仍低于 hls4ml，同时显著改善串行 LLM 的 II
+- throughput-first：大幅降低 II/latency，但需要资源可行性约束
+```
+
+### 3. 暴露的问题
+1. Vivado HLS report parser 之前把 hls4ml baseline 的 Interval 误读为 Latency。
+   - 现象：baseline 曾显示 II=2135，真实 report summary row 是 II=1024。
+   - 根因：宽泛正则先匹配到了表头附近的 `Interval`，没有让 summary table row 覆盖结果。
+
+2. balanced 目标最开始会被“高并行高资源”方案误判为 best。
+   - 现象：`balanced_UF16_inner_par` 达到 latency/II=857，但 resource_score=123090，高于 hls4ml baseline=41398。
+   - 根因：objective score 只做加权，没有硬性检查 balanced 的资源边界。
+
+3. LLM 会生成位宽足够但量化模式不安全的类型。
+   - 现象：`ap_fixed<16,4>` 默认 AP_WRAP，导致 golden accuracy 从 19/20 降到 3/20。
+   - 根因：只约束位宽不够，必须约束 `AP_RND/AP_SAT`。
+
+4. LLM 会写出 Vivado HLS 2018.3 不接受的 pragma 语法。
+   - 例子：`#pragma HLS ARRAY_PARTITION variable=W1 type=cyclic factor=4 dim=1`。
+   - 根因：不同 HLS 版本的 pragma 语法细节不完全一致，必须把真实失败反馈写回 guard/prompt。
+
+5. 看起来并行的 DATAFLOW/STREAM 代码不一定真的降低 II。
+   - 现象：`throughput_unroll32_dataflow` 使用 DATAFLOW + STREAM，但真实综合 II=25282。
+   - 根因：普通数组上加 stream pragma 不是完整 producer/consumer 数据流结构，综合器无法得到预期并行。
+
+### 4. 修复方案
+1. 修复 `src/dl_op_to_hls/tools/report_parser.py`：
+   - Vivado latency summary table row 优先级最高。
+   - 新增测试 `test_report_parser_prefers_vivado_latency_summary_interval`，确保 hls4ml-style report 解析出 II=1024。
+
+2. 扩展 `scripts/llm_mnist_hls_candidate.py`：
+   - 新增 `--objective resource|balanced|throughput`。
+   - 新增 objective-specific prompt 和目标约束。
+   - 新增 `_objective_met()`：
+     - `balanced` 必须 resource_score < hls4ml baseline 且快于串行 LLM candidate。
+     - `throughput` 必须 latency/II 优于 hls4ml baseline。
+   - 新增 plan guard：
+     - balanced/throughput 强制 `data_t` / `weight_t` 包含 `AP_RND, AP_SAT`。
+     - `acc_t` 至少包含 `AP_RND`。
+     - 拦截 Vivado 2018.3 已知不兼容 pragma。
+     - 拦截普通数组上的错误 STREAM/DATAFLOW 模式。
+
+3. 将真实失败反馈变成下一轮 LLM 的结构化上下文：
+   - 已知 resource best：`mnist_narrow_accum_20`。
+   - 已知 high-resource parallel candidate：`balanced_UF16_inner_par`，作为 throughput 证据，不作为 balanced best。
+
+### 5. 测试验证
+通过：
+
+```text
+python -m py_compile scripts\llm_mnist_hls_candidate.py src\dl_op_to_hls\tools\report_parser.py
+pytest -p no:cacheprovider tests\test_report_parser.py tests\test_functional_verification.py tests\test_vivado_hls_mcp.py -q
+```
+
+结果：
+
+```text
+33 passed / 1 skipped
+```
+
+补充：
+
+```text
+pytest -p no:cacheprovider -q
+```
+
+在 10 分钟窗口内超时，没有返回断言失败。该结果记录为全量测试耗时/外部工具路径问题，后续需要将真实 Vivado/LLM 测试与普通单元测试进一步分层。
+
+### 6. 未修复 / 后续工作
+1. throughput-first 方案只是综合与功能验证通过，不是当前板卡可部署候选。
+   - 原因：LUT=68311，高于 xc7z020 可用 LUT。
+   - 后续：增加 `deployment_feasible` 判定，解析 report 中 Available/Utilization 行，作为 throughput objective 的二级约束。
+
+2. 当前 golden testbench 只有 20 张 MNIST 样本。
+   - 原因：为了缩短真实 Vivado 迭代时间。
+   - 后续：增加 100/1000 样本分层验证，区分 quick verification 与 full verification。
+
+3. LLM 仍偶发 reasoning-only 或输出截断。
+   - 原因：DeepSeek-V4-Pro 在复杂 HLS prompt 下有时把大量内容放入 reasoning，JSON 正文不足。
+   - 后续：继续压缩 prompt，把候选代码生成拆成 plan -> body 两阶段。
+
 ## 2026-06-19 08:23:48 +08:00：MNIST LLM direct HLS candidate 资源压缩与真实 Vivado 验证
 ### 1. 本次测试做了什么
 按照“不要只做 LLM 读矩阵调参，也要测试 LLM 直接生成 HLS candidate”的方向，新增并运行：
