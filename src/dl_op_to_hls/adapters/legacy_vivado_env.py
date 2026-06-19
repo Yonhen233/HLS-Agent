@@ -162,7 +162,11 @@ class HLSVerificationEnv:
                 subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:  # pragma: no cover - Windows is the primary Vivado HLS environment.
                 process.kill()
-            stdout, stderr = process.communicate(timeout=30)
+            try:
+                stdout, stderr = process.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                stdout = stdout if "stdout" in locals() else ""
+                stderr = (stderr if "stderr" in locals() else "") + "\nVivado HLS process did not terminate cleanly after taskkill."
 
         if timed_out:
             combined = f"ERROR: csynth timed out after {timeout} seconds"

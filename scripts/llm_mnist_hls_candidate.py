@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -86,11 +87,12 @@ OBJECTIVE_RULES = {
         "Serial or lightly parallel loops are acceptable.",
     ],
     "balanced": [
-        "Primary goal: improve latency/interval versus the serial resource candidate while keeping resource_score below the hls4ml baseline resource_score=41398.",
+        "Primary goal: improve latency/interval versus the serial resource candidate while keeping resource_score <= 12000.",
         "Use the verified safe numeric starting point unless you justify a wider type: data_t=ap_fixed<16,4,AP_RND,AP_SAT>, weight_t=ap_fixed<8,4,AP_RND,AP_SAT>, acc_t=ap_fixed<20,16,AP_RND>.",
         "Do not use unsafe tiny types such as ap_fixed<8,1> or ap_fixed<8,2>; previous attempts with those types failed golden accuracy.",
         "Do not omit AP_SAT on data_t; default AP_WRAP can break classification accuracy.",
         "Use moderate parallelism such as output-neuron blocking, partial sums, small unroll factors 2-8, and local array partitioning.",
+        "Current verified balanced best is latency/II=6776 with resource_score=7949; improve latency/II without raising score much beyond 12000.",
         "Do not fully partition the large W1/W2/W3 constant matrices.",
         "Avoid complete partitioning of large hidden activation arrays unless the resource estimate is still below baseline.",
         "Do not apply ARRAY_PARTITION complete to W1/W2/W3; use local partial-sum arrays instead.",
@@ -104,6 +106,8 @@ OBJECTIVE_RULES = {
         "Use HLS pragmas, local partial sums, unroll factors, and partitioned local arrays where useful.",
         "It is acceptable to use more DSP/LUT/FF than the resource candidate if throughput improves.",
         "A known verified high-resource parallel candidate used W1 dim=2 cyclic factor=16 and W2/W3 dim=2 cyclic factor=4 and reached latency/II=857; try to match or improve that.",
+        "A later candidate reached latency/II=465 but LUT=68311, which exceeds xc7z020 LUT capacity=53200. Improve throughput while staying within device capacity.",
+        "Do not completely partition the 784-element input array; a previous complete input partition was fast but exceeded LUT capacity. Prefer cyclic input partition with factor 8-16 or local block buffering.",
         "Avoid DATAFLOW with STREAM pragmas on ordinary arrays unless you use real hls::stream producer/consumer structure; a previous array-stream dataflow candidate synthesized to II=25282.",
         "Do not fully partition the large W1/W2/W3 constant matrices unless the code remains realistic for Vivado HLS 2018.3.",
         "Prefer local partial-sum arrays over full W1/W2/W3 partitioning.",
@@ -287,6 +291,13 @@ def _validate_plan_for_objective(plan: dict[str, Any], objective: str) -> dict[s
                 "message": "Throughput candidates must not use STREAM pragmas on ordinary arrays; previous array-stream dataflow code synthesized to poor II.",
             }
         )
+    if objective == "throughput" and "ARRAY_PARTITION variable=input complete" in body:
+        violations.append(
+            {
+                "field": "function_body",
+                "message": "Throughput candidates must not completely partition the 784-element input array; previous complete input partition exceeded xc7z020 LUT capacity.",
+            }
+        )
     return {"status": "invalid" if violations else "valid", "violations": violations}
 
 
@@ -466,8 +477,9 @@ def _prompt_for_plan(
             "If you introduce partial-sum arrays, keep their sizes explicit and compatible with Vivado HLS 2018.3.",
             "Do not partition the full W1/W2/W3 matrices complete; prefer local partial arrays or limited unroll factors.",
             "Use Vivado HLS 2018.3 pragma syntax: '#pragma HLS ARRAY_PARTITION variable=W1 dim=2 cyclic factor=16'. Do not use 'type=cyclic'.",
-            "For balanced objective, resource_score = LUT + FF + 200*DSP + 100*BRAM must stay below 41398.",
-            "For throughput objective, latency and interval should beat the hls4ml baseline latency=2135 and interval=1024; resources may increase.",
+            "For balanced objective, resource_score = LUT + FF + 200*DSP + 100*BRAM must stay <= 12000.",
+            "For throughput objective, latency and interval should beat the hls4ml baseline latency=2135 and interval=1024, and resources must fit xc7z020 capacity: BRAM<=280, DSP<=220, FF<=106400, LUT<=53200.",
+            "For throughput objective, do not use '#pragma HLS ARRAY_PARTITION variable=input complete'. Use cyclic factor 8-16 if you need parallel reads.",
             "Return JSON only.",
         ],
     }
@@ -520,6 +532,30 @@ def _verify_with_vivado(candidate_dir: Path, run_dir: Path, part: str, clock_per
     return result
 
 
+def _merge_attempt_results_from_disk(output_root: Path, previous_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged = list(previous_results)
+    seen_attempts = {str(item.get("attempt")) for item in merged if item.get("attempt") is not None}
+    for result_path in sorted(output_root.glob("attempt_*/attempt_result.json")):
+        try:
+            item = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        attempt = item.get("attempt")
+        if attempt is None:
+            continue
+        attempt_key = str(attempt)
+        if attempt_key not in seen_attempts:
+            merged.append(item)
+            seen_attempts.add(attempt_key)
+    return sorted(merged, key=lambda item: _attempt_sort_key(item.get("attempt")))
+
+
+def _attempt_sort_key(value: Any) -> tuple[int, str]:
+    text = str(value or "")
+    match = re.search(r"\d+", text)
+    return (int(match.group(0)) if match else 0, text)
+
+
 def _score(report: dict[str, Any]) -> int:
     resources = report.get("resources") or {}
     return int(resources.get("lut") or 0) + int(resources.get("ff") or 0) + 200 * int(resources.get("dsp") or 0) + 100 * int(resources.get("bram") or 0)
@@ -536,10 +572,24 @@ def _objective_score(report: dict[str, Any], objective: str, baseline: dict[str,
     latency_ratio = latency / max(base_latency, 1.0)
     interval_ratio = interval / max(base_interval, 1.0)
     if objective == "throughput":
-        return 0.45 * latency_ratio + 0.45 * interval_ratio + 0.10 * resource_ratio
+        infeasible_penalty = 1000.0 if not _resource_feasible(report, baseline) else 0.0
+        return infeasible_penalty + 0.45 * latency_ratio + 0.45 * interval_ratio + 0.10 * resource_ratio
     if objective == "balanced":
         return 0.35 * latency_ratio + 0.35 * interval_ratio + 0.30 * resource_ratio
     return float(resource_score)
+
+
+def _resource_feasible(report: dict[str, Any], baseline: dict[str, Any]) -> bool:
+    if report.get("resource_feasible") is not None:
+        return bool(report["resource_feasible"])
+    resources = report.get("resources") or {}
+    available = report.get("resource_available") or baseline.get("device_available") or {}
+    return all(
+        resources.get(key) is not None
+        and available.get(key) is not None
+        and int(resources[key]) <= int(available[key])
+        for key in ("bram", "dsp", "ff", "lut")
+    )
 
 
 def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, Any]) -> bool:
@@ -549,16 +599,18 @@ def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, A
     if objective == "balanced":
         serial = baseline.get("known_resource_best_llm_candidate") or {}
         return (
-            resource_score < float(baseline.get("resource_score") or 0)
+            resource_score <= float(baseline.get("balanced_resource_budget") or baseline.get("resource_score") or 0)
             and latency < float(serial.get("latency_cycles") or 10**12)
             and interval < float(serial.get("interval_cycles") or 10**12)
+            and _resource_feasible(report, baseline)
         )
     if objective == "throughput":
         return (
             latency < float(baseline.get("latency_cycles") or 0)
             and interval < float(baseline.get("interval_cycles") or 0)
+            and _resource_feasible(report, baseline)
         )
-    return resource_score < float(baseline.get("resource_score") or 0)
+    return resource_score < float(baseline.get("resource_score") or 0) and _resource_feasible(report, baseline)
 
 
 def main() -> int:
@@ -595,7 +647,9 @@ def main() -> int:
         "interval_cycles": 1024,
         "pipeline_type": "dataflow",
         "resources": {"bram": 47, "dsp": 64, "ff": 5999, "lut": 17899},
+        "device_available": {"bram": 280, "dsp": 220, "ff": 106400, "lut": 53200},
         "resource_score": 41398,
+        "balanced_resource_budget": 12000,
         "known_resource_best_llm_candidate": {
             "candidate": "mnist_narrow_accum_20",
             "latency_cycles": 157953,
@@ -613,28 +667,46 @@ def main() -> int:
             "resource_score": 123090,
             "note": "Verified but high LUT/FF. Treat as throughput evidence, not balanced.",
         },
+        "known_balanced_llm_candidate": {
+            "candidate": "balanced_UF8_layerwise",
+            "latency_cycles": 6776,
+            "interval_cycles": 6776,
+            "resources": {"bram": 24, "dsp": 0, "ff": 1391, "lut": 4158},
+            "resource_score": 7949,
+        },
+        "known_throughput_infeasible_candidate": {
+            "candidate": "throughput_pipe_II1",
+            "latency_cycles": 465,
+            "interval_cycles": 465,
+            "resources": {"bram": 0, "dsp": 0, "ff": 38783, "lut": 68311},
+            "resource_score": 107094,
+            "reason": "LUT exceeds xc7z020 capacity 53200.",
+        },
     }
     summary_path = output_root / "summary.json"
     previous_results: list[dict[str, Any]] = []
     if args.continue_run and summary_path.exists():
         existing_summary = json.loads(summary_path.read_text(encoding="utf-8"))
         previous_results = list(existing_summary.get("attempts") or [])
+    if args.continue_run:
+        previous_results = _merge_attempt_results_from_disk(output_root, previous_results)
     client = LLMClient()
     best: dict[str, Any] | None = None
     for previous in previous_results:
         report = ((previous.get("verification") or {}).get("report") or {})
         verification = (((previous.get("verification") or {}).get("synthesis") or {}).get("verification") or {})
         if previous.get("status") == "success" and report.get("status") == "success" and verification.get("passed") is True:
-            previous.setdefault("resource_score", _score(report))
-            previous.setdefault("objective_score", _objective_score(report, args.objective, baseline))
-            previous.setdefault("objective_met", _objective_met(report, args.objective, baseline))
+            previous["resource_score"] = _score(report)
+            previous["objective_score"] = _objective_score(report, args.objective, baseline)
+            previous["objective_met"] = _objective_met(report, args.objective, baseline)
             if previous["objective_met"] and (best is None or previous["objective_score"] < best.get("objective_score", 10**12)):
                 best = previous
 
-    last_attempt = max([int(item.get("attempt") or 0) for item in previous_results] or [0])
-    for attempt in range(last_attempt + 1, last_attempt + max(1, args.attempts) + 1):
+    last_attempt = max([int(item.get("attempt")) for item in previous_results if str(item.get("attempt") or "").isdigit()] or [0])
+    for attempt in range(last_attempt + 1, last_attempt + max(0, args.attempts) + 1):
         new_best_this_attempt = False
         attempt_dir = output_root / f"attempt_{attempt:02d}"
+        attempt_dir.mkdir(parents=True, exist_ok=True)
         candidate_dir = attempt_dir / "candidate"
         prompt = _prompt_for_plan(baseline=baseline, previous_results=previous_results, attempt=attempt, objective=args.objective)
         try:
@@ -642,7 +714,6 @@ def main() -> int:
         except AgentRuntimeError as exc:
             failure = {"attempt": attempt, "status": "llm_failed", "error": exc.error.to_dict() if hasattr(exc, "error") else str(exc)}
             previous_results.append(failure)
-            (attempt_dir / "attempt_result.json").parent.mkdir(parents=True, exist_ok=True)
             (attempt_dir / "attempt_result.json").write_text(json.dumps(failure, ensure_ascii=False, indent=2), encoding="utf-8")
             continue
 

@@ -6,6 +6,139 @@
 
 ---
 
+## 2026-06-19 16:47:46 +08:00：恢复中断数据并继续 MNIST LLM 并行度 / 均衡优化
+### 1. 本次测试做了什么
+上一轮 Vivado HLS 长时间综合过程中被中断，部分 attempt 已经跑完但没有合并进 `summary.json`。本轮先恢复现场，再继续做少量高信息量的真实实验，而不是大规模扫参。
+
+恢复动作：
+
+```text
+扫描 runs/llm_mnist_hls_candidate_balanced/attempt_*/attempt_result.json
+扫描 runs/llm_mnist_hls_candidate_throughput/attempt_*/attempt_result.json
+将 summary.json 中缺失的 orphan attempt 重新合并
+```
+
+真实测试链路保持不变：
+
+```text
+DeepSeek-V4-Pro / LLM-derived HLS architecture
+  -> controlled repair / objective guard
+  -> Vivado HLS 2018.3 csim_design + csynth_design
+  -> golden testbench >= 19/20
+  -> report parser 解析 latency / II / resource / feasibility
+```
+
+### 2. 找回了哪些数据
+balanced 路径没有丢失关键结果，summary 已包含当前 best。
+
+throughput 路径找回了 5 个 orphan repair 结果：
+
+| Attempt | Candidate | CSim | Latency / II | Resource | Feasible | 结论 |
+|---|---|---|---:|---|---|---|
+| `18_repair_input_cyclic16` | input cyclic16 repair | passed | 490 | LUT 72227 | no | LUT 超 xc7z020 |
+| `19_repair_input_cyclic8_w1_8` | input cyclic8 / W1 8 | passed | 514 | BRAM 784, LUT 77844 | no | BRAM/LUT 都超 |
+| `20_repair_no_input_partition` | no input partition | passed | 857 | LUT 73449 | no | LUT 超 |
+| `21_repair_no_input_w1_8` | no input / W1 8 | passed | 857 | BRAM 784, LUT 79306 | no | BRAM/LUT 都超 |
+| `22_repair_weight16_dsp` | weight16 DSP repair | passed | 944 | DSP 880, LUT 82728 | no | DSP/LUT 都超 |
+
+这些结果不是 best，但很重要：它们证明“看起来更并行”的修补方式会把某类资源打爆，不能只看 latency/II。
+
+### 3. 新增实验结果
+本轮继续做了少量 controlled experiments。
+
+#### Balanced
+
+| Candidate | CSim | Latency / II | BRAM | DSP | FF | LUT | Score | Feasible | Objective |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|
+| `balanced_UF16_8_10_II1` | passed | 3906 | 24 | 0 | 2577 | 5540 | 10517 | yes | strict-balanced best |
+| `balanced_control_UF32_8_10` | passed | 2388 | 40 | 0 | 3883 | 7715 | 15598 | yes | 更快，但超过 balanced score<=12000 预算 |
+| `balanced_control_UF32_8_10_acc18` | failed | - | - | - | - | - | - | - | accumulator 变窄导致 golden CSim 失败 |
+
+结论：
+
+```text
+strict-balanced 当前 best 仍是 balanced_UF16_8_10_II1。
+UF32 能进一步提速，但资源增加超过当前 balanced 预算，应归为 performance-balanced / high-balanced。
+acc_t=ap_fixed<18,16> 不安全，acc_t=ap_fixed<20,16> 是当前 verified 边界。
+```
+
+#### Throughput
+
+| Candidate | CSim | Latency / II | BRAM | DSP | FF | LUT | Feasible | Objective |
+|---|---|---:|---:|---:|---:|---:|---|---|
+| hls4ml baseline | passed | 2135 / 1024 | 47 | 64 | 5999 | 17899 | yes | baseline |
+| `throughput_control_outputblock_UF64_16_10` | passed | 1454 / 1454 | 64 | 0 | 4570 | 11934 | yes | latency 更好，但 II 未打过 hls4ml |
+| `throughput_control_UF64_input2_UF32_10` | passed | 545 / 545 | 126 | 0 | 4209 | 33364 | yes | 当前 feasible-throughput best |
+| `throughput_control_UF64_input4_UF32_10` | passed | 545 / 545 | 2 | 0 | 8342 | 49891 | yes | II 不再改善，LUT 更高 |
+
+当前 throughput best：
+
+```text
+candidate = throughput_control_UF64_input2_UF32_10
+latency   = 545 cycles
+II        = 545
+BRAM      = 126 / 280
+DSP       = 0 / 220
+FF        = 4209 / 106400
+LUT       = 33364 / 53200
+timing    = met
+CSim      = passed, 19/20
+```
+
+相对 hls4ml baseline：
+
+| Metric | hls4ml | feasible-throughput LLM-derived | Change |
+|---|---:|---:|---:|
+| Latency | 2135 | 545 | -74.5% |
+| II | 1024 | 545 | -46.8% |
+| DSP | 64 | 0 | -100.0% |
+| LUT | 17899 | 33364 | +86.4% |
+| BRAM | 47 | 126 | +168.1% |
+
+### 4. 暴露的问题与修复
+1. 中断后 summary 丢失 orphan attempt。
+   - 根因：`summary.json` 只读取已有 summary，不扫描磁盘上的 `attempt_*/attempt_result.json`。
+   - 修复：`scripts/llm_mnist_hls_candidate.py` 增加 `_merge_attempt_results_from_disk()`，并支持 `attempt_18_repair...` 这类非纯数字 attempt id。
+
+2. `--attempts 0` 原本不能作为“只恢复 summary”模式。
+   - 根因：循环使用 `max(1, args.attempts)`，即使传 0 也会启动新 attempt。
+   - 修复：改成 `max(0, args.attempts)`，现在可用 `--continue-run --attempts 0` 只合并已有结果。
+
+3. Vivado HLS timeout 后可能继续抛 Python 异常。
+   - 根因：taskkill 后第二次 `communicate(timeout=30)` 仍可能超时。
+   - 修复：`legacy_vivado_env.py` 捕获二次 `TimeoutExpired`，返回 structured timeout，而不是让整个实验崩溃。
+
+4. throughput objective 需要 device feasibility。
+   - 根因：早期只看 latency/II，`throughput_pipe_II1` 虽然 latency=465，但 LUT=68311 超过 xc7z020。
+   - 修复：report parser 增加 `resource_available` / `resource_utilization_percent` / `resource_feasible`，throughput objective 必须资源 fit。
+
+### 5. 测试验证
+通过：
+
+```text
+python -m py_compile scripts\llm_mnist_hls_candidate.py src\dl_op_to_hls\tools\report_parser.py src\dl_op_to_hls\adapters\legacy_vivado_env.py
+pytest -p no:cacheprovider tests\test_report_parser.py tests\test_functional_verification.py tests\test_vivado_hls_mcp.py -q
+```
+
+结果：
+
+```text
+34 passed
+```
+
+### 6. 未修复 / 后续工作
+1. 当前 golden verification 仍是 20 张 MNIST 样本。
+   - 原因：Vivado HLS 真实综合成本较高。
+   - 后续：将 best 候选升级到 100/1000 样本 quick/full verification。
+
+2. throughput best 使用更多 BRAM/LUT。
+   - 原因：为了把 II 降到 545，第一层同时做 64 个输出神经元和 2 个 input feature 的并行。
+   - 后续：如果目标板更小，需要切回 `balanced_UF16_8_10_II1` 或重新设资源约束。
+
+3. 这轮 controlled repair 是 LLM-derived architecture 上的工程修补，不是完全 free-form LLM。
+   - 原因：free-form LLM 多次 reasoning-only 或生成不可行 pragma。
+   - 后续：把 controlled repair 规则沉淀成 Specialist/Skill，使 LLM 负责提出架构，Agent 负责安全变换与真实验证。
+
 ## 2026-06-19 10:17:56 +08:00：MNIST LLM candidate 并行度优先 / 均衡目标真实实验
 ### 1. 本次测试做了什么
 继续围绕 MNIST 真实识别 demo，测试 LLM 是否不仅能生成资源极省的串行 HLS，还能根据不同目标生成更并行的 HLS 方案。

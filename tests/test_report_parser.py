@@ -49,6 +49,8 @@ def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
                 "    |  2132|  2135|  1024|  1024| dataflow |",
                 "    +------+------+------+------+----------+",
                 "|Total            |       47|   64|    5999|  17899|",
+                "|Available        |      280|  220|  106400|  53200|",
+                "|Utilization (%)  |       16|   29|       5|     33|",
             ]
         ),
         encoding="utf-8",
@@ -59,3 +61,31 @@ def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
     assert result["latency"]["max_cycles"] == 2135
     assert result["interval"]["min_ii"] == 1024
     assert result["interval"]["max_ii"] == 1024
+    assert result["resource_available"] == {"bram": 280, "dsp": 220, "ff": 106400, "lut": 53200}
+    assert result["resource_utilization_percent"] == {"bram": 16, "dsp": 29, "ff": 5, "lut": 33}
+    assert result["resource_feasible"] is True
+
+
+def test_report_parser_marks_resource_infeasible(tmp_path):
+    report = tmp_path / "too_large_csynth.rpt"
+    report.write_text(
+        "\n".join(
+            [
+                "+ Latency (clock cycles):",
+                "| 465 | 465 | 465 | 465 | none |",
+                "== Utilization Estimates",
+                "|       Name      | BRAM_18K| DSP48E|   FF   |  LUT  |",
+                "|Total            |        0|      0|   38783|  68311|",
+                "|Available        |      280|    220|  106400|  53200|",
+                "|Utilization (%)  |        0|      0|      36|    128|",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = parse_csynth_report_file(str(report))
+
+    assert result["resources"]["lut"] == 68311
+    assert result["resource_available"]["lut"] == 53200
+    assert result["resource_utilization_percent"]["lut"] == 128
+    assert result["resource_feasible"] is False

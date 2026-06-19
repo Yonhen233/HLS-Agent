@@ -36,19 +36,19 @@ def _extract_resource(text: str, name: str) -> int | None:
     return None
 
 
-def _extract_resources_from_total_row(text: str) -> dict[str, int | None]:
-    total_row = re.search(
-        r"\|\s*Total\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|",
+def _extract_resources_from_row(text: str, row_name: str) -> dict[str, int | None]:
+    row = re.search(
+        rf"\|\s*{re.escape(row_name)}\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|",
         text,
         flags=re.IGNORECASE,
     )
-    if not total_row:
+    if not row:
         return {"bram": None, "dsp": None, "ff": None, "lut": None}
     return {
-        "bram": int(total_row.group(1)),
-        "dsp": int(total_row.group(2)),
-        "ff": int(total_row.group(3)),
-        "lut": int(total_row.group(4)),
+        "bram": int(row.group(1)),
+        "dsp": int(row.group(2)),
+        "ff": int(row.group(3)),
+        "lut": int(row.group(4)),
     }
 
 
@@ -120,16 +120,25 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         )
     resources = {name: _extract_resource(text, name) for name in ("bram", "dsp", "ff", "lut")}
     if any(value is None for value in resources.values()):
-        table_resources = _extract_resources_from_total_row(text)
+        table_resources = _extract_resources_from_row(text, "Total")
         for key in resources:
             if resources[key] is None:
                 resources[key] = table_resources[key]
+    available = _extract_resources_from_row(text, "Available")
+    utilization = _extract_resources_from_row(text, "Utilization (%)")
+    resource_feasible = (
+        all(resources.get(key) is not None and available.get(key) is not None for key in resources)
+        and all(int(resources[key]) <= int(available[key]) for key in resources)
+    )
 
     return {
         "status": "success",
         "latency": {"min_cycles": latency_min, "max_cycles": latency_max},
         "interval": {"min_ii": ii_min, "max_ii": ii_max},
         "resources": resources,
+        "resource_available": available,
+        "resource_utilization_percent": utilization,
+        "resource_feasible": resource_feasible,
         "timing": {
             "target_ns": target_ns,
             "estimated_ns": estimated_ns,

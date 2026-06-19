@@ -107,6 +107,40 @@ The script now records `objective_met` separately from CSim/csynth success. This
 | LLM balanced | `balanced_UF8_layerwise` | passed | 6776 | 6776 | 24 | 0 | 1391 | 4158 | 7949 | About 23x faster than serial LLM while still far below hls4ml resources. |
 | LLM throughput-first | `throughput_pipe_II1` | passed | 465 | 465 | 0 | 0 | 38783 | 68311 | 107094 | Beats hls4ml II/latency, but LUT exceeds the current xc7z020 capacity. |
 
+## Updated Feasible Pareto Points
+
+Follow-up controlled repair experiments tightened the objective definitions:
+
+- `balanced` now keeps `resource_score <= 12000`.
+- `throughput` must beat hls4ml latency/II and fit the xc7z020 report capacity.
+- Orphan attempt results are merged from disk with `--continue-run --attempts 0`.
+
+Latest verified points:
+
+| Path | Candidate | Golden CSim | Latency | II / Interval | BRAM | DSP | FF | LUT | Resource Score | Fits xc7z020 | Interpretation |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| hls4ml baseline | hls4ml resource profile | passed | 2135 | 1024 | 47 | 64 | 5999 | 17899 | 41398 | yes | Standard hls4ml baseline. |
+| LLM resource-first | `mnist_narrow_accum_20` | passed | 157953 | 157953 | 18 | 0 | 347 | 899 | 3046 | yes | Minimum-resource serial design. |
+| LLM strict-balanced | `balanced_UF16_8_10_II1` | passed | 3906 | 3906 | 24 | 0 | 2577 | 5540 | 10517 | yes | Best under the current balanced resource budget. |
+| LLM performance-balanced | `balanced_control_UF32_8_10` | passed | 2388 | 2388 | 40 | 0 | 3883 | 7715 | 15598 | yes | Faster than strict-balanced, but above the strict score budget. |
+| LLM feasible-throughput | `throughput_control_UF64_input2_UF32_10` | passed | 545 | 545 | 126 | 0 | 4209 | 33364 | 50173 | yes | Current best feasible II/latency candidate. |
+| LLM throughput boundary | `throughput_control_UF64_input4_UF32_10` | passed | 545 | 545 | 2 | 0 | 8342 | 49891 | 58433 | yes | More input unroll did not improve II and cost more LUT. |
+
+Compared with hls4ml, the feasible-throughput candidate reduces latency by 74.5% and II by 46.8%, while using no DSP. The trade-off is higher LUT and BRAM usage.
+
+## Recovered Orphan Results
+
+During a long Vivado run, several results had been written to `attempt_*/attempt_result.json` but not merged into `summary.json`. The recovery pass found and merged them. The most important lesson from those orphan attempts is that not every low-II candidate is deployable:
+
+| Candidate | Latency / II | Main Failure |
+|---|---:|---|
+| `throughput_pipe_II1_input_cyclic16_repair` | 490 | LUT exceeded xc7z020 capacity. |
+| `throughput_pipe_input_cyclic8_w1_8_repair` | 514 | BRAM and LUT exceeded capacity. |
+| `throughput_pipe_no_input_partition_repair` | 857 | LUT exceeded capacity. |
+| `throughput_pipe_no_input_weight16_dsp_repair` | 944 | DSP and LUT exceeded capacity. |
+
+These recovered failures are useful memory: they explain why the final feasible-throughput design uses 2-way input parallelism rather than 4/8/16-way or forced-DSP variants.
+
 ## Lessons From Real HLS Feedback
 
 - The LLM can generate qualitatively different HLS architectures when the objective is explicit.
