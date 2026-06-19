@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from ..core.design_objectives import normalize_objective_mode
@@ -71,6 +72,8 @@ def _task_family(task: dict[str, Any]) -> str | None:
         return "residual"
     if "qonnx" in text or "qkeras" in text:
         return "quantized_cnn"
+    if "vgg" in text or "cifar" in text:
+        return "cnn"
     if "cnn" in text or "conv" in text:
         return "cnn"
     if "mlp" in text or "dense" in text:
@@ -82,6 +85,56 @@ def _task_family(task: dict[str, Any]) -> str | None:
     if "add" in text:
         return "add"
     return None
+
+
+def _model_input_profile(task: dict[str, Any]) -> tuple[int, int, int] | None:
+    """Return (channels, height, width) for static image models when available."""
+
+    if task.get("task_type") != "model":
+        return None
+    raw_shape = task.get("input_shape")
+    if not isinstance(raw_shape, list) or len(raw_shape) != 3:
+        return None
+    try:
+        shape = [int(value) for value in raw_shape]
+    except (TypeError, ValueError):
+        return None
+    layout = str(task.get("layout") or "").upper()
+    if layout == "NCHW":
+        channels, height, width = shape
+    else:
+        height, width, channels = shape
+    if min(channels, height, width) < 1:
+        return None
+    return channels, height, width
+
+
+def _model_compatibility(task: dict[str, Any], candidate_task: dict[str, Any]) -> tuple[bool, float, str]:
+    """Keep automatic parameter reuse inside a proven model/input envelope."""
+
+    if task.get("task_type") != "model" or candidate_task.get("task_type") != "model":
+        return True, 0.0, "not a pair of model tasks"
+    name = str(task.get("name") or "").lower()
+    candidate_name = str(candidate_task.get("name") or "").lower()
+    if name and name == candidate_name:
+        return True, 3.0, "exact model name match"
+
+    profile = _model_input_profile(task)
+    candidate_profile = _model_input_profile(candidate_task)
+    if not profile or not candidate_profile:
+        return False, 0.0, "model names differ and at least one static input profile is unavailable"
+    channels, height, width = profile
+    candidate_channels, candidate_height, candidate_width = candidate_profile
+    if channels != candidate_channels:
+        return False, 0.0, "image channel counts differ"
+    if height != candidate_height or width != candidate_width:
+        return False, 0.0, "image spatial dimensions differ"
+
+    family = _task_family(task)
+    candidate_family = _task_family(candidate_task)
+    if family and candidate_family and family == candidate_family:
+        return True, 1.5, "same vision family and exact input profile"
+    return False, 0.0, "model family differs despite matching input profile"
 
 
 def _objective(task: dict[str, Any]) -> str:
@@ -173,6 +226,50 @@ def _heuristic_params(task: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _activation_calibration_params(task: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Turn a saved software activation calibration into a conservative HLS precision hint."""
+
+    hls4ml = task.get("hls4ml") if isinstance(task.get("hls4ml"), dict) else {}
+    calibration_path = (
+        task.get("activation_ranges_path")
+        or hls4ml.get("activation_ranges_path")
+        or hls4ml.get("calibration_path")
+    )
+    if not calibration_path:
+        return {}, None
+    path = Path(str(calibration_path))
+    if not path.exists():
+        return {}, {"status": "missing", "path": str(path)}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        ranges = payload.get("ranges") if isinstance(payload, dict) else None
+        if not isinstance(ranges, dict):
+            return {}, {"status": "invalid", "path": str(path), "reason": "No ranges object was found."}
+        integer_bits = max(
+            int(item.get("suggested_integer_bits", 0))
+            for item in ranges.values()
+            if isinstance(item, dict)
+        )
+        if integer_bits < 2:
+            return {}, {"status": "invalid", "path": str(path), "reason": "No positive integer-bit recommendations."}
+        # Keep ten fractional bits for a first verified conversion. A later
+        # resource pass may reduce it only after CSim proves classification is
+        # preserved. The cap keeps Vivado HLS 2018.3 simulation practical.
+        total_bits = min(24, max(16, integer_bits + 10))
+        return (
+            {"precision": f"fixed<{total_bits},{integer_bits}>"},
+            {
+                "status": "success",
+                "path": str(path),
+                "max_integer_bits": integer_bits,
+                "recommended_precision": f"fixed<{total_bits},{integer_bits}>",
+                "calibration_samples": payload.get("calibration_samples"),
+            },
+        )
+    except Exception as exc:
+        return {}, {"status": "error", "path": str(path), "reason": str(exc)}
+
+
 def _rag_hints_for_task(task: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
     rag_memory = context.get("rag_memory")
     if rag_memory is None:
@@ -201,6 +298,7 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
 
     task_tokens = _task_signature(task)
     objective = _objective(task)
+    calibration_params, calibration_evidence = _activation_calibration_params(task)
     candidates: list[dict[str, Any]] = []
     for item in repository.list_memory_items(["parameter_experience", "verified_implementation", "optimization", "implementation"]):
         if current_run_id and item.get("source_run_id") == current_run_id:
@@ -222,6 +320,9 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
             continue
         if task_tokens and candidate_tokens and overlap == 0:
             continue
+        compatible, compatibility_score, compatibility_reason = _model_compatibility(task, candidate_task)
+        if not compatible:
+            continue
         report = value.get("report") if isinstance(value.get("report"), dict) else value
         params = _params_from_task(candidate_task)
         if not any(value is not None for value in params.values()):
@@ -230,12 +331,18 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
             {
                 "memory_id": item.get("id"),
                 "source_run_id": item.get("source_run_id"),
-                "score": overlap + (2.0 if same_family else 0.0) + float(item.get("importance") or 1) * 0.1,
+                "score": (
+                    overlap
+                    + (2.0 if same_family else 0.0)
+                    + compatibility_score
+                    + float(item.get("importance") or 1) * 0.1
+                ),
                 "resource_cost": _resource_cost(report, objective),
                 "params": params,
                 "report": report,
                 "verification": value.get("verification"),
                 "task_family": candidate_family,
+                "compatibility_reason": compatibility_reason,
             }
         )
     candidates.sort(key=lambda item: (-item["score"], item["resource_cost"]))
@@ -252,6 +359,26 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
             "recommended_updates": _updates_from_params(best["params"]),
             "matched_history": candidates[:5],
             "rag_hints": rag_hints,
+            "calibration_evidence": calibration_evidence,
+        }
+
+    if calibration_params:
+        heuristic = _heuristic_params(task)
+        params = {**heuristic, **calibration_params}
+        reason = (
+            "No compatible verified profile matched. Precision is derived from the saved "
+            "software activation calibration; it is a conversion baseline, not a resource optimum."
+        )
+        return {
+            "status": "success",
+            "mode": "activation_calibration",
+            "confidence": 0.72,
+            "source_count": 0,
+            "recommendations": _recommendation_rows(params, reason, "activation_calibration"),
+            "recommended_updates": _updates_from_params(params),
+            "rag_hints": rag_hints,
+            "calibration_evidence": calibration_evidence,
+            "reason": reason,
         }
 
     heuristic = _heuristic_params(task)
@@ -265,6 +392,7 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
             "recommendations": _recommendation_rows({**current_params, **heuristic}, reason, "heuristic"),
             "recommended_updates": _updates_from_params({**current_params, **heuristic}),
             "rag_hints": rag_hints,
+            "calibration_evidence": calibration_evidence,
             "reason": reason,
         }
 
@@ -281,5 +409,6 @@ def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> 
         "recommendations": bootstrap,
         "recommended_updates": _updates_from_params(current_params),
         "rag_hints": rag_hints,
+        "calibration_evidence": calibration_evidence,
         "reason": "No functionally verified parameter history matched the current task.",
     }

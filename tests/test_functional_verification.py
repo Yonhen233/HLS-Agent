@@ -87,6 +87,26 @@ def test_parse_csim_verification_accepts_classification_pass_with_numeric_drift(
     assert result["classification"]["hls_accuracy"] == 1.0
 
 
+def test_parse_csim_verification_uses_defaults_when_manifest_thresholds_are_null(tmp_path):
+    tb_data = tmp_path / "tb_data"
+    tb_data.mkdir()
+    (tb_data / "tb_output_predictions.dat").write_text("1 9 0\n", encoding="utf-8")
+    (tb_data / "csim_results.log").write_text("0 100 0\n", encoding="utf-8")
+    labels = tmp_path / "labels.json"
+    labels.write_text(json.dumps({"labels": [1]}), encoding="utf-8")
+    (tb_data / "reference_manifest.json").write_text(
+        json.dumps({"labels_path": str(labels), "classification_min_accuracy": None, "argmax_match_min": None}),
+        encoding="utf-8",
+    )
+    log = tmp_path / "csim.log"
+    log.write_text("C simulation completed\n", encoding="utf-8")
+
+    result = parse_csim_verification(log, work_dir=tmp_path, tolerance=0.25)
+
+    assert result["status"] == "csim_passed"
+    assert result["classification"]["status"] == "success"
+
+
 def test_parse_csim_verification_finds_vivado_csim_build_output(tmp_path):
     tb_data = tmp_path / "tb_data"
     build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"
@@ -234,6 +254,70 @@ def test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp():
     assert result["mode"] == "heuristic_bootstrap"
     assert result["source_count"] == 0
     assert all(item.get("source") != "verified_history" for item in result["recommendations"])
+
+
+class _CrossVisionShapeRepo:
+    def list_memory_items(self, memory_types):
+        del memory_types
+        value = {
+            "task": {
+                "name": "mnist_tiny_cnn",
+                "task_type": "model",
+                "input_shape": [28, 28, 1],
+                "layout": "NHWC",
+                "hls4ml": {"precision": "fixed<10,4>", "reuse_factor": 64, "strategy": "Resource"},
+                "target": {"clock_period": 10},
+            },
+            "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+            "report": {"status": "success", "timing": {"met": True}},
+        }
+        return [{"id": 44, "source_run_id": "mnist_cnn_verified", "importance": 5, "value_json": json.dumps(value)}]
+
+
+def test_parameter_advisor_rejects_cross_vision_shape_history():
+    state = {
+        "task": {
+            "name": "cifar10_tiny_vgg",
+            "task_type": "model",
+            "input_shape": [8, 8, 3],
+            "layout": "NHWC",
+            "hls4ml": {"precision": "fixed<12,6>", "reuse_factor": 64},
+        }
+    }
+    result = recommend_parameters({"state": state}, {"repository": _CrossVisionShapeRepo()})
+    assert result["mode"] == "heuristic_bootstrap"
+    assert result["source_count"] == 0
+
+
+def test_parameter_advisor_uses_activation_calibration_when_history_is_incompatible(tmp_path):
+    calibration = tmp_path / "activation_ranges.json"
+    calibration.write_text(
+        json.dumps(
+            {
+                "calibration_samples": 32,
+                "ranges": {
+                    "conv:Conv2d": {"max_abs": 33.0, "suggested_integer_bits": 7},
+                    "fc:Linear": {"max_abs": 4.0, "suggested_integer_bits": 4},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = {
+        "task": {
+            "name": "cifar10_tiny_vgg",
+            "task_type": "model",
+            "input_shape": [8, 8, 3],
+            "layout": "NHWC",
+            "activation_ranges_path": str(calibration),
+        }
+    }
+    result = recommend_parameters({"state": state}, {"repository": _CrossVisionShapeRepo()})
+    assert result["mode"] == "activation_calibration"
+    assert any(
+        item["parameter"] == "precision" and item["recommended_value"] == "fixed<17,7>"
+        for item in result["recommendations"]
+    )
 
 
 class _SampleFixtureRepo:

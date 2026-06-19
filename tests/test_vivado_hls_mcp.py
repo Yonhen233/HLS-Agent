@@ -20,6 +20,23 @@ def test_vivado_create_project_mock(tmp_path):
     assert Path(result["tcl_path"]).exists()
 
 
+def test_vivado_create_project_writes_explicit_array_partition_limit(tmp_path):
+    project_dir = tmp_path / "project"
+    _write_design(project_dir)
+    adapter = VivadoHLSAdapter(mock_mode=True)
+
+    result = adapter.create_project(
+        {
+            "hls_project_dir": str(project_dir),
+            "top_function": "demo",
+            "work_dir": str(tmp_path / "vivado"),
+            "array_partition_maximum_size": 4096,
+        }
+    )
+
+    assert "config_array_partition -maximum_size 4096" in Path(result["tcl_path"]).read_text(encoding="utf-8")
+
+
 def test_vivado_create_project_copies_all_candidate_headers(tmp_path):
     project_dir = tmp_path / "project"
     _write_design(project_dir)
@@ -87,6 +104,32 @@ def test_vivado_run_csynth_mock(tmp_path):
     result = adapter.run_csynth({"work_dir": create["work_dir"], "tcl_path": create["tcl_path"], "top_function": "demo"})
     assert result["status"] == "success"
     assert Path(result["report_path"]).exists()
+
+
+def test_vivado_run_csim_real_adapter_uses_stage_tcl(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    _write_design(project_dir)
+    fake_vivado = tmp_path / "vivado_hls.bat"
+    fake_vivado.write_text("@echo off\n", encoding="utf-8")
+    adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path=str(fake_vivado))
+    create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vivado")})
+    captured = {}
+
+    class FakeBridge:
+        def run_with_existing_tcl(self, **kwargs):
+            captured.update(kwargs)
+            log_path = Path(kwargs["design_dir"]) / kwargs["log_filename"]
+            log_path.write_text("Starting C simulation...\nC simulation completed\n", encoding="utf-8")
+            return {"project_dir": kwargs["design_dir"], "synthesis": {"status": "success", "log_path": str(log_path)}}
+
+    monkeypatch.setattr(adapter, "_binary_available", lambda: True)
+    monkeypatch.setattr(adapter, "_bridge", lambda work_dir: FakeBridge())
+
+    result = adapter.run_csim({"work_dir": create["work_dir"], "top_function": "demo"})
+
+    assert result["status"] == "success"
+    assert captured["log_filename"] == "csim.log"
+    assert Path(captured["tcl_file_path"]).name == "csim_stage.tcl"
 
 
 def test_vivado_missing_binary_fallback(tmp_path, monkeypatch):

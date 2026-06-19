@@ -114,6 +114,17 @@ class HLS4MLAdapter:
         io_type = arguments.get("io_type") or arguments.get("IOType")
         if io_type:
             payload["io_type"] = str(io_type)
+        accumulator_precision = arguments.get("accumulator_precision") or arguments.get("accum_precision")
+        if accumulator_precision:
+            hls_config = payload.setdefault("hls_config", {})
+            model_config = hls_config.setdefault("Model", {})
+            current_precision = model_config.get("Precision", arguments.get("precision", "fixed<16,6>"))
+            precision_config = dict(current_precision) if isinstance(current_precision, dict) else {"default": current_precision}
+            # hls4ml uses the ``accum`` precision key for Conv/Dense intermediate
+            # sums. Keeping it explicit prevents calibration-safe output types
+            # from silently wrapping during a long MAC reduction.
+            precision_config["accum"] = str(accumulator_precision)
+            model_config["Precision"] = precision_config
         model_overrides = self._normalize_model_overrides(arguments.get("model_overrides") or arguments.get("Model"))
         if model_overrides:
             hls_config = payload.setdefault("hls_config", {})
@@ -212,6 +223,7 @@ class HLS4MLAdapter:
             "MaxPool",
             "QuantizeLinear",
             "Relu",
+            "ReduceMean",
             "Reshape",
             "Shape",
             "Sigmoid",
@@ -321,6 +333,16 @@ class HLS4MLAdapter:
             if values.size != channels:
                 raise ValueError(f"{node_label} expected {channels} channel values, got {values.size}.")
             return values
+
+        def _reduce_axes(node: Any, rank: int) -> list[int]:
+            attrs = self._onnx_attrs(node)
+            raw_axes = attrs.get("axes")
+            if raw_axes is None and len(node.input) > 1 and node.input[1] in initializers:
+                raw_axes = initializers[node.input[1]]
+            if raw_axes is None:
+                return list(range(rank))
+            axes = np.asarray(raw_axes).reshape(-1).tolist()
+            return sorted({int(axis) if int(axis) >= 0 else rank + int(axis) for axis in axes})
 
         def _fold_bias_add(node: Any, data_input: str, bias_input: str) -> None:
             _owner_for_data_input(node, list(node.input).index(data_input))
@@ -559,7 +581,7 @@ class HLS4MLAdapter:
                 _mark_outputs_as_data(node, prev)
                 rewrites.append("NCHW Conv -> channels_last Conv2D layer-list")
                 continue
-            if node.op_type in {"MaxPool", "AveragePool", "GlobalAveragePool"}:
+            if node.op_type in {"MaxPool", "AveragePool", "GlobalAveragePool", "ReduceMean"}:
                 _owner_for_data_input(node)
                 attrs = self._onnx_attrs(node)
                 input_shape_nchw = shapes.get(node.input[0], [])
@@ -568,14 +590,45 @@ class HLS4MLAdapter:
                     raise ValueError(f"{node.op_type} node {node.name or index} requires static 4D NCHW shapes.")
                 input_shape_nhwc = nhwc(input_shape_nchw)
                 output_shape_nhwc = nhwc(output_shape_nchw)
-                if node.op_type == "GlobalAveragePool":
-                    kernel = [int(input_shape_nhwc[1]), int(input_shape_nhwc[2])]
-                    strides = kernel
-                    class_name = "AveragePooling2D"
+                if node.op_type == "ReduceMean":
+                    axes = _reduce_axes(node, len(input_shape_nchw))
+                    keepdims = int(attrs.get("keepdims", 1))
+                    if axes != [2, 3] or keepdims != 1:
+                        raise ValueError(
+                            f"ReduceMean node {node.name or index} is only supported for NCHW spatial global average "
+                            f"pooling (axes=[2,3], keepdims=1), got axes={axes}, keepdims={keepdims}."
+                        )
+                    global_pool_source = "ReduceMean spatial axes"
+                elif node.op_type == "GlobalAveragePool":
+                    global_pool_source = "GlobalAveragePool"
                 else:
+                    global_pool_source = None
+                if global_pool_source:
+                    # Use hls4ml's dedicated global-pooling kernel rather than
+                    # encoding it as an 8x8 AveragePooling2D. The latter maps to
+                    # a fully partitioned generic window buffer in io_stream and
+                    # can dominate LUT usage for otherwise compact CNNs.
+                    layer_list.append(
+                        {
+                            "name": name,
+                            "class_name": "GlobalAveragePooling2D",
+                            "inputs": [prev],
+                            "data_format": "channels_last",
+                            "in_height": int(input_shape_nhwc[1]),
+                            "in_width": int(input_shape_nhwc[2]),
+                            "n_filt": int(input_shape_nhwc[3]),
+                        }
+                    )
+                    prev = name
+                    _mark_outputs_as_data(node, prev)
+                    rewrites.append(f"NCHW {global_pool_source} -> channels_last GlobalAveragePooling2D layer-list")
+                    continue
+                if node.op_type in {"MaxPool", "AveragePool"}:
                     kernel = list(attrs.get("kernel_shape") or [2, 2])
                     strides = list(attrs.get("strides") or kernel)
                     class_name = "MaxPooling2D" if node.op_type == "MaxPool" else "AveragePooling2D"
+                else:  # pragma: no cover - guarded by the enclosing operation set.
+                    raise ValueError(f"Unsupported pooling op for layer-list adapter: {node.op_type}")
                 pads = list(attrs.get("pads") or [0, 0, 0, 0])
                 layer_list.append(
                     {

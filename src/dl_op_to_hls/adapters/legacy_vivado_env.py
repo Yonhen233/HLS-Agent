@@ -54,6 +54,11 @@ class HLSVerificationEnv:
             lines.append('open_solution -reset "solution1"')
             lines.append(f"set_part {{{workspace['part']}}}")
             lines.append(f"create_clock -period {workspace['clock_period']} -name default")
+            if workspace.get("array_partition_maximum_size"):
+                lines.append(
+                    "config_array_partition -maximum_size "
+                    f"{int(workspace['array_partition_maximum_size'])}"
+                )
         else:
             lines.append(f"set_top {workspace['top_function']}")
             lines.append('open_solution "solution1"')
@@ -81,6 +86,7 @@ class HLSVerificationEnv:
         testbench_file: str | None = None,
         target_device: str = "xc7z020clg484-1",
         clock_period: str = "10",
+        array_partition_maximum_size: int | None = None,
         enable_instrumentation: bool = False,
     ) -> str:
         del enable_instrumentation
@@ -90,6 +96,7 @@ class HLSVerificationEnv:
             "top_function": top_function,
             "part": target_device,
             "clock_period": clock_period,
+            "array_partition_maximum_size": array_partition_maximum_size,
             "code_filename": os.path.basename(code_file),
             "testbench_filename": os.path.basename(testbench_file) if testbench_file else None,
             "testbench_data_dirs": [
@@ -125,6 +132,7 @@ class HLSVerificationEnv:
         testbench: str | None = None,
         timeout_seconds: int | None = None,
         project_name: str | None = None,
+        log_filename: str = "csynth.log",
     ) -> dict[str, Any]:
         del code, testbench, project_name
         executable = self._resolve_executable()
@@ -140,7 +148,9 @@ class HLSVerificationEnv:
                 },
             }
         cwd = Path(design_dir)
-        log_path = cwd / "csynth.log"
+        # Stage-aware callers need separate logs.  In particular, CSim must not
+        # overwrite the synthesis log that the report/verification layer reads.
+        log_path = cwd / log_filename
         timeout = int(timeout_seconds or os.environ.get("DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS", "600"))
         started = time.time()
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0

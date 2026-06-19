@@ -41,6 +41,63 @@ def test_hls4ml_generate_config_mock(tmp_path):
     assert "Backend: Vivado" in (tmp_path / "hls4ml_config.yml").read_text(encoding="utf-8")
 
 
+def test_hls4ml_accumulator_precision_extension_keeps_default_precision():
+    adapter = HLS4MLAdapter(mock_mode=True)
+    payload = {"hls_config": {"Model": {"Precision": "fixed<24,8>"}}}
+
+    adapter._apply_hls4ml_config_extensions(payload, {"accumulator_precision": "fixed<32,14>"})
+
+    assert payload["hls_config"]["Model"]["Precision"] == {
+        "default": "fixed<24,8>",
+        "accum": "fixed<32,14>",
+    }
+
+
+def test_hls4ml_layer_list_uses_dedicated_global_average_pooling(tmp_path):
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    model_path = tmp_path / "global_average_pool.onnx"
+    x = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 8, 8])
+    y = helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 3, 1, 1])
+    reduce = helper.make_node("GlobalAveragePool", ["input"], ["output"], name="gap")
+    graph = helper.make_graph([reduce], "gap_graph", [x], [y])
+    model = helper.make_model(graph, opset_imports=[helper.make_operatorsetid("", 13)])
+    onnx.save(model, model_path)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layers, _input, _output, rewrites = adapter._build_layer_list_from_onnx(onnx.load(model_path))
+
+    gap_layer = next(layer for layer in layers if layer["name"] == "gap")
+    assert gap_layer["class_name"] == "GlobalAveragePooling2D"
+    assert gap_layer["in_height"] == 8
+    assert gap_layer["n_filt"] == 3
+    assert any("GlobalAveragePooling2D" in rewrite for rewrite in rewrites)
+
+
+def test_hls4ml_layer_list_maps_spatial_reduce_mean_to_global_pooling(tmp_path):
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    model_path = tmp_path / "reduce_mean_pool.onnx"
+    x = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 8, 8])
+    y = helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 3, 1, 1])
+    axes = numpy_helper.from_array(numpy.asarray([2, 3], dtype=numpy.int64), name="axes")
+    reduce = helper.make_node("ReduceMean", ["input", "axes"], ["output"], name="gap", keepdims=1)
+    graph = helper.make_graph([reduce], "reduce_mean_graph", [x], [y], initializer=[axes])
+    model = helper.make_model(graph, opset_imports=[helper.make_operatorsetid("", 13)])
+    onnx.save(model, model_path)
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layers, _input, _output, rewrites = adapter._build_layer_list_from_onnx(onnx.load(model_path))
+
+    gap_layer = next(layer for layer in layers if layer["name"] == "gap")
+    assert gap_layer["class_name"] == "GlobalAveragePooling2D"
+    assert any("ReduceMean spatial axes" in rewrite for rewrite in rewrites)
+
+
 def test_hls4ml_backend_override_mock_config(tmp_path):
     adapter = HLS4MLAdapter(mock_mode=True, backend_override="Vitis")
     result = adapter.generate_config(
@@ -172,6 +229,43 @@ def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
     assert conv_layer["use_bias"] is True
     assert conv_layer["bias_data"].shape == (2,)
     assert "BatchNormalization -> folded into previous Dense/Conv2D" in rewrites
+
+
+def test_hls4ml_layer_list_adapter_rewrites_onnx18_spatial_reduce_mean():
+    onnx = pytest.importorskip("onnx")
+    numpy = pytest.importorskip("numpy")
+    from onnx import TensorProto, helper, numpy_helper
+
+    x = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 1, 4, 4])
+    y = helper.make_tensor_value_info("gap_out", TensorProto.FLOAT, [1, 2, 1, 1])
+    conv_w = numpy_helper.from_array(numpy.ones((2, 1, 3, 3), dtype=numpy.float32), name="conv.weight")
+    axes = numpy_helper.from_array(numpy.array([-1, -2], dtype=numpy.int64), name="reduce_axes")
+    conv = helper.make_node(
+        "Conv",
+        inputs=["model_input", "conv.weight"],
+        outputs=["conv_out"],
+        name="conv",
+        pads=[1, 1, 1, 1],
+    )
+    reduce_mean = helper.make_node(
+        "ReduceMean",
+        inputs=["conv_out", "reduce_axes"],
+        outputs=["gap_out"],
+        name="global_average",
+        keepdims=1,
+    )
+    graph = helper.make_graph([conv, reduce_mean], "reduce_mean_graph", [x], [y], initializer=[conv_w, axes])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+
+    adapter = HLS4MLAdapter(mock_mode=False)
+    layer_list, _input_layer, output_layer, rewrites = adapter._build_layer_list_from_onnx(model)
+    pool = next(layer for layer in layer_list if layer.get("class_name") == "AveragePooling2D")
+
+    assert output_layer == "global_average"
+    assert pool["pool_height"] == 4
+    assert pool["pool_width"] == 4
+    assert pool["n_filt"] == 2
+    assert "ReduceMean spatial axes -> channels_last AveragePooling2D" in rewrites
 
 
 def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():

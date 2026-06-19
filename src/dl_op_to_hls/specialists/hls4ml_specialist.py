@@ -147,6 +147,8 @@ class HLS4MLSpecialist(BaseSpecialist):
             }
             if scoped.get("io_type"):
                 args["io_type"] = scoped["io_type"]
+            if scoped.get("accumulator_precision"):
+                args["accumulator_precision"] = scoped["accumulator_precision"]
             if scoped.get("layer_overrides"):
                 args["layer_overrides"] = scoped["layer_overrides"]
             if scoped.get("model_overrides"):

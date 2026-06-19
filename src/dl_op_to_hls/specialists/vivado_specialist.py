@@ -42,13 +42,19 @@ class VivadoSpecialist(BaseSpecialist):
         scoped = envelope.scoped_state
         run_dir = Path(self.runtime_context.get("run_dir", "."))
         work_dir = scoped.get("work_dir") or str(run_dir / "vivado_hls")
-        return {
+        arguments = {
             "hls_project_dir": scoped.get("hls_project_dir"),
             "top_function": scoped.get("top_function"),
             "part": scoped.get("part") or "xc7z020clg400-1",
             "clock_period": scoped.get("clock_period") or 5,
             "work_dir": work_dir,
         }
+        # This pragma limit is an optional Vivado 2018.3 compatibility setting,
+        # not a required project-creation input. Do not let the local ReAct
+        # guard treat an omitted optional tuning knob as a blocked dependency.
+        if scoped.get("array_partition_maximum_size") is not None:
+            arguments["array_partition_maximum_size"] = scoped["array_partition_maximum_size"]
+        return arguments
 
     def _handle_create_project(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
         observations: list[dict[str, Any]] = []

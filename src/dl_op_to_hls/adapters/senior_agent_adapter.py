@@ -66,6 +66,7 @@ class SeniorVivadoBridge:
         testbench_file: str | None,
         target_device: str,
         clock_period: str,
+        array_partition_maximum_size: int | None = None,
     ) -> str:
         env = self.make_env()
         return env.create_project_tcl(
@@ -76,6 +77,7 @@ class SeniorVivadoBridge:
             testbench_file=testbench_file,
             target_device=target_device,
             clock_period=clock_period,
+            array_partition_maximum_size=array_partition_maximum_size,
         )
 
     def run_with_existing_tcl(
@@ -85,6 +87,7 @@ class SeniorVivadoBridge:
         code_text: str,
         testbench_text: str | None = None,
         project_name: str | None = None,
+        log_filename: str = "csynth.log",
     ) -> dict[str, Any]:
         env = self.make_env()
         return env.run_with_existing_tcl(
@@ -93,6 +96,7 @@ class SeniorVivadoBridge:
             code=code_text,
             testbench=testbench_text,
             project_name=project_name,
+            log_filename=log_filename,
         )
 
     def locate_report(self, project_dir: str, top_function: str | None = None) -> str | None:

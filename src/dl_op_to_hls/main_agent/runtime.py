@@ -1296,6 +1296,12 @@ class PlanExecuteReactRuntime:
             io_type = state.task.get("hls4ml", {}).get("io_type") or state.task.get("hls4ml", {}).get("IOType")
             if io_type:
                 hls4ml_args["io_type"] = io_type
+            accumulator_precision = (
+                state.task.get("hls4ml", {}).get("accumulator_precision")
+                or state.task.get("hls4ml", {}).get("accum_precision")
+            )
+            if accumulator_precision:
+                hls4ml_args["accumulator_precision"] = accumulator_precision
             layer_overrides = (
                 state.task.get("hls4ml", {}).get("layer_overrides")
                 or state.task.get("hls4ml", {}).get("LayerName")

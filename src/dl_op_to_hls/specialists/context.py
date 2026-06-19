@@ -125,8 +125,8 @@ class ContextBuilder:
     def _scoped_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
         task = state.task
         target = task.get("target", {})
+        hls4ml_cfg = task.get("hls4ml", {})
         if specialist_name == "HLS4MLSpecialist":
-            hls4ml_cfg = task.get("hls4ml", {})
             support = state.hls4ml_support
             if support and support.get("model_path") and support.get("model_path") != task.get("model_path"):
                 support = None
@@ -141,6 +141,7 @@ class ContextBuilder:
                 "part": target.get("part"),
                 "clock_period": target.get("clock_period"),
                 "precision": hls4ml_cfg.get("precision"),
+                "accumulator_precision": hls4ml_cfg.get("accumulator_precision") or hls4ml_cfg.get("accum_precision"),
                 "reuse_factor": hls4ml_cfg.get("reuse_factor"),
                 "strategy": hls4ml_cfg.get("strategy"),
                 "io_type": hls4ml_cfg.get("io_type") or hls4ml_cfg.get("IOType"),
@@ -157,6 +158,7 @@ class ContextBuilder:
                 "top_function": task.get("top_function") or task.get("name"),
                 "part": target.get("part"),
                 "clock_period": target.get("clock_period"),
+                "array_partition_maximum_size": hls4ml_cfg.get("array_partition_maximum_size"),
                 "work_dir": state.vivado_work_dir,
                 "current_report": state.report,
             }

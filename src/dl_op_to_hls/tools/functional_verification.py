@@ -233,8 +233,14 @@ def parse_csim_verification(
                     classification = compare_classification_outputs(inferred_reference, inferred_output, labels_path)
                     comparison["classification"] = classification
                     if classification.get("status") == "success":
-                        min_accuracy = float(manifest.get("classification_min_accuracy", 0.9))
-                        min_argmax_match = float(manifest.get("argmax_match_min", 0.95))
+                        configured_min_accuracy = manifest.get("classification_min_accuracy")
+                        configured_min_argmax_match = manifest.get("argmax_match_min")
+                        # Reference manifests intentionally serialize unspecified
+                        # thresholds as JSON null. Treat null as the documented
+                        # defaults instead of turning a completed CSim result into
+                        # a parser error.
+                        min_accuracy = 0.9 if configured_min_accuracy is None else float(configured_min_accuracy)
+                        min_argmax_match = 0.95 if configured_min_argmax_match is None else float(configured_min_argmax_match)
                         recognition_passed = (
                             float(classification.get("hls_accuracy", 0.0)) >= min_accuracy
                             and float(classification.get("argmax_match_rate", 0.0)) >= min_argmax_match

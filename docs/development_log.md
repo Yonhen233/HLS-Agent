@@ -6,6 +6,293 @@
 
 ---
 
+## 2026-06-20 04:06:04 +08:00：CIFAR-10 精确紧凑 CNN 的 HLS 里程碑回归通过，并启动不改变部署拓扑的蒸馏训练
+### 1. 已完成的真实 HLS 里程碑
+目标网络保持为：
+
+```text
+32x32x3 -> Conv(3->8) -> ReLU -> MaxPool
+        -> Conv(8->16) -> ReLU -> MaxPool
+        -> Conv(16->32) -> ReLU -> GlobalAveragePool -> Dense(32->10)
+```
+
+在真实 ONNX、hls4ml 1.3.0 和 Vivado HLS 2018.3 下，使用 `fixed<18,8>`、`accum=fixed<30,14>`、`ReuseFactor=144`、`io_stream`、`DATAFLOW`，得到：
+
+| Metric | 真实结果 | xc7z020clg400-1 容量 | 结论 |
+|---|---:|---:|---|
+| BRAM_18K | 195 | 280 | 69%，可放置 |
+| DSP48E | 58 | 220 | 26%，可放置 |
+| FF | 28,258 | 106,400 | 26%，可放置 |
+| LUT | 36,952 | 53,200 | 69%，可放置 |
+| Timing | 13.115ns | 13.120ns effective budget | met |
+
+真实 CSim 的 2 个 ONNX reference 样本为 `HLS correct=2/2`、`HLS/reference argmax=2/2`。这验证了当前 adapter、定点累加器配置和专用 GlobalAveragePool 路径可以在目标器件容量内完成端到端转换；训练完成后仍必须用新权重扩大样本复验。
+
+### 2. 本轮回归缺陷与修复
+完整 pytest 首次运行暴露了 Specialist 上下文回归，而不是 Vivado/hls4ml 的外部失败：
+
+1. `ContextBuilder` 在 Vivado specialist 分支引用了只在 HLS4ML 分支局部定义的 `hls4ml_cfg`，触发 `UnboundLocalError`，造成 summary、unsupported report、memory 等后续产物没有生成。
+2. 修复作用域后，`array_partition_maximum_size=None` 又被 local ReAct 的“缺失必填参数”判断成阻塞条件，导致正常 mock/Fallback Vivado 流程被错误标记为 `blocked`。
+
+修复方式：将 `hls4ml_cfg` 提升至共享作用域；并只在该调优项显式存在时才把它放入 `vivado.create_project` 的工具参数。该 pragma 是旧版 Vivado 兼容性调优项，不是项目创建的必填输入，因此不能以静默默认值或错误阻塞的方式改变 specialist 契约。
+
+### 3. 测试
+```text
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider \
+  --basetemp .pytest_tmp_full_after_context_fix -q
+```
+
+完整测试套件通过。Windows 用户临时目录存在 ACL 问题，因此使用仓库内隔离 `--basetemp`；这与测试代码或工具链结果无关。新增训练脚本参数测试，并已验证累加精度、GlobalAveragePool 映射、真实 CSim stage 和 Specialist/Todo/Summary 链路。
+
+### 4. 精度训练的真实结果与下一步
+第一轮全量 CIFAR-10 GPU 训练（50,000 train / 10,000 test、BatchNorm、Normalize、crop/flip、160 epochs）已正常结束，但固定 `8->16->32` 学生的最佳测试准确率仅为 `67.54%`（epoch 137），未达到 `>=80%` 目标。该结论不归因于 HLS，也不会通过只挑选正确 reference 样本掩盖。
+
+为保持最终 HLS 学生网络拓扑不变，新增可显式启用的训练期能力：`SGD/AdamW` 选择、label smoothing、MixUp、CIFAR AutoAugment、RandomErasing，以及知识蒸馏（teacher checkpoint、temperature、alpha）。这些操作只影响训练；导出的 ONNX 仍是同一个 `3->8->16->32 + GAP + Dense10` 学生图。已在远端 RTX 3090 上启动 `32->64->128` VGG-GAP 教师训练；早期测试准确率已超过 84%，待获得稳定教师权重后再训练并重新验证学生。
+
+### 5. 未完成项
+- 目前不能声明该精确学生模型已经达到 80% CIFAR-10 准确率。
+- 教师完成后需要同步增强训练脚本到远端，真实训练学生，并重新拉回 ONNX/reference data，执行真实 hls4ml、CSim 和 csynth。
+- 不提交无关 PPT、面试文档、临时 pytest 目录或历史模型缓存。
+
+---
+
+## 2026-06-20 03:25:04 +08:00：专用 GlobalAveragePool 真实综合通过 xc7z020 容量门槛，并启动完整 GPU 训练
+### 1. 真实 HLS 结果
+将 PyTorch ONNX 导出的 `ReduceMean(axes=[2,3])` 识别为专用 `GlobalAveragePooling2D` 后，真实 Vivado HLS 2018.3 的完整 `csim + csynth` 报告为：
+
+| Metric | 通用 8x8 AveragePool | 专用 GlobalAveragePool | 改善 |
+|---|---:|---:|---:|
+| BRAM_18K | 195 | 195 | 0% |
+| DSP48E | 58 | 58 | 0% |
+| FF | 81,684 | 28,258 | -65.4% |
+| LUT | 111,816 | 36,952 | -66.9% |
+| Estimated clock | 13.115ns | 13.115ns | timing met |
+
+参考器件 `xc7z020clg400-1` 容量为 `BRAM 280 / DSP 220 / FF 106,400 / LUT 53,200`。当前利用率为 `69% / 26% / 26% / 69%`，`resource_feasible=true`。
+
+这说明原先看似“32x32 CNN 无法塞入板卡”的问题，根因并非模型规模，而是 adapter 将 GlobalAveragePool 降级成通用池化实现。
+
+### 2. 功能验证
+当前真实 CSim（2 个 ONNX reference 样本）结果：
+
+```text
+HLS CSim accuracy:    2/2
+HLS/reference argmax: 2/2
+numeric max abs error: 0.38273473
+```
+
+logit 数值超出 `0.25` 通用容差，但分类语义满足配置阈值。该模型使用 `fixed<18,8>`、`accum=fixed<30,14>`、`ReuseFactor=144`、`io_stream`、`DATAFLOW`；完整训练后必须扩大参考样本数重新验证，不能把当前 2 样本结果当作最终识别准确率。
+
+### 3. GPU 训练已启动
+资源门槛通过后，已在远端独立训练目录的空闲 RTX 3090 上启动真实 CIFAR-10 全量训练：
+
+```text
+architecture: gap_cnn, channels 8 -> 16 -> 32
+inference topology: Conv/ReLU/Pool -> Conv/ReLU/Pool -> Conv/ReLU/GAP -> Dense
+training helpers: BatchNorm (inference foldable), normalization, crop/flip augmentation
+train/eval: 50,000 / 10,000
+epochs: up to 160, early stopping patience 30 after epoch 80
+target: stable >=80% test accuracy
+```
+
+训练权重不能直接继承本次资源验证结论：BatchNorm 折叠后的真实权重将重新导出 ONNX，并再次经过实际 hls4ml、CSim、csynth 和报告解析。
+
+### 4. 远端启动过程中的非代码问题
+通过 Paramiko 启动 `nohup conda run` 时，SSH 输出通道未立即 EOF，导致启动客户端超时；远端检查确认训练进程和 GPU 显存占用均已存在。后续流程以远端 PID/日志为准，不重复提交启动命令，避免重复训练。
+
+### 5. 当前状态
+- GPU 训练正在执行。
+- 待训练完成后：拉回权重/ONNX/reference data，执行更大样本 CSim，重新综合并确认仍然 resource feasible。
+- 本次的 HLS adapter、真实 CSim 工具、定点累加器配置和 GlobalAveragePool 映射将在完整 pytest 通过后单独提交；不提交无关 PPT 或面试文档。
+
+---
+
+## 2026-06-20 03:05:05 +08:00：通过真实层级报告定位 GlobalAveragePool 的 7.7 万 LUT 热点
+### 1. DATAFLOW 资源对照结果
+真实 Vivado HLS 2018.3 已生成 `myproject_csynth.rpt`。相较于初始 `fixed<24,8>/RF64` 对照，`fixed<18,8> + accum=fixed<30,14> + RF144 + dataflow` 的结果为：
+
+| Metric | 初始对照 | 资源对照 | 变化 |
+|---|---:|---:|---:|
+| BRAM_18K | 393 | 195 | -50.4% |
+| DSP48E | 182 | 58 | -68.1% |
+| FF | 120,368 | 81,684 | -32.1% |
+| LUT | 118,595 | 111,816 | -5.7% |
+| Timing | met | met | 13.115ns estimated |
+
+BRAM、DSP、FF 都进入 `xc7z020clg400-1` 容量，但 LUT 为 `111,816 / 53,200 = 210%`，故当前精确网络仍不 resource feasible。
+
+### 2. 层级热点
+`myproject_csynth.rpt` 显示 FIFO 只占 `10,325 LUT`；主要热点是 `pooling2d_cl_1_U0`：
+
+```text
+pooling2d_cl_1_U0: 77,423 LUT, 54,452 FF
+```
+
+检查 ONNX layer-list adapter 发现：ONNX `GlobalAveragePool` 被错误映射为普通 `AveragePooling2D(pool=8x8)`。在 `io_stream` 下，该实现走通用窗口/line-buffer 模板，产生大规模完全分区结构。
+
+### 3. 修复
+- 改为 hls4ml 原生 `GlobalAveragePooling2D` layer-list 类型。
+- 新映射会调用 `nnet::global_pooling2d_cl` 专用流式累加核，避免普通 8x8 pooling 的通用 window-buffer。
+- 保持 NCHW -> channels_last、输入输出语义和 HLS project 生成方式不变；随后的静态 `Reshape[32]` 仍由 hls4ml 作为无数据拷贝处理。
+- 新增 `test_hls4ml_layer_list_uses_dedicated_global_average_pooling`。
+
+### 4. 已完成测试
+```text
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp_globalpool \
+  tests/test_hls4ml_mcp.py tests/test_vivado_hls_mcp.py tests/test_functional_verification.py -q
+```
+
+结果：`45 passed, 7 skipped`。
+
+### 5. 后续
+待当前 Vivado 进程完全退出后，先对专用 GlobalAveragePool 映射运行真实 CSim，再运行真实 csynth。只有它满足数值验证和资源约束，才会开始 GPU 长训。
+
+---
+
+## 2026-06-20 02:56:00 +08:00：排除 `PipelineStyle=pipeline` 在 Vivado HLS 2018.3 流式 CNN 中的不可综合路径
+### 1. 测试动作
+对已通过真实 CSim 的资源候选运行真实 Vivado HLS 2018.3：
+
+```text
+fixed<18,8>
+accum=fixed<30,14>
+ReuseFactor=144
+io_stream
+PipelineStyle=pipeline
+```
+
+### 2. 结果与根因
+CSim 保持 `2/2` HLS 分类正确和 `2/2` argmax 一致，但 csynth 在预综合阶段失败：
+
+```text
+ERROR: [XFORM 203-504] Stop unrolling loop 'ReLUActLoop'
+... nnet_activation_stream.h:41 ... factor of 1024
+ERROR: [HLS 200-70] Pre-synthesis failed.
+```
+
+`PipelineStyle=pipeline` 会在旧版 Vivado HLS 的流式 generated C++ 中使顶层 pipeline 与子函数 loop pipeline 相互作用，强制展开 1024 次 ReLU 流循环。该失败发生在生成 RTL 之前，因此没有可比较的资源报告。
+
+### 3. 处理
+- 不把这个失败错误归因到模型精度、权重或 ONNX adapter。
+- 不用“关闭验证”或修改生成 C++ 来绕过；保留 hls4ml 配置层作为唯一调度来源。
+- 已启动等价的 `PipelineStyle=dataflow` 真实综合，继续使用已验证的安全精度和高复用参数，以公平比较资源。
+
+### 4. 当前状态
+`dataflow` 对照正在运行，尚未形成 resource-feasible 结论；GPU 长训仍未启动。
+
+---
+
+## 2026-06-20 00:24:01 +08:00：定位并修复 CIFAR-10 紧凑 CNN 的真实定点累加溢出
+### 1. 本次真实验证做了什么
+继续使用真实 ONNX、hls4ml 1.3.0 与 Vivado HLS 2018.3，对 32x32 `3->8->16->32` CIFAR-10 CNN 做了三组隔离验证：
+
+1. `io_stream + fixed<24,8> + ReuseFactor=64` 完整 csynth；
+2. 相同精度和权重的 `io_parallel` 单独真实 CSim；
+3. 适配器语义的 NumPy parity 对照，以及显式累加器精度后的真实 CSim。
+
+### 2. 真实问题与证据
+1. 第一组已产生真实综合报告，但不能落入 `xc7z020clg400-1`：
+
+```text
+BRAM 393 / 280  (140%)
+DSP  182 / 220  (82%)
+FF   120,368 / 106,400 (113%)
+LUT  118,595 / 53,200  (222%)
+timing: 13.115ns <= 13.120ns effective budget
+```
+
+这说明当前瓶颈不是 timing，而是 `io_stream` 中大量整帧 FIFO 与宽数据通路带来的 BRAM/LUT/FF 超限。
+
+2. 同一组 CSim 的 ONNX reference 与 HLS 输出的 argmax 为 `0/2`，且最大 logit 误差为 `9.0878673`。将接口改成 `io_parallel` 后，输出逐项完全相同，排除了“流输入 NHWC 顺序错误”这一假设。
+
+3. 独立 NumPy 按 adapter 的 `NCHW -> NHWC` 权重和数据转换重放 Conv/ReLU/Pool/GAP/Dense，与 ONNX Runtime 的最大误差仅 `1.43e-6`。因此 ONNX/QONNX layer-list adapter 的语义转换在该网络上是正确的。
+
+4. 根因是 hls4ml 把 Conv/Dense 的 `accum_t` 与模型默认类型一起设成 `fixed<24,8>`。第三层卷积的 MAC 中间和可越过 8 个整数位可表达范围，发生定点 wrap；不是“只提高 output precision”就能解决的问题。
+
+### 3. 已实现修复
+- 新增任务级 `hls4ml.accumulator_precision`（别名 `accum_precision`），映射到 hls4ml 的 `Model.Precision.accum`。
+- 完成 `AgentState/ContextEnvelope/HLS4MLSpecialist/runtime -> ToolRegistry -> hls4ml config` 的显式传递；没有在生成的 C++ 上做不可追踪的补丁。
+- 新增真实 `vivado.run_csim` 执行路径：调用 `csim_stage.tcl`，将 CSim 与 csynth 日志分离，避免 CSim 覆盖综合日志。
+- `run_real_hls_probe.py` 新增 `--stage csim|csynth`、`--accumulator-precision` 和 `--pipeline-style`，可先做低成本真实诊断。
+- 修复 `reference_manifest.json` 中 `null` 分类阈值被 `float(None)` 误判为解析错误的问题；现在会回退到文档约定的 `0.9/0.95` 默认阈值。
+
+### 4. 修复后的真实结果
+使用 `fixed<24,8>` 与 `accum=fixed<32,14>` 的真实 `io_stream` CSim：
+
+```text
+max_abs_error:      0.00782573
+reference accuracy: 2/2
+HLS CSim accuracy:  2/2
+argmax match:       2/2
+```
+
+这证明累计位宽是数值错误的直接原因。随后资源候选 `fixed<18,8> + accum=fixed<30,14> + ReuseFactor=144 + PipelineStyle=pipeline` 也在真实 CSim 上保持 `2/2` 分类和 argmax 一致；虽然 logit 最大误差为 `0.38273473`，但分类语义满足阈值。
+
+### 5. 已完成测试
+```text
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp_accum \
+  tests/test_hls4ml_mcp.py tests/test_vivado_hls_mcp.py tests/test_functional_verification.py -q
+```
+
+结果：`44 passed, 7 skipped`。
+
+新增覆盖：
+- `test_vivado_run_csim_real_adapter_uses_stage_tcl`
+- `test_hls4ml_accumulator_precision_extension_keeps_default_precision`
+- `test_parse_csim_verification_uses_defaults_when_manifest_thresholds_are_null`
+
+### 6. 当前未完成事项
+- 已启动上述资源候选的真实 csynth，尚未读取结果；不能在报告生成前宣称其资源可放入 `xc7z020`。
+- 若仍然超限，下一步将针对 hls4ml FIFO depth optimization/数据流缓冲进行实测，而不是以训练准确率掩盖硬件资源问题。
+- 因精确网络尚未同时满足“真实 CSim 验证 + 参考板卡 resource feasible”，尚未启动 GPU 长训；这符合先验证硬件可行性再投入长训的约束。
+
+---
+
+## 2026-06-19 23:57:10 +08:00：启动 32x32 CIFAR-10 紧凑 CNN 的真实 Vivado 容量验证
+### 1. 本次测试做了什么
+按“先证明能综合且能放入参考板卡，再投入长训”的顺序，针对以下不降采样的真实 CIFAR-10 结构启动了 hls4ml -> Vivado HLS 2018.3 验证：
+
+```text
+Input 32x32x3
+-> Conv 3x3, 3->8 -> ReLU -> MaxPool 2x2
+-> Conv 3x3, 8->16 -> ReLU -> MaxPool 2x2
+-> Conv 3x3, 16->32 -> ReLU -> GlobalAveragePool -> Dense 32->10
+```
+
+本轮不是 mock：模型为真实 ONNX，使用真实 hls4ml layer-list adapter、真实 Vivado HLS 2018.3、真实 CSim 与 csynth。第一轮配置为 `io_stream`、`fixed<16,6>`、`ReuseFactor=64`、15ns、`xc7z020clg400-1`。
+
+### 2. 已确认的问题与根因
+1. Vivado HLS 2018.3 在预综合阶段拒绝自动数组分区：
+
+```text
+ERROR: [XFORM 203-103] Array 'kernel_data.V.4':
+partitioned elements number (2048) exceeded threshold (1024)
+```
+
+这不是板卡容量报告，不能据此称模型“不适合 xc7z020”；它是旧版 Vivado 的预综合保护阈值。CSim 本身已真实完成，但 `fixed<16,6>` 的量化 logits 与浮点参考出现 argmax 不一致，因此该轮同样不能作为功能正确的部署结果。
+
+### 3. 修复方案
+- 新增显式任务/adapter 配置 `array_partition_maximum_size`。
+- `ContextEnvelope -> VivadoSpecialist -> VivadoHLSAdapter -> SeniorVivadoBridge -> TCL` 全链路传递该配置，避免在主 Agent 外硬编码。
+- TCL 在 `open_solution` 后写入 `config_array_partition -maximum_size <N>`；当前真实复测使用 4096，以允许 2048 元素的流式卷积内部 buffer 进入综合。
+- 新增探针 `scripts/run_real_hls_probe.py`，支持 `--array-partition-maximum-size`，并可从干净 shell 自动发现项目 `src` 包。
+- 第二轮提高到 `fixed<24,8>`，以先验证数值裕量，再读取资源代价。
+- 训练脚本新增验证集 early stopping 契约：最大 epoch 内保留最佳 checkpoint，只有达到最小训练轮数且连续无提升时才停止；不再“刚好过阈值就结束”。
+
+### 4. 已完成验证
+```text
+python -m py_compile scripts/train_cifar10_tiny_vgg.py scripts/run_real_hls_probe.py ...
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp tests/test_hls4ml_mcp.py tests/test_vivado_hls_mcp.py tests/test_functional_verification.py -q
+```
+
+结果：`41 passed, 7 skipped`。新增 `test_vivado_create_project_writes_explicit_array_partition_limit`，确认 TCL 只在显式配置时写入对应指令。
+
+### 5. 当前未完成事项
+- 第二轮真实 Vivado 综合仍在运行，尚未生成 `csynth.rpt`，所以本条日志不宣称模型已 fit。
+- 必须在获得真实 LUT/DSP/FF/BRAM、timing 和 CSim 数值一致性后，才能判断是否启动 GPU 长训以追求稳定 80%+；若该精确结构不满足二者，将保留 32x32 输入并基于真实瓶颈调整可落板结构，而不退回 14x14 演示性简化。
+
+---
+
 ## 2026-06-19 17:21:21 +08:00：将 HLS 优化目标固化为 ObjectiveMode 配置
 ### 1. 本次做了什么
 上一轮 MNIST LLM candidate 实验证明，同一个模型在不同目标下会出现完全不同的 Pareto 点：
