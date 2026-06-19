@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from ..core.design_objectives import get_objective_mode, normalize_objective_mode
 from ..core.errors import build_error, error_result
 from ..core.memory_hygiene import sanitize_memory_text
 from ..llm.optimizer import LLMOptimizationEngine
@@ -33,22 +34,55 @@ def build_suggestions(
     objective: str | None,
     state: dict[str, Any] | None = None,
 ) -> list[str]:
-    objective_name = objective or "latency"
+    objective_name = normalize_objective_mode(objective or "latency", default="latency")
+    objective_mode = get_objective_mode(objective_name)
     suggestions: list[str] = []
     ii = _report_value(report, "interval", "max_ii")
+    latency = _report_value(report, "latency", "max_cycles")
     dsp = _report_value(report, "resources", "dsp")
     lut = _report_value(report, "resources", "lut")
     bram = _report_value(report, "resources", "bram")
     timing_met = _report_value(report, "timing", "met")
     reuse_factor = _current_reuse_factor(state)
 
-    if objective_name == "latency":
+    suggestions.append(
+        f"Objective mode '{objective_mode.name}' is active: primary metric is {objective_mode.primary_metric}; path policy is {objective_mode.preferred_path_policy}."
+    )
+
+    if objective_name == "standard":
+        suggestions.append("Standard mode should keep hls4ml/fallback as the maintainable baseline and only use LLM candidates when explicitly requested or unsupported.")
+        if timing_met is False:
+            suggestions.append("Timing is not met even in standard mode; relax clock period before adding speculative architecture changes.")
+    elif objective_name == "latency":
         if ii and ii > 1:
-            suggestions.append("II still exceeds 1; inspect loop-carried dependencies and add array partition/pipeline directives.")
+            suggestions.append("Latency mode: II still exceeds 1; inspect loop-carried dependencies and add array partition/pipeline directives only if resources still fit.")
         else:
-            suggestions.append("Current path is already close to latency-oriented tuning; keep II at 1 before exploring more parallelism.")
+            suggestions.append("Latency mode: current II is already low; compare single-inference latency before increasing parallelism further.")
         if timing_met and dsp is not None and dsp < 128:
             suggestions.append("Timing meets target and DSP usage is moderate; try more parallelism or lower reuse_factor for lower latency.")
+    elif objective_name == "throughput":
+        if ii and ii > 1:
+            suggestions.append("Throughput mode: prioritize reducing top interval / II with bounded loop pipelining, local buffering, and limited array partition.")
+        else:
+            suggestions.append("Throughput mode: II is already near the target; avoid resource-heavy unrolling unless it also reduces latency.")
+        if lut is not None and lut > 0:
+            suggestions.append("Check resource feasibility after every II improvement; fast candidates that exceed LUT/BRAM capacity should not be accepted.")
+    elif objective_name == "performance":
+        suggestions.append("Performance mode: rank candidates by combined latency and II improvement, then reject any candidate that does not fit the target part.")
+        if latency and ii and latency <= ii:
+            suggestions.append("Latency and II move together in this report; optimize the dominant loop body rather than only outer pipeline pragmas.")
+    elif objective_name == "balanced":
+        suggestions.append("Balanced mode: keep a resource budget first, then reduce latency/II inside that budget rather than chasing the absolute fastest design.")
+        if dsp is not None and dsp > 16:
+            if reuse_factor:
+                suggestions.append(
+                    f"DSP usage is still noticeable; try reuse_factor={reuse_factor * 2} only if the latency budget allows it, "
+                    "and re-check LUT/FF because very high reuse can trade DSP for control/mux logic."
+                )
+            else:
+                suggestions.append("DSP usage is relatively high; try increasing reuse_factor and re-check latency/LUT/FF trade-offs.")
+        if lut is not None and lut > 12000:
+            suggestions.append("Current LUT is above the typical balanced budget used in MNIST experiments; consider reducing unroll/partition before further speed work.")
     else:
         if dsp is not None and dsp > 16:
             if reuse_factor:

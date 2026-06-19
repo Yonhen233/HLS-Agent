@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any
 
+from ..core.design_objectives import normalize_objective_mode
+
 
 def _tokens(text: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[A-Za-z0-9_]+", text or "") if len(token) >= 3}
@@ -84,7 +86,7 @@ def _task_family(task: dict[str, Any]) -> str | None:
 
 def _objective(task: dict[str, Any]) -> str:
     optimization = task.get("optimization") if isinstance(task.get("optimization"), dict) else {}
-    return str(task.get("objective") or optimization.get("objective") or "balanced").lower()
+    return normalize_objective_mode(task.get("objective") or optimization.get("objective") or "balanced", default="balanced")
 
 
 def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
@@ -119,17 +121,25 @@ def _updates_from_params(params: dict[str, Any]) -> dict[str, Any]:
 def _resource_cost(report: dict[str, Any], objective: str) -> float:
     resources = report.get("resources") if isinstance(report.get("resources"), dict) else {}
     latency = report.get("latency") if isinstance(report.get("latency"), dict) else {}
+    interval = report.get("interval") if isinstance(report.get("interval"), dict) else {}
     lut = float(resources.get("lut") if resources.get("lut") is not None else 1_000_000)
     ff = float(resources.get("ff") if resources.get("ff") is not None else 1_000_000)
     dsp = float(resources.get("dsp") if resources.get("dsp") is not None else 10_000)
     bram = float(resources.get("bram") if resources.get("bram") is not None else 10_000)
     latency_cycles = float(latency.get("max_cycles") if latency.get("max_cycles") is not None else 1_000_000)
+    ii_cycles = float(interval.get("max_ii") if interval.get("max_ii") is not None else latency_cycles)
     # Weighted cost keeps units comparable enough for ranking verified profiles.
     cost = lut + 0.1 * ff + 100.0 * dsp + 50.0 * bram
     if objective == "latency":
-        return latency_cycles + 0.02 * cost
+        return latency_cycles + 0.10 * ii_cycles + 0.02 * cost
+    if objective == "throughput":
+        return ii_cycles + 0.20 * latency_cycles + 0.02 * cost
+    if objective == "performance":
+        return 0.45 * latency_cycles + 0.45 * ii_cycles + 0.03 * cost
     if objective == "balanced":
-        return cost + 0.5 * latency_cycles
+        return cost + 0.35 * latency_cycles + 0.35 * ii_cycles
+    if objective == "standard":
+        return 0.8 * cost + 0.2 * latency_cycles
     return cost
 
 

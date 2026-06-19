@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-06-19 17:21:21 +08:00：将 HLS 优化目标固化为 ObjectiveMode 配置
+### 1. 本次做了什么
+上一轮 MNIST LLM candidate 实验证明，同一个模型在不同目标下会出现完全不同的 Pareto 点：
+
+```text
+standard  -> 更偏 hls4ml 稳定主路径
+resource  -> 极低 LUT/FF/DSP/BRAM，但 latency 可以显著上升
+latency   -> 单次 inference cycles 优先
+throughput -> II/top interval 优先
+performance -> latency 与 II 联合优化，资源 fit 是硬门槛
+balanced  -> 资源预算内尽量改善 latency/II
+```
+
+因此本轮把这些目标从“脚本里的字符串”升级为统一的 Agent 架构契约：
+
+- 新增 `src/dl_op_to_hls/core/design_objectives.py`，定义 `ObjectiveMode`、别名归一化、路径偏好、candidate 策略、acceptance rule、Planner/Specialist 影响。
+- 更新 task normalize：`model/operator/hls_project` 的 `objective` 会统一归一到 canonical mode。
+- 更新 `ParameterAdvisor`：不同 objective 使用不同历史 profile 排序函数。
+- 更新 `suggest_optimization`：建议内容会明确写出当前 objective mode，并改变 latency/resource/throughput/performance/balanced/standard 的建议重点。
+- 更新 `scripts/llm_mnist_hls_candidate.py`：支持 `--objective latency` 和 `--objective performance`，原有 `resource/balanced/throughput` 保持兼容。
+- 新增 CLI：`dl-op-to-hls objective-modes` 可直接查看当前支持的 objective mode 和架构语义。
+- 新增 `docs/objective_modes.md`，说明这些配置对 Planner、Todo/ReAct、Specialist、ParameterAdvisor、LLM Candidate、Memory/RAG 的架构影响。
+- 更新 `docs/mnist_llm_candidate_optimization.md`，把 MNIST 实验结果和 ObjectiveMode 体系连起来。
+
+### 2. 对 Agent 架构来说这些配置有什么不同
+这些配置不是普通排序参数，而是会改变 Agent 的多层行为：
+
+- `standard`：Planner 避免 speculative LLM candidate，优先 hls4ml/fallback 的稳定链路；适合演示可维护、可复现的工程闭环。
+- `resource`：Candidate 生成允许串行 shared-MAC、资源共享等高 latency 低面积方案；OptimizationSpecialist 以 resource_score 为主。
+- `latency`：OptimizationSpecialist 以单次 inference latency 为主，VivadoSpecialist 必须提供 latency 与资源可行性证据。
+- `throughput`：II/top interval 成为第一指标；仅 latency 低不够，必须证明连续输入吞吐率改善且资源 fit。
+- `performance`：latency 与 II 联合计分，允许资源上升，但 resource_feasible 是硬门槛。
+- `balanced`：Selector 不追求单项极值，而是在资源预算内比较 Pareto 点；Memory/RAG 必须记录 objective 和预算，避免 resource-first 经验污染 throughput 场景。
+
+### 3. 本次修复的问题
+此前 objective 逻辑散落在 task JSON、ParameterAdvisor、suggestion 规则和 MNIST LLM 脚本里，面试表达时容易被质疑为“脚本 if-else”。本轮通过统一 ObjectiveMode，把它提升为 Agent 决策接口：
+
+```text
+User objective
+  -> normalized ObjectiveMode
+  -> Planner/Todo policy
+  -> Specialist evidence requirements
+  -> Candidate generation prompt
+  -> Verification + csynth gate
+  -> objective_met / summary / memory promotion
+```
+
+### 4. 测试结果
+本轮是轻量架构配置改造，已完成：
+
+```text
+python -m py_compile src/dl_op_to_hls/core/design_objectives.py src/dl_op_to_hls/tools/parameter_advisor.py src/dl_op_to_hls/tools/suggest_optimization.py src/dl_op_to_hls/cli.py scripts/llm_mnist_hls_candidate.py
+pytest -p no:cacheprovider --basetemp .pytest_tmp tests/test_design_objectives.py tests/test_llm_candidate_guard.py tests/test_llm_optimizer_fallback.py -q
+$env:PYTHONPATH='src'; python -m dl_op_to_hls.cli objective-modes
+```
+
+结果：16 passed；CLI 能输出 `standard/resource/latency/throughput/performance/balanced` 六类配置。
+
+测试过程中暴露出一个回归：`balanced` 模式最初只输出了预算/latency 建议，挡掉了原有 `reuse_factor=2048` 的 DSP 压缩建议。已修复：balanced 模式现在既保留资源预算解释，也保留 DSP/reuse_factor 的可操作建议。
+
+还遇到一个环境问题：Windows 默认 pytest 临时目录 `C:\Users\IC\AppData\Local\Temp\pytest-of-IC` 权限拒绝。该问题不是项目代码问题，本轮用 `--basetemp .pytest_tmp` 将 pytest 临时目录切到仓库内后验证通过。
+
+### 5. 未完成事项
+- 尚未重新跑真实 Vivado 大实验；本轮不改变已验证 candidate 的 HLS 代码，只扩展 objective mode 体系。
+
+---
+
 ## 2026-06-19 16:47:46 +08:00：恢复中断数据并继续 MNIST LLM 并行度 / 均衡优化
 ### 1. 本次测试做了什么
 上一轮 Vivado HLS 长时间综合过程中被中断，部分 attempt 已经跑完但没有合并进 `summary.json`。本轮先恢复现场，再继续做少量高信息量的真实实验，而不是大规模扫参。

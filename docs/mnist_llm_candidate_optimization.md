@@ -91,25 +91,39 @@ acc_t     = ap_fixed<20,16,AP_RND>
 
 golden testbench 是安全门。Attempt 8 说明，LLM 提出的看似合理的低精度方案必须经过真实 C simulation；一旦准确率下降，就不能被标记为 verified。
 
-## 按目标拆分：Resource / Balanced / Throughput
+## 按目标拆分：Standard / Resource / Latency / Throughput / Performance / Balanced
 
-在 resource-first 实验之后，脚本扩展了显式目标：
+在 resource-first 实验之后，项目把设计目标固化为显式 `ObjectiveMode`。这些模式可以作为任务 JSON 的 `objective`，也可以传给 MNIST LLM candidate 脚本：
 
 ```powershell
 python scripts\llm_mnist_hls_candidate.py --objective resource --continue-run --attempts 1 --clock-period 15 --required-correct 19
+python scripts\llm_mnist_hls_candidate.py --objective latency --continue-run --attempts 2 --clock-period 15 --required-correct 19
 python scripts\llm_mnist_hls_candidate.py --objective balanced --continue-run --attempts 3 --clock-period 15 --required-correct 19
 python scripts\llm_mnist_hls_candidate.py --objective throughput --continue-run --attempts 4 --clock-period 15 --required-correct 19
+python scripts\llm_mnist_hls_candidate.py --objective performance --continue-run --attempts 4 --clock-period 15 --required-correct 19
 ```
 
 目标合约：
 
 | Objective | 合约 |
 |---|---|
+| `standard` | 优先 hls4ml 主路径，强调稳定、可维护、可复现；不主动启动 speculative LLM candidate |
 | `resource` | 在通过 golden CSim 的前提下最小化 resource score |
+| `latency` | 优先降低单次 inference latency cycles，同时要求资源 fit 当前板卡 |
+| `throughput` | 优先降低 top interval / II，不能只看 latency，资源必须 fit 当前板卡容量 |
+| `performance` | 同时优化 latency 和 II，允许更多资源，但必须经过 board feasibility gate |
 | `balanced` | 保持资源低于指定预算，同时比串行 LLM resource candidate 改善 latency / II |
-| `throughput` | 改善 hls4ml baseline 的 latency 和 top interval / II，并且资源必须 fit 当前板卡容量 |
 
-脚本现在把 `objective_met` 和 CSim/csynth 是否成功分开记录。这样做很重要：一个 candidate 可以功能正确、也能综合通过，但仍然没有达成指定设计目标。
+脚本现在把 `objective_met` 和 CSim/csynth 是否成功分开记录。这样做很重要：一个 candidate 可以功能正确、也能综合通过，但仍然没有达成指定设计目标。例如 high-parallel candidate 可以通过 CSim 且 latency 很低，但如果 LUT 超出 xc7z020，就不能被 throughput/performance 模式接受。
+
+对 Agent 架构来说，这些配置不是简单排序字段：
+
+- `standard` 改变 Planner：保持 hls4ml/fallback 的稳定链路，不主动扩展 LLM 架构搜索。
+- `resource` 改变 Candidate 策略：允许串行 shared-MAC 这类高 latency、低面积设计进入比较。
+- `latency` 改变 OptimizationSpecialist 的主指标：单次 inference cycles 优先，II 和资源作为约束。
+- `throughput` 改变 VivadoSpecialist 的证据要求：必须解析并比较 II/top interval，不能只报告 latency。
+- `performance` 改变 Selector：latency 和 II 同时计分，资源可增加但必须 fit board。
+- `balanced` 改变 Memory/RAG 使用方式：历史经验必须带 objective 和 resource budget，否则 resource-first 经验会污染 throughput 场景。
 
 ## 早期 Pareto 点
 

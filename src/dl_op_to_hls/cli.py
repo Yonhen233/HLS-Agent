@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .benchmarks.agent_quality_benchmark import main as benchmark_main
+from .core.design_objectives import list_objective_modes
 from .main_agent.agent import MainAgent
 from .main_agent.workflow import run_task, run_task_llm
 
@@ -27,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_nl_parser.add_argument("prompt")
 
     subparsers.add_parser("llm-status")
+    subparsers.add_parser("objective-modes")
 
     benchmark_parser = subparsers.add_parser("benchmark")
     benchmark_parser.add_argument("--runs-root", default="runs")
@@ -180,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
             "min_retry_429_seconds": cfg.min_retry_429_seconds,
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "objective-modes":
+        print(json.dumps(list_objective_modes(), indent=2, ensure_ascii=False))
         return 0
     if args.command == "benchmark":
         forwarded = [

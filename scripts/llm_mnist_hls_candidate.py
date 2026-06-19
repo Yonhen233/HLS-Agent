@@ -25,6 +25,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from dl_op_to_hls.adapters.vivado_hls_adapter import VivadoHLSAdapter
 from dl_op_to_hls.core.candidate_sandbox import CandidateSandbox
+from dl_op_to_hls.core.design_objectives import normalize_objective_mode
 from dl_op_to_hls.core.errors import AgentRuntimeError
 from dl_op_to_hls.llm.client import LLMClient
 from dl_op_to_hls.tools.report_parser import parse_csynth_report_file
@@ -98,6 +99,13 @@ OBJECTIVE_RULES = {
         "Do not apply ARRAY_PARTITION complete to W1/W2/W3; use local partial-sum arrays instead.",
         "Avoid exploding LUT/FF; a moderate DSP budget is acceptable if II/latency improves materially.",
     ],
+    "latency": [
+        "Primary goal: minimize single-inference latency cycles while preserving MNIST accuracy.",
+        "Use numerically safe types first: data_t at least ap_fixed<16,4>, weight_t at least ap_fixed<8,4>, acc_t at least 20 total bits with 16 integer bits.",
+        "Latency improvements must fit xc7z020 capacity: BRAM<=280, DSP<=220, FF<=106400, LUT<=53200.",
+        "Prefer local partial sums, bounded unroll factors, and limited cyclic partitioning over complete partitioning of large matrices.",
+        "Do not completely partition the 784-element input array; previous complete input partition exceeded LUT capacity.",
+    ],
     "throughput": [
         "Primary goal: minimize latency and top interval / II.",
         "Use numerically safe types first: data_t at least ap_fixed<16,4>, weight_t at least ap_fixed<8,4>, acc_t at least 20 total bits with 16 integer bits.",
@@ -111,6 +119,13 @@ OBJECTIVE_RULES = {
         "Avoid DATAFLOW with STREAM pragmas on ordinary arrays unless you use real hls::stream producer/consumer structure; a previous array-stream dataflow candidate synthesized to II=25282.",
         "Do not fully partition the large W1/W2/W3 constant matrices unless the code remains realistic for Vivado HLS 2018.3.",
         "Prefer local partial-sum arrays over full W1/W2/W3 partitioning.",
+    ],
+    "performance": [
+        "Primary goal: jointly improve latency and top interval / II while staying within xc7z020 resource capacity.",
+        "Use latency/II as the first score and resource feasibility as a hard gate.",
+        "It is acceptable to spend more BRAM/LUT/FF than hls4ml if the design remains feasible and substantially faster.",
+        "Avoid designs that win latency only by exceeding device capacity; previous low-II attempts became unusable because LUT/BRAM exploded.",
+        "Use numerically safe types first: data_t at least ap_fixed<16,4>, weight_t at least ap_fixed<8,4>, acc_t at least 20 total bits with 16 integer bits.",
     ],
 }
 
@@ -422,7 +437,9 @@ def _prompt_for_plan(
     goals = {
         "resource": "Generate a direct HLS candidate that minimizes LUT/DSP/FF/BRAM while keeping MNIST accuracy >= baseline.",
         "balanced": "Generate a balanced HLS candidate that improves latency/II versus the serial LLM resource candidate while retaining a substantial resource reduction versus hls4ml.",
+        "latency": "Generate a latency-priority HLS candidate that minimizes single-inference cycles while preserving MNIST accuracy and board feasibility.",
         "throughput": "Generate a throughput-priority HLS candidate that improves latency and top interval/II as much as possible while preserving MNIST accuracy.",
+        "performance": "Generate a performance-priority HLS candidate that jointly improves latency and II while remaining feasible on the target FPGA.",
     }
     def summarize_attempt(item: dict[str, Any]) -> dict[str, Any]:
         report = (item.get("verification") or {}).get("report") or {}
@@ -478,7 +495,9 @@ def _prompt_for_plan(
             "Do not partition the full W1/W2/W3 matrices complete; prefer local partial arrays or limited unroll factors.",
             "Use Vivado HLS 2018.3 pragma syntax: '#pragma HLS ARRAY_PARTITION variable=W1 dim=2 cyclic factor=16'. Do not use 'type=cyclic'.",
             "For balanced objective, resource_score = LUT + FF + 200*DSP + 100*BRAM must stay <= 12000.",
+            "For latency objective, latency should beat the hls4ml baseline latency=2135 and resources must fit xc7z020 capacity.",
             "For throughput objective, latency and interval should beat the hls4ml baseline latency=2135 and interval=1024, and resources must fit xc7z020 capacity: BRAM<=280, DSP<=220, FF<=106400, LUT<=53200.",
+            "For performance objective, improve latency or interval materially, then reject any candidate that does not fit xc7z020 capacity.",
             "For throughput objective, do not use '#pragma HLS ARRAY_PARTITION variable=input complete'. Use cyclic factor 8-16 if you need parallel reads.",
             "Return JSON only.",
         ],
@@ -571,9 +590,15 @@ def _objective_score(report: dict[str, Any], objective: str, baseline: dict[str,
     resource_ratio = resource_score / max(base_resource, 1.0)
     latency_ratio = latency / max(base_latency, 1.0)
     interval_ratio = interval / max(base_interval, 1.0)
+    if objective == "latency":
+        infeasible_penalty = 1000.0 if not _resource_feasible(report, baseline) else 0.0
+        return infeasible_penalty + 0.75 * latency_ratio + 0.15 * interval_ratio + 0.10 * resource_ratio
     if objective == "throughput":
         infeasible_penalty = 1000.0 if not _resource_feasible(report, baseline) else 0.0
         return infeasible_penalty + 0.45 * latency_ratio + 0.45 * interval_ratio + 0.10 * resource_ratio
+    if objective == "performance":
+        infeasible_penalty = 1000.0 if not _resource_feasible(report, baseline) else 0.0
+        return infeasible_penalty + 0.40 * latency_ratio + 0.40 * interval_ratio + 0.20 * resource_ratio
     if objective == "balanced":
         return 0.35 * latency_ratio + 0.35 * interval_ratio + 0.30 * resource_ratio
     return float(resource_score)
@@ -610,6 +635,13 @@ def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, A
             and interval < float(baseline.get("interval_cycles") or 0)
             and _resource_feasible(report, baseline)
         )
+    if objective == "latency":
+        return latency < float(baseline.get("latency_cycles") or 0) and _resource_feasible(report, baseline)
+    if objective == "performance":
+        return (
+            (latency < float(baseline.get("latency_cycles") or 0) or interval < float(baseline.get("interval_cycles") or 0))
+            and _resource_feasible(report, baseline)
+        )
     return resource_score < float(baseline.get("resource_score") or 0) and _resource_feasible(report, baseline)
 
 
@@ -619,7 +651,7 @@ def main() -> int:
     parser.add_argument("--samples", default="models/mnist_recognition/mnist_test_inputs_20.dat")
     parser.add_argument("--labels", default="models/mnist_recognition/mnist_test_labels_20.json")
     parser.add_argument("--output-root", default=None)
-    parser.add_argument("--objective", choices=["resource", "balanced", "throughput"], default="resource")
+    parser.add_argument("--objective", choices=["resource", "balanced", "latency", "throughput", "performance"], default="resource")
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--required-correct", type=int, default=19)
     parser.add_argument("--clock-period", type=float, default=15.0)
@@ -627,6 +659,7 @@ def main() -> int:
     parser.add_argument("--vivado-hls-path", default=os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH") or r"D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat")
     parser.add_argument("--continue-run", action="store_true", help="Load existing summary/attempts and append more LLM repair attempts.")
     args = parser.parse_args()
+    args.objective = normalize_objective_mode(args.objective, default="resource", strict=True)
 
     output_root_value = args.output_root or (
         "runs/llm_mnist_hls_candidate"
