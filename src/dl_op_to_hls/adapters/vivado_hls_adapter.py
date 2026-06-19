@@ -386,8 +386,11 @@ class VivadoHLSAdapter:
         if files["testbench_file"]:
             copied_tb = work_dir / Path(files["testbench_file"]).name
             shutil.copy2(files["testbench_file"], copied_tb)
-        if files["header_file"]:
-            shutil.copy2(files["header_file"], work_dir / Path(files["header_file"]).name)
+        copied_headers: list[str] = []
+        for header in sorted([*hls_project_dir.glob("*.h"), *hls_project_dir.glob("*.hpp")]):
+            destination = work_dir / header.name
+            shutil.copy2(header, destination)
+            copied_headers.append(str(destination))
         detected_top = bridge.extract_top_function(Path(code_file).read_text(encoding="utf-8", errors="ignore"))
         if not top_function:
             top_function = detected_top or hls_project_dir.name
@@ -406,6 +409,7 @@ class VivadoHLSAdapter:
             "work_dir": str(work_dir),
             "top_function": top_function,
             "testbench_path": str(copied_tb) if copied_tb else None,
+            "headers": copied_headers,
             "toolchain": self.hls_toolchain,
         }
 

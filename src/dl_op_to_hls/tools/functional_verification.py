@@ -266,7 +266,12 @@ def parse_csim_verification(
             "reason": "C simulation log contains a failure marker." if any(marker in lowered for marker in FAIL_MARKERS) else None,
         }
 
-    if any(marker in lowered for marker in FAIL_MARKERS) or "mismatch" in lowered:
+    has_fail_marker = any(marker in lowered for marker in FAIL_MARKERS)
+    has_pass_marker = any(marker in lowered for marker in PASS_MARKERS)
+    # Golden testbenches may print per-sample mismatch diagnostics while still
+    # meeting a run-level accuracy threshold. In that case the explicit pass
+    # marker is authoritative unless a hard failure marker is also present.
+    if has_fail_marker or ("mismatch" in lowered and not has_pass_marker):
         return {
             "status": "csim_failed",
             "passed": False,
@@ -276,7 +281,7 @@ def parse_csim_verification(
             "comparison": comparison,
             "reason": "C simulation log contains a failure marker.",
         }
-    if any(marker in lowered for marker in PASS_MARKERS):
+    if has_pass_marker:
         return {
             "status": "csim_passed",
             "passed": True,

@@ -6,6 +6,118 @@
 
 ---
 
+## 2026-06-19 08:23:48 +08:00：MNIST LLM direct HLS candidate 资源压缩与真实 Vivado 验证
+### 1. 本次测试做了什么
+按照“不要只做 LLM 读矩阵调参，也要测试 LLM 直接生成 HLS candidate”的方向，新增并运行：
+
+```text
+scripts/llm_mnist_hls_candidate.py
+```
+
+测试链路：
+
+```text
+DeepSeek-V4-Pro 生成 HLS candidate 策略与 top function 实现
+  -> 注入真实 ONNX 权重和 20 张 MNIST golden 样本
+  -> CandidateSandbox 静态扫描
+  -> Vivado HLS 2018.3 真实 csim_design + csynth_design
+  -> golden testbench 判断 accuracy >= 19/20
+  -> 解析 latency/resource/timing report
+```
+
+运行配置：
+
+```text
+LLM base_url = https://api.deepseek.com
+LLM model = deepseek-v4-pro
+HLS tool = D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat
+clock = 15ns
+required_correct = 19/20
+```
+
+基线为上一轮 hls4ml resource-priority profile：
+
+| Path | Accuracy | Latency | BRAM | DSP | FF | LUT | Score |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| hls4ml resource-priority | 19/20 | 2135 | 47 | 64 | 5999 | 17899 | 41398 |
+
+本轮真实 LLM candidate 尝试：
+
+| Attempt | Candidate | CSim | Latency | BRAM | DSP | FF | LUT | Score | 结论 |
+|---:|---|---|---:|---:|---:|---:|---:|---:|---|
+| 1 | `mnist_minimal_serial_8bit` | failed | - | - | - | - | - | - | 8-bit activation 路径 csim 失败 |
+| 2 | `mnist_mixed_fixed_16_8` | passed | 105409 | 34 | 3 | 302 | 602 | 4904 | 首个 verified direct candidate |
+| 3 | `mnist_serial_32bit_fix` | passed | 107777 | 35 | 3 | 356 | 733 | 5189 | 资源不如 attempt 2 |
+| 4 | `mnist_fixed32_nosat` | failed | - | - | - | - | - | - | LLM 写成 `accum_t`，编译失败 |
+| 5 | `mnist_serial_narrow_16_4` | passed | 157953 | 18 | 0 | 422 | 1443 | 3665 | 消除 DSP，BRAM 明显下降 |
+| 6 | `mnist_narrow_accum_24` | passed | 157953 | 18 | 0 | 371 | 911 | 3082 | 更窄 accumulator 降低 LUT/FF |
+| 7 | `mnist_narrow_accum_20` | passed | 157953 | 18 | 0 | 347 | 899 | 3046 | 当前最佳 resource-first candidate |
+| 8 | `mnist_narrow_accum_15_14` | failed | - | - | - | - | - | - | accuracy 降到 3/20，被 golden testbench 拒绝 |
+
+当前最佳：
+
+```text
+candidate = mnist_narrow_accum_20
+data_t    = ap_fixed<16,4,AP_RND,AP_SAT>
+weight_t  = ap_fixed<8,4,AP_RND,AP_SAT>
+acc_t     = ap_fixed<20,16,AP_RND>
+BRAM      = 18
+DSP       = 0
+FF        = 347
+LUT       = 899
+Latency   = 157953 cycles
+CSim      = GOLDEN_CHECK_PASSED, 19/20
+Timing    = met
+```
+
+相对 hls4ml resource-priority 基线：
+
+| 指标 | hls4ml | LLM direct candidate | 变化 |
+|---|---:|---:|---:|
+| BRAM | 47 | 18 | -61.7% |
+| DSP | 64 | 0 | -100.0% |
+| FF | 5999 | 347 | -94.2% |
+| LUT | 17899 | 899 | -95.0% |
+| Score | 41398 | 3046 | -92.6% |
+| Latency | 2135 | 157953 | +74.0x |
+
+### 2. 遇到的问题与根因
+1. `parse_csim_verification` 误把 `MNIST_SAMPLE_MISMATCH` 调试行当成整体失败。根因是 parser 只要看到 `mismatch` 就判 `csim_failed`，没有优先识别 `GOLDEN_CHECK_PASSED accuracy=19/20 required=19`。
+2. LLM plan 中出现合法的四参数 `ap_fixed<16,4,AP_RND,AP_SAT>`，但脚本最初只接受二参数 `ap_fixed<W,I>`，导致实际类型悄悄回退到默认值。根因是类型 guard 过窄，会造成“LLM 设计意图”和“真实综合代码”不一致。
+3. attempt 4 中 LLM 使用了不存在的 `accum_t` 类型名。该错误被真实 Vivado csim 编译阶段捕获，说明 candidate 路径必须保留真实编译验证，不能信任 LLM。
+4. attempt 8 把 accumulator 进一步压到 `ap_fixed<15,14>` 后 accuracy 降到 3/20。根因是过度压缩 accumulator 小数精度/表达能力，分类 logits 退化为几乎全预测 0。
+5. 第二次追加尝试时，脚本在 Windows GBK 控制台打印 LLM 返回文本中的特殊连字符时报 `UnicodeEncodeError`。根因是 stdout 编码不是 UTF-8。
+6. 运行单测时默认 `C:\Users\IC\AppData\Local\Temp\pytest-of-IC` 权限异常，导致 `tmp_path` fixture setup 报 `PermissionError`。这是本机临时目录权限问题，不是代码逻辑失败。
+
+### 3. 已完成修复
+1. 修复 `parse_csim_verification`：当日志中没有 hard fail marker 且存在 `GOLDEN_CHECK_PASSED` 时，pass marker 优先于普通 mismatch 调试行。
+2. 新增单测 `test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log`，锁定“accuracy threshold pass”的解析行为。
+3. `llm_mnist_hls_candidate.py` 支持合法 2/3/4 参数 `ap_fixed`，并把 `effective_types` 写入 plan artifact，避免隐式回退。
+4. `llm_mnist_hls_candidate.py` 支持 `--continue-run`，可以加载历史 attempt summary，继续让 LLM 根据真实失败/成功结果迭代。
+5. `llm_mnist_hls_candidate.py` 将 stdout/stderr reconfigure 为 UTF-8，避免 Unicode LLM 文本导致脚本失败。
+6. `VivadoHLSAdapter.create_project` 对普通 candidate 工程复制所有 `.h/.hpp` 头文件，而不再只复制第一个 header；新增 `test_vivado_create_project_copies_all_candidate_headers`。
+7. 新增文档 `docs/mnist_llm_candidate_optimization.md`，记录 LLM direct candidate 方法、attempt matrix、当前最佳资源结果和 latency/resource trade-off。
+
+已运行测试：
+
+```powershell
+$env:PYTHONPATH='src'
+pytest tests\test_functional_verification.py -q --basetemp runs\_pytest_tmp2
+```
+
+结果：
+
+```text
+16 passed, 1 skipped
+```
+
+### 4. 未完成或后续建议
+1. 当前 LLM direct candidate 是 resource-first Pareto 点，latency 比 hls4ml 高约 74x；后续可以把它作为“资源优先路径”，并保留 hls4ml profile 作为“低延迟/标准路径”。
+2. 当前 golden testbench 使用 20 样本，适合演示和开发期快速验证；如果要上板或论文级对比，需要扩展到更大 MNIST 测试集样本。
+3. attempt 8 已证明继续压 accumulator 会明显损害 accuracy；下一步若还要压 BRAM，需要考虑权重压缩/稀疏化/分块加载，但这会更接近模型压缩或系统级存储策略。
+
+---
+
 ## 2026-06-18 23:56:44 +08:00：MNIST per-layer precision + clock 资源优化、真实工具开关修复
 ### 1. 本次测试做了什么
 继续围绕真实 MNIST 识别 demo 做资源压缩，目标是不改变模型拓扑、不写定制 RTL，在 HLS csim 识别正确率不下降的前提下尽量降低 FPGA 资源。

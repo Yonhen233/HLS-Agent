@@ -39,6 +39,22 @@ def test_parse_csim_verification_from_golden_log(tmp_path):
     assert result["passed"] is True
 
 
+def test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log(tmp_path):
+    log = tmp_path / "csynth.log"
+    log.write_text(
+        "Starting C simulation...\n"
+        "MNIST_SAMPLE_MISMATCH n=8 pred=6 label=5\n"
+        "MNIST_LLM_CANDIDATE_ACCURACY 19/20\n"
+        "GOLDEN_CHECK_PASSED accuracy=19/20 required=19\n"
+        "INFO: [SIM 211-1] CSim done with 0 errors.\n",
+        encoding="utf-8",
+    )
+    result = parse_csim_verification(log, work_dir=tmp_path)
+    assert result["status"] == "csim_passed"
+    assert result["passed"] is True
+    assert result["mode"] == "golden_testbench"
+
+
 def test_parse_csim_verification_compares_hls4ml_outputs(tmp_path):
     tb_data = tmp_path / "tb_data"
     tb_data.mkdir()
