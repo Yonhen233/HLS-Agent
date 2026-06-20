@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--name", required=True, help="Probe directory name under runs/.")
     parser.add_argument("--model-path", required=True)
+    parser.add_argument(
+        "--hls-project-dir",
+        help="Reuse an already generated HLS project instead of running hls4ml conversion again.",
+    )
+    parser.add_argument("--top-function", default="myproject")
     parser.add_argument("--input-path")
     parser.add_argument("--labels-path")
     parser.add_argument("--samples", type=int, default=2)
@@ -68,40 +73,49 @@ def main(argv: list[str] | None = None) -> int:
         "num_samples": args.samples,
     }
 
-    hls4ml = HLS4MLAdapter(mock_mode=False)
-    config_args = {
-        "model_path": args.model_path,
-        "frontend": "onnx",
-        "backend": "Vivado",
-        "part": args.part,
-        "clock_period": args.clock_period,
-        "precision": args.precision,
-        "reuse_factor": args.reuse_factor,
-        "strategy": args.strategy,
-        "io_type": args.io_type,
-        "output_dir": str(root),
-    }
-    if args.accumulator_precision:
-        config_args["accumulator_precision"] = args.accumulator_precision
-    if args.pipeline_style:
-        config_args["model_overrides"] = {"PipelineStyle": args.pipeline_style}
-    config = hls4ml.generate_config(config_args)
-    print(json.dumps({"config": config}, indent=2), flush=True)
-    if config.get("status") != "success":
-        return 2
-
-    converted = hls4ml.convert(
-        {
+    if args.hls_project_dir:
+        converted = {
+            "status": "success",
+            "hls_project_dir": str(Path(args.hls_project_dir)),
+            "top_function": args.top_function,
+            "mode": "existing_hls_project",
+        }
+        print(json.dumps({"converted": converted}, indent=2), flush=True)
+    else:
+        hls4ml = HLS4MLAdapter(mock_mode=False)
+        config_args = {
             "model_path": args.model_path,
             "frontend": "onnx",
-            "config_path": config["config_path"],
-            "output_dir": str(root / "hls_project"),
-            "reference_data": reference_data,
+            "backend": "Vivado",
+            "part": args.part,
+            "clock_period": args.clock_period,
+            "precision": args.precision,
+            "reuse_factor": args.reuse_factor,
+            "strategy": args.strategy,
+            "io_type": args.io_type,
+            "output_dir": str(root),
         }
-    )
-    print(json.dumps({"converted": converted}, indent=2), flush=True)
-    if converted.get("status") != "success":
-        return 3
+        if args.accumulator_precision:
+            config_args["accumulator_precision"] = args.accumulator_precision
+        if args.pipeline_style:
+            config_args["model_overrides"] = {"PipelineStyle": args.pipeline_style}
+        config = hls4ml.generate_config(config_args)
+        print(json.dumps({"config": config}, indent=2), flush=True)
+        if config.get("status") != "success":
+            return 2
+
+        converted = hls4ml.convert(
+            {
+                "model_path": args.model_path,
+                "frontend": "onnx",
+                "config_path": config["config_path"],
+                "output_dir": str(root / "hls_project"),
+                "reference_data": reference_data,
+            }
+        )
+        print(json.dumps({"converted": converted}, indent=2), flush=True)
+        if converted.get("status") != "success":
+            return 3
 
     vivado = VivadoHLSAdapter(mock_mode=False, vivado_hls_path=args.vivado_hls_path)
     create = vivado.create_project(

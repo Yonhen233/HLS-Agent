@@ -6,6 +6,63 @@
 
 ---
 
+## 2026-06-20 12:05:13 +08:00：16->32->64 CIFAR-10 紧凑 CNN 的真实 FIFO/定点资源闭环通过，启动双配方 GPU 精度验证
+### 1. 真实 HLS 验证范围
+本轮不使用 mock，也没有用估算资源替代综合报告。验证对象保持用户指定的推理骨架：
+
+```text
+32x32x3 -> Conv(3->16) -> ReLU -> MaxPool
+        -> Conv(16->32) -> ReLU -> MaxPool
+        -> Conv(32->64) -> ReLU -> GlobalAveragePool -> Dense(64->10)
+```
+
+初始 `fixed<18,8> / accum=fixed<30,14>` 版本在真实 `csim + csynth` 中通过功能对照和时序，但资源为 BRAM 80、DSP 113、FF 41,217、LUT 59,336；LUT 达到 111%，不能放入 `xc7z020clg400-1`。
+
+### 2. FIFO 深度实测优化
+新增 `scripts/optimize_hls4ml_fifo_depths.py`，通过 hls4ml 原生 `vivado:fifo_depth_optimization` 的真实 RTL cosim 产物 `max_depth.json` 获取 dataflow FIFO 的实际占用上界，而不是采用固定大深度。为兼容 Vivado HLS 2018.3，profile 期间复用已有的 legacy source sanitizer；profile 完成后恢复未观测 stream 的原始 pragma，避免将 profiler 深度错误固化。
+
+在同一 16->32->64 图中，最终独立 CSim 通过（2 个样本，20 个 logit，`max_abs_error=0.00832`）；18 位 FIFO 优化后的真实综合资源为：
+
+| Precision | BRAM | DSP | FF | LUT | Timing | 是否可放置 |
+|---|---:|---:|---:|---:|---|---|
+| `fixed<18,8>` | 80 (28%) | 113 (51%) | 41,217 (38%) | 59,336 (111%) | 13.115ns, met | 否 |
+| `fixed<16,6>` | 74 (26%) | 113 (51%) | 38,277 (35%) | 57,248 (107%) | 13.104ns, met | 否 |
+| `fixed<12,4>` | 63 (22%) | 113 (51%) | 32,813 (30%) | 54,166 (101%) | 13.082ns, met | 否 |
+| `fixed<10,4>` | 56 (20%) | 113 (51%) | 29,386 (27%) | 47,459 (89%) | 13.071ns, met | 是 |
+
+`fixed<10,4> / accum=fixed<22,10>` 的真实 `csim + csynth` 已通过。CSim 的绝对误差为 `0.04410`（2 个随机/参考输入），仍在当前比较容差内；相对误差在接近零的 logit 上较大，不能据此推断最终分类精度，因此后续必须以完整 CIFAR-10 分类准确率和较大样本 HLS argmax 对照为准。
+
+### 3. 发现的问题与工程修复
+1. FIFO profile 的 `max_depth.json` 使用的是 C++ stream variable 名，而 `ModelGraph.output_vars` 的字典键可能是 ONNX layer 名。首次复用 profile 时因此没有命中实际输出变量。现已按 `variable.name` 匹配，并以独立 CSim 验证生成工程。
+2. hls4ml profile writer 会重新写出对 Vivado 2018.3 不友好的新版本工具头文件。现已在 profile 执行期间临时抑制重复 writer，并在最终写出后再次运行既有 sanitizer；这是兼容性修复，不是回退到 mock。
+3. `run_real_hls_probe.py` 原本只能执行“重新转换再综合”。现支持 `--hls-project-dir` 和 `--top-function`，使同一真实 HLS 工程可在 CSim、csynth 与精度对照间复用，避免实验变量混杂。
+
+新增 parser 回归测试，验证既有 HLS 工程和既有 FIFO profile artifact 的复用接口。执行：
+
+```text
+$env:PYTHONPATH='src'; python -m py_compile scripts/run_real_hls_probe.py scripts/optimize_hls4ml_fifo_depths.py
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp_fifo_cli -q \
+  tests/test_real_hls_probe_cli.py tests/test_fifo_optimization_cli.py \
+  tests/test_hls4ml_mcp.py tests/test_vivado_hls_mcp.py
+```
+
+结果：`28 passed, 7 skipped`。
+
+### 4. GPU 训练已启动
+硬件可行候选确定后，远端两张空闲 RTX 3090 已并行启动完整 50,000/10,000 CIFAR-10 训练：
+
+1. `16->32->64 + BatchNorm + Normalize + crop/flip + AutoAugment` 的纯监督版本。
+2. 同一学生模型的轻量知识蒸馏版本，使用已验证 88.89% 的 `32->64->128` VGG-GAP teacher，`alpha=0.2`、`temperature=4`。
+
+BatchNorm 仅用于训练稳定性；导出 ONNX 后由 adapter 折叠进前一层卷积，不会增加最终 HLS 推理图层。训练结束后需要选择真实准确率更高的 checkpoint，重新导出 ONNX，并重新执行 hls4ml、较大样本 CSim/argmax 对照和 csynth。当前不能因资源通过就宣称已经达到 `>=80%` CIFAR-10 准确率。
+
+### 5. 未完成项
+- 两个训练作业仍在执行，尚无最终精度结论。
+- `fixed<10,4>` 的训练后权重需要用 calibration range 检查溢出风险；必要时采用量化感知训练或分层精度，而不是降低验证标准。
+- 不提交无关 PPT、面试文档、pytest 临时目录或本地模型/运行产物。
+
+---
+
 ## 2026-06-20 04:06:04 +08:00：CIFAR-10 精确紧凑 CNN 的 HLS 里程碑回归通过，并启动不改变部署拓扑的蒸馏训练
 ### 1. 已完成的真实 HLS 里程碑
 目标网络保持为：

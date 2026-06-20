@@ -670,6 +670,7 @@ class HLS4MLAdapter:
         hls_config: dict[str, Any],
         part: str,
         clock_period: Any,
+        return_model_graph: bool = False,
     ) -> dict[str, Any]:
         import hls4ml  # type: ignore
         from hls4ml.converters import _check_hls_config, _check_model_config, create_config  # type: ignore
@@ -712,7 +713,12 @@ class HLS4MLAdapter:
         _check_hls_config(config, hls_config)
         model_graph = ModelGraph.from_layer_list(config, layer_list, inputs=[input_layer], outputs=[output_layer])
         model_graph.write()
-        return {"rewrites": rewrites, "layer_count": len(layer_list), "backend": backend}
+        result: dict[str, Any] = {"rewrites": rewrites, "layer_count": len(layer_list), "backend": backend}
+        if return_model_graph:
+            # The FIFO profiler must operate on the in-memory graph after its
+            # generated testbench inputs have been written by the caller.
+            result["_model_graph"] = model_graph
+        return result
 
     def _h5_frontend_result(self, task_or_path: dict[str, Any] | str, source: str) -> dict[str, Any]:
         if isinstance(task_or_path, dict):
