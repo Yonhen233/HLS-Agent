@@ -55,3 +55,40 @@ def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
     assert "CandidateSandbox" in exc.value.error.message
     assert exc.value.error.details["violations"]
     assert not (run_dir / "candidate" / "bad.cpp").exists()
+
+
+def test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point():
+    payload = {
+        "files": [
+            {
+                "relative_path": "candidate/top.cpp",
+                "content": "#pragma HLS INTERFACE m_axi port=input\nvoid top() {}\n",
+            }
+        ]
+    }
+
+    result = CandidateSandbox().scan_candidate_payload(payload, contract={"data_bitwidth": 10})
+
+    assert result["status"] == "invalid"
+    assert result["violations"][0]["rule"] == "non_byte_aligned_m_axi"
+
+
+def test_candidate_sandbox_rejects_large_complete_mutable_activation_partition():
+    payload = {
+        "files": [
+            {
+                "relative_path": "candidate/top.cpp",
+                "content": (
+                    "void top() {\n"
+                    "  data_t feature_map[16][32][32];\n"
+                    "  #pragma HLS ARRAY_PARTITION variable=feature_map complete dim=1\n"
+                    "}\n"
+                ),
+            }
+        ]
+    }
+
+    result = CandidateSandbox().scan_candidate_payload(payload)
+
+    assert result["status"] == "invalid"
+    assert result["violations"][0]["rule"] == "large_mutable_complete_partition"

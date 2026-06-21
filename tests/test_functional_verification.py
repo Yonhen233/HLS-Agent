@@ -137,6 +137,16 @@ def test_parse_csim_verification_reports_assertion_failure(tmp_path):
     assert result["reason"] == "C simulation log contains a failure marker."
 
 
+def test_parse_csim_verification_reports_compiler_failure(tmp_path):
+    log = "Starting C simulation...\ncc1plus.exe: out of memory allocating 65536 bytes\nERROR: [SIM 211-100] 'csim_design' failed\n"
+    path = tmp_path / "compiler_failure.log"
+    path.write_text(log, encoding="utf-8")
+    result = parse_csim_verification(path)
+
+    assert result["status"] == "csim_failed"
+    assert result["passed"] is False
+
+
 def test_write_onnx_reference_data(tmp_path):
     pytest.importorskip("onnx")
     pytest.importorskip("onnxruntime")

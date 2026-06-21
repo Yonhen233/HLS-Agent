@@ -17,6 +17,9 @@ FAIL_MARKERS = (
     "csim failed",
     "c simulation failed",
     "simulation failed",
+    "csim_design' failed",
+    "compilation error",
+    "out of memory allocating",
     "verificationfailed",
 )
 
@@ -209,6 +212,7 @@ def parse_csim_verification(
     log = Path(log_path) if log_path else None
     log_text = log.read_text(encoding="utf-8", errors="ignore") if log and log.exists() else ""
     lowered = log_text.lower()
+    has_fail_marker = any(marker in lowered for marker in FAIL_MARKERS)
     base_dir = Path(work_dir) if work_dir else (log.parent if log else None)
     inferred_reference = Path(reference_path) if reference_path else None
     inferred_output = Path(output_path) if output_path else None
@@ -258,10 +262,13 @@ def parse_csim_verification(
                             )
             except Exception as exc:
                 classification = {"status": "parse_error", "reason": str(exc), "manifest_path": str(manifest_path)}
-        status = "csim_passed" if comparison.get("passed") else "csim_failed"
+        # A numerical output file is not proof of a completed simulation.  A
+        # compiler/runtime failure must win over stale or partially written
+        # output artifacts from the work directory.
+        status = "csim_passed" if comparison.get("passed") and not has_fail_marker else "csim_failed"
         return {
             "status": status,
-            "passed": bool(comparison.get("passed")),
+            "passed": bool(comparison.get("passed")) and not has_fail_marker,
             "mode": "hls4ml_reference_compare",
             "csim_executed": any(marker in lowered for marker in (*PASS_MARKERS, *FAIL_MARKERS, "processing input", "csim finish")),
             "log_path": str(log) if log else None,
@@ -269,10 +276,9 @@ def parse_csim_verification(
             "output_path": str(inferred_output),
             "comparison": comparison,
             "classification": classification,
-            "reason": "C simulation log contains a failure marker." if any(marker in lowered for marker in FAIL_MARKERS) else None,
+            "reason": "C simulation log contains a failure marker." if has_fail_marker else None,
         }
 
-    has_fail_marker = any(marker in lowered for marker in FAIL_MARKERS)
     has_pass_marker = any(marker in lowered for marker in PASS_MARKERS)
     # Golden testbenches may print per-sample mismatch diagnostics while still
     # meeting a run-level accuracy threshold. In that case the explicit pass

@@ -44,3 +44,24 @@ def test_cifar10_training_parser_exposes_student_only_distillation_options():
     assert args.autoaugment is True
     assert args.random_erasing_probability == 0.2
     assert args.mixup_alpha == 0.1
+
+
+def test_cifar10_training_parser_exposes_custom_gap_stage_counts():
+    parser = _training_script_module().build_parser()
+    args = parser.parse_args(
+        [
+            "--architecture",
+            "custom_gap",
+            "--channels",
+            "12",
+            "24",
+            "48",
+            "--convs-per-stage",
+            "1",
+            "2",
+            "1",
+        ]
+    )
+
+    assert args.architecture == "custom_gap"
+    assert args.convs_per_stage == [1, 2, 1]

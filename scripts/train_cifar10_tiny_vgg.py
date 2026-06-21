@@ -73,12 +73,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hidden", type=int, default=32)
     parser.add_argument(
         "--architecture",
-        choices=["tiny_vgg", "gap_cnn", "vgg_gap"],
+        choices=["tiny_vgg", "gap_cnn", "vgg_gap", "custom_gap"],
         default="tiny_vgg",
         help=(
             "tiny_vgg uses two pools and a dense hidden head; gap_cnn uses Conv/Pool/Conv/Pool/Conv/GAP/Dense; "
-            "vgg_gap uses two 3x3 convs per stage and GAP."
+            "vgg_gap uses two 3x3 convs per stage and GAP; custom_gap chooses one or two convolutions per stage."
         ),
+    )
+    parser.add_argument(
+        "--convs-per-stage",
+        type=int,
+        nargs=3,
+        default=[1, 1, 1],
+        metavar=("S1", "S2", "S3"),
+        help="Conv/ReLU count for each custom_gap stage; the first two stages are followed by MaxPool.",
     )
     parser.add_argument("--augment", action="store_true", help="Use lightweight random crop/flip augmentation for training only.")
     parser.add_argument("--autoaugment", action="store_true", help="Apply the CIFAR-10 AutoAugment policy during training only.")
@@ -330,14 +338,34 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     class CifarTinyVGG(nn.Module):
-        def __init__(self, architecture: str, channels: tuple[int, int, int], batchnorm: bool, hidden_size: int) -> None:
+        def __init__(self, architecture: str, channels: tuple[int, int, int], batchnorm: bool, hidden_size: int, convs_per_stage=(1, 1, 1)) -> None:
             super().__init__()
             self.architecture = str(architecture)
             c1_local, c2_local, c3_local = channels
+            norm = nn.BatchNorm2d if batchnorm else nn.Identity
+            if self.architecture == "custom_gap":
+                stage_counts = tuple(int(value) for value in convs_per_stage)
+                if any(value < 1 or value > 2 for value in stage_counts):
+                    raise ValueError("custom_gap convs_per_stage values must be 1 or 2")
+
+                def stage(in_channels: int, out_channels: int, count: int):
+                    blocks = []
+                    current_channels = in_channels
+                    for _ in range(count):
+                        blocks.extend([nn.Conv2d(current_channels, out_channels, kernel_size=3, padding=1), norm(out_channels), nn.ReLU()])
+                        current_channels = out_channels
+                    return nn.Sequential(*blocks)
+
+                self.stage1 = stage(3, c1_local, stage_counts[0])
+                self.stage2 = stage(c1_local, c2_local, stage_counts[1])
+                self.stage3 = stage(c2_local, c3_local, stage_counts[2])
+                self.gap = nn.AdaptiveAvgPool2d((1, 1))
+                self.fc = nn.Linear(c3_local, 10)
+                return
+
             self.conv1 = nn.Conv2d(3, c1_local, kernel_size=3, padding=1)
             self.conv2 = nn.Conv2d(c1_local, c2_local, kernel_size=3, padding=1)
             self.conv3 = nn.Conv2d(c2_local, c3_local, kernel_size=3, padding=1)
-            norm = nn.BatchNorm2d if batchnorm else nn.Identity
             self.bn1 = norm(c1_local)
             self.bn2 = norm(c2_local)
             self.bn3 = norm(c3_local)
@@ -359,6 +387,11 @@ def main(argv: list[str] | None = None) -> int:
                 self.fc2 = nn.Linear(hidden_size, 10)
 
         def forward(self, x):
+            if self.architecture == "custom_gap":
+                x = self.pool(self.stage1(x))
+                x = self.pool(self.stage2(x))
+                x = self.stage3(x)
+                return self.fc(self.gap(x).flatten(1))
             if self.architecture == "vgg_gap":
                 x = F.relu(self.bn1(self.conv1(x)))
                 x = self.pool(F.relu(self.bn1b(self.conv1b(x))))
@@ -389,8 +422,15 @@ def main(argv: list[str] | None = None) -> int:
         channels: list[int] | tuple[int, int, int],
         batchnorm: bool,
         hidden_size: int,
+        convs_per_stage: list[int] | tuple[int, int, int] = (1, 1, 1),
     ) -> CifarTinyVGG:
-        return CifarTinyVGG(str(architecture), tuple(int(value) for value in channels), bool(batchnorm), int(hidden_size))
+        return CifarTinyVGG(
+            str(architecture),
+            tuple(int(value) for value in channels),
+            bool(batchnorm),
+            int(hidden_size),
+            tuple(int(value) for value in convs_per_stage),
+        )
 
     normalize_layers = (
         [transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2470, 0.2435, 0.2616))]
@@ -433,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
     train_loader = DataLoader(Subset(train_ds, train_indices), shuffle=True, **loader_options)
     eval_loader = DataLoader(Subset(test_ds, eval_indices), shuffle=False, **loader_options)
 
-    model = build_model(args.architecture, (c1, c2, c3), args.batchnorm, hidden).to(device)
+    model = build_model(args.architecture, (c1, c2, c3), args.batchnorm, hidden, args.convs_per_stage).to(device)
     if args.weights_path:
         weights_path = Path(args.weights_path)
         if not weights_path.exists():
@@ -668,7 +708,7 @@ def main(argv: list[str] | None = None) -> int:
         "architecture": (
             f"{args.architecture}-CIFAR10(input=3x{args.image_size}x{args.image_size}, "
             f"conv{c1}, conv{c2}, conv{c3}, "
-            f"{'vgg blocks, gap, dense10' if args.architecture == 'vgg_gap' else 'gap, dense10' if args.architecture == 'gap_cnn' else f'dense{hidden}, dense10'})"
+            f"{'vgg blocks, gap, dense10' if args.architecture == 'vgg_gap' else 'custom stage conv counts ' + str([int(value) for value in args.convs_per_stage]) + ', gap, dense10' if args.architecture == 'custom_gap' else 'gap, dense10' if args.architecture == 'gap_cnn' else f'dense{hidden}, dense10'})"
         ),
         "model_family": args.architecture,
         "channels": [c1, c2, c3],

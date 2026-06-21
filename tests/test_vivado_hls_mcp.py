@@ -132,6 +132,29 @@ def test_vivado_run_csim_real_adapter_uses_stage_tcl(tmp_path, monkeypatch):
     assert Path(captured["tcl_file_path"]).name == "csim_stage.tcl"
 
 
+def test_vivado_run_csim_rejects_compiler_error_even_when_bridge_reports_success(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    _write_design(project_dir)
+    fake_vivado = tmp_path / "vivado_hls.bat"
+    fake_vivado.write_text("@echo off\n", encoding="utf-8")
+    adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path=str(fake_vivado))
+    create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vivado")})
+
+    class FakeBridge:
+        def run_with_existing_tcl(self, **kwargs):
+            log_path = Path(kwargs["design_dir"]) / kwargs["log_filename"]
+            log_path.write_text("Starting C simulation...\ncc1plus.exe: out of memory allocating 65536 bytes\nERROR: [SIM 211-100] 'csim_design' failed\n", encoding="utf-8")
+            return {"project_dir": kwargs["design_dir"], "synthesis": {"status": "success", "log_path": str(log_path)}}
+
+    monkeypatch.setattr(adapter, "_binary_available", lambda: True)
+    monkeypatch.setattr(adapter, "_bridge", lambda work_dir: FakeBridge())
+
+    result = adapter.run_csim({"work_dir": create["work_dir"], "top_function": "demo"})
+
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] == "VerificationFailedError"
+
+
 def test_vivado_missing_binary_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)
     adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path="")

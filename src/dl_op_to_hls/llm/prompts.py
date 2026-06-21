@@ -77,6 +77,12 @@ Follow any op_spec.candidate_contract exactly. If it provides a top_function,
 signature, dimensions, dtype, or operation formula, do not invent a different
 interface. The testbench must call the generated top function, compute a golden
 reference, print GOLDEN_CHECK_PASSED on success, and return non-zero on failure.
+For fixed-point candidates, also follow hls_contract exactly: never use m_axi
+when data_bitwidth is not a multiple of eight; never fully partition a mutable
+feature-map array larger than max_complete_partition_elements. Prefer bounded
+local buffers or explicitly controlled RAM storage over materializing large
+fully-partitioned tensors. These are hard compilation/resource constraints,
+not optional optimization suggestions.
 If op_spec.candidate_generation_context.repair_reason is timing_not_met,
 regenerate the implementation to improve timing closure while preserving the
 same interface and golden behavior. Prefer shorter critical paths, explicit

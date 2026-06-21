@@ -6,6 +6,61 @@
 
 ---
 
+## 2026-06-21 18:30:41 +08:00：CIFAR-10 进入分层架构筛选，LLM HLS candidate 增加综合前契约守门并启动三组真实 GPU 训练
+### 1. 本轮目标与判断原则
+前序真实结果形成两个不能混淆的锚点：三层 `16->32->64` 在 `fixed<10,4>` 下可放入 `xc7z020clg400-1`，但最高测试准确率为 77.14%；六层 `12->24->48` VGG-GAP 可达到 83.30%，但真实报告为 BRAM 394/280、LUT 71,276/53,200，无法部署。本轮不再直接为任意结构启动长时间综合，而是先以训练可达性、静态工作量和已测 Vivado 锚点进行候选筛选，再对少数候选执行真实 CSim/csynth。
+
+### 2. 新增静态架构筛选器
+新增 `src/dl_op_to_hls/tools/cifar_architecture_screen.py` 与 `scripts/screen_cifar_architectures.py`。它计算三阶段 CNN 的 MAC、参数量、峰值激活规模和卷积层数，并用上述两个真实 Vivado HLS 2018.3 dataflow 结果校准 BRAM/LUT 的低置信筛选估计。实现明确标注其只能用于排序，绝不能替代真实报告。
+
+当前筛选结论：
+
+| Candidate | MACs | 估计 LUT | 估计 BRAM | 决策 |
+|---|---:|---:|---:|---|
+| `16->32->64, [1,1,1]` | 2,802,304 | 47,459 | 56 | 真实已验证的可综合锚点 |
+| `12->24->48, [1,2,1]` | 2,986,464 | 49,004 | 161 | 边界候选，值得训练 |
+| `14->24->48, [1,2,1]` | 3,152,352 | 50,396 | 163 | 边界候选，值得训练 |
+| `12->24->64, [1,2,1]` | 3,207,808 | 50,862 | 163 | 边界候选，值得训练 |
+| `12->20->40, [1,2,2]` | 3,189,136 | 50,705 | 266 | 深度优先边界候选，真实综合必须重点检查 BRAM |
+| `12->24->48, [2,2,2]` | 5,640,672 | 71,276 | 394 | 综合前拒绝，与真实超限锚点一致 |
+
+这三组四层候选是人为/GPT 设计的模型结构搜索，不是把模型架构设计委托给 HLS Agent 或外部 LLM；HLS Agent 的 LLM candidate 职责仍然是针对既定模型生成和修复 HLS 实现。
+
+### 3. 真实 GPU 训练
+远端四张 RTX 3090 已分别启动完整 50,000/10,000 CIFAR-10 训练：`12->24->48, [1,2,1]`、`14->24->48, [1,2,1]`、`12->24->64, [1,2,1]` 和 `12->20->40, [1,2,2]`，均为 `custom_gap`、BatchNorm（导出时可折叠）、Normalize、crop/flip、AutoAugment、轻量知识蒸馏。训练脚本通过绝对 conda 路径、`setsid` 与 `--no-capture-output` 启动，已确认所有作业进入 epoch 训练。验收仍是稳定 `>=80%` 测试准确率；未达到者不得进入 HLS 候选综合阶段。
+
+### 4. 真实 LLM candidate 暴露的缺陷与修复
+已测试 DeepSeek-V4-Pro 直接为固定 `12->24->48` VGG-KD 模型生成 HLS C++，安全扫描通过，但真实 Vivado 验证暴露两类不同问题：
+
+1. 初版对 `ap_fixed<10,6>` 端口使用 `m_axi`，Vivado HLS 2018.3 报端口位宽不是 8 的倍数，无法建立接口。
+2. 移除该接口 pragma 后，64 个真实 CIFAR reference 均出现 argmax 不一致；此前已完成的综合还显示 BRAM 85、FF 96,656、LUT 173,062（325%），说明候选既未通过功能门槛，也不满足资源门槛。
+
+因此没有把它标记为 verified，也没有把失败隐藏为 fallback。新增 `CandidateSandbox` HLS 契约检查：对非字节对齐定点端口拒绝 `m_axi`，并拒绝超过阈值的可变大数组 `ARRAY_PARTITION complete`，但允许紧凑常量权重继续使用分割。另新增 `scripts/run_direct_candidate_csim.py`，使此类候选能先经过真实 CSim，再决定是否投入长时间 csynth。
+
+随后的 `fixed<16,6> / accum<32,14>` 真实 CSim 对照没有证明原候选的语义正确：Vivado HLS 2018.3 在编译该 864 KB 权重头文件时报告 `cc1plus.exe: out of memory allocating 65536 bytes`，并以 `csim_design failed` 结束。该对照说明大模型 direct-candidate 还必须通过“目标精度下 CSim 可编译”的硬门槛。更重要的是，adapter 当时错误地把 bridge 的进程退出状态映射成 `status=success`；现已修复 `VivadoHLSAdapter.run_csim`，它会检查真实 log 中的编译/仿真错误并返回 `VerificationFailedError`。`parse_csim_verification` 同步新增 compiler OOM、`csim_design failed` 等失败标记，避免陈旧 output artifact 覆盖真实失败。
+
+### 5. 测试
+执行：
+
+```text
+$env:PYTHONPATH='src'; python -m py_compile src/dl_op_to_hls/tools/cifar_architecture_screen.py \
+  scripts/screen_cifar_architectures.py scripts/train_cifar10_tiny_vgg.py \
+  src/dl_op_to_hls/core/candidate_sandbox.py src/dl_op_to_hls/llm/candidate_generator.py
+$env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp_candidate_contract -q \
+  tests/test_candidate_sandbox.py tests/test_cifar_architecture_screen.py tests/test_cifar10_training_options.py
+```
+
+结果：`9 passed`。新增测试覆盖实测三层锚点复现、超限 VGG 的综合前拒绝、custom-gap 参数解析、非字节对齐 `m_axi` 拒绝以及大特征图 complete partition 拒绝。
+
+在 CSim 真值修复后，重新执行 `tests/test_vivado_hls_mcp.py`、`tests/test_functional_verification.py`、`tests/test_candidate_sandbox.py`、`tests/test_cifar_architecture_screen.py` 与 `tests/test_cifar10_training_options.py`，所有选中的测试通过（含新增“bridge 误报 success 但 Vivado log 有 compiler error”回归用例）。
+
+### 6. 未完成项
+- 四个远端训练尚未完成；任何一个达到目标后还需要拉回权重、导出 ONNX、做真实较大样本 CSim 与 csynth。
+- 静态筛选器当前只含两个真实合成锚点，置信度刻意标为低；未来须用新的真实综合结果增量校准，不可作为最终资源承诺。
+- 直接 LLM 生成大 CNN HLS 目前尚无通过功能和资源双门槛的实现；高精度 CSim 被 Vivado 2018.3 的编译器内存边界阻断，因此后续应优先针对训练后的四层小模型生成 candidate，而不是继续在已超资源的六层模型上消耗综合预算。
+
+---
+
 ## 2026-06-20 12:05:13 +08:00：16->32->64 CIFAR-10 紧凑 CNN 的真实 FIFO/定点资源闭环通过，启动双配方 GPU 精度验证
 ### 1. 真实 HLS 验证范围
 本轮不使用 mock，也没有用估算资源替代综合报告。验证对象保持用户指定的推理骨架：
@@ -55,6 +110,19 @@ $env:PYTHONPATH='src'; pytest -p no:cacheprovider --basetemp .pytest_tmp_fifo_cl
 2. 同一学生模型的轻量知识蒸馏版本，使用已验证 88.89% 的 `32->64->128` VGG-GAP teacher，`alpha=0.2`、`temperature=4`。
 
 BatchNorm 仅用于训练稳定性；导出 ONNX 后由 adapter 折叠进前一层卷积，不会增加最终 HLS 推理图层。训练结束后需要选择真实准确率更高的 checkpoint，重新导出 ONNX，并重新执行 hls4ml、较大样本 CSim/argmax 对照和 csynth。当前不能因资源通过就宣称已经达到 `>=80%` CIFAR-10 准确率。
+
+远端启动过程中还暴露并修复了两个真实的自动化环境问题：
+
+1. `nohup` 的非交互 shell 没有初始化 conda PATH，首次调用裸 `conda run` 立即报 `env: 'conda': No such file or directory`。修复为使用实际安装路径 `/opt/miniconda3/bin/conda`，不依赖登录 shell 的隐式配置。
+2. `conda run` 默认捕获子进程输出，导致长训的 log 在运行期为空，削弱了 Agent 对训练异常的可观测性。重启本次刚开始的作业时增加 `--no-capture-output`，配合 `setsid` 和全部标准流重定向；随后已实时确认监督版 epoch 12 为 62.20%、轻量蒸馏版 epoch 12 为 61.00%。
+
+两项 220 epoch 全量训练现已结束：监督版最佳测试准确率为 `76.82%`（epoch 209），轻量蒸馏版为 `77.14%`（epoch 215）。二者都没有达到 `>=80%` 目标。训练脚本在 `target_accuracy` 未满足时向 conda 返回非零状态，但 ONNX、best checkpoint、64 个 reference input/output、activation range 和完整 metrics 都已正常写出；这是明确的验收失败语义，不是 conda/GPU 运行失败。
+
+下一步已启动更深但更窄的 `12->24->48` VGG-GAP 候选的真实 hls4ml FIFO profile。该候选只有在真实 CSim/cosim 和 csynth 都确认能放入参考器件后，才会启动下一轮 GPU 长训。
+
+该并行验证现已完成：VGG-GAP 监督版最佳为 `83.08%`（epoch 168），轻量蒸馏版最佳为 `83.30%`（epoch 184），均超过目标。原始长路径 profile 在 Vivado HLS 2018.3 XSIM 的 snapshot 链接阶段失败且未生成 VCD；在保持图、精度、样本不变的短路径隔离实验中，C/RTL cosim 成功并生成 `max_depth.json`，确认该失败是 Windows 工具链的长路径/大型 snapshot 边界，而非模型转换失败。
+
+优化后的真实 VGG `csim + csynth` 报告为 BRAM `394/280`（140%）、DSP `169/220`（76%）、FF `56,938/106,400`（53%）、LUT `71,276/53,200`（133%），时序 `13.100ns` 满足 15ns 目标。故该 83.30% 模型当前不能放入参考板；后续应比较 `io_parallel`、分段 dataflow 或更窄通道结构，不能把训练精度成功等同于部署成功。
 
 ### 5. 未完成项
 - 两个训练作业仍在执行，尚无最终精度结论。

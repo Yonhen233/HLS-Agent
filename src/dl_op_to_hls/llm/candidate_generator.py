@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -27,9 +28,11 @@ class LLMCandidateGenerator:
         client,
         permission_gate,
     ) -> dict[str, Any]:
+        hls_contract = self._hls_contract(op_spec)
         payload = {
             "op_spec": op_spec,
             "rag_context": rag_context[:5],
+            "hls_contract": hls_contract,
             "constraints": [
                 "Write files only under candidate/ relative path",
                 "requires_verification must be true",
@@ -52,7 +55,7 @@ class LLMCandidateGenerator:
                     source="llm.generate_hls_candidate",
                 )
             )
-        sandbox_result = self.sandbox.scan_candidate_payload(result)
+        sandbox_result = self.sandbox.scan_candidate_payload(result, contract=hls_contract)
         if sandbox_result["status"] != "valid":
             debug_artifact = self._write_rejected_candidate_artifact(result, sandbox_result, client)
             raise AgentRuntimeError(
@@ -104,6 +107,20 @@ class LLMCandidateGenerator:
             "candidate_name": result.get("candidate_name"),
             "assumptions": result.get("assumptions", []),
             "sandbox_scan": sandbox_result,
+        }
+
+    @staticmethod
+    def _hls_contract(op_spec: dict[str, Any]) -> dict[str, Any]:
+        """Extract only static guard data; code generation still needs verification."""
+
+        type_text = " ".join(
+            str(op_spec.get(key, ""))
+            for key in ("dtype", "precision", "input_dtype", "output_dtype")
+        )
+        match = re.search(r"(?:ap_)?fixed\s*<\s*(\d+)", type_text, flags=re.IGNORECASE)
+        return {
+            "data_bitwidth": int(match.group(1)) if match else None,
+            "max_complete_partition_elements": int(op_spec.get("max_complete_partition_elements", 256)),
         }
 
     def _write_rejected_candidate_artifact(self, candidate: dict[str, Any], sandbox_result: dict[str, Any], client) -> str | None:

@@ -50,6 +50,31 @@ class VivadoHLSAdapter:
     def _bridge(self, work_dir: str) -> SeniorVivadoBridge:
         return SeniorVivadoBridge(self.vivado_hls_path, work_dir)
 
+    @staticmethod
+    def _hls_log_errors(log_path: str | Path | None) -> list[str]:
+        """Return hard compiler/simulation failures without treating "0 errors" as one."""
+
+        if not log_path or not Path(log_path).exists():
+            return []
+        errors: list[str] = []
+        text = Path(log_path).read_text(encoding="utf-8", errors="ignore")
+        for line in text.splitlines():
+            lowered = line.lower()
+            if re.search(r"\b0\s+error\(s\)", lowered):
+                continue
+            if (
+                re.search(r"\berror\b", lowered)
+                or "fatal error" in lowered
+                or "c preprocessor failed" in lowered
+                or "compilation of the preprocessed source" in lowered
+                or "failed before report" in lowered
+                or "csim_design' failed" in lowered
+                or "@e simulation failed" in lowered
+                or "out of memory allocating" in lowered
+            ):
+                errors.append(line.strip())
+        return errors
+
     def _normalize_toolchain(self, value: str | None) -> str:
         text = str(value or "vivado_hls").strip().lower().replace("-", "_")
         if text in {"vivado", "vivado_hls", "legacy_vivado"}:
@@ -480,6 +505,18 @@ class VivadoHLSAdapter:
         simulation = result.get("synthesis", {})
         actual_log_path = Path(simulation.get("log_path") or log_path)
         verification = parse_csim_verification(actual_log_path, work_dir=work_dir)
+        log_errors = self._hls_log_errors(actual_log_path)
+        if simulation.get("status") == "success" and log_errors:
+            return error_result(
+                build_error(
+                    "VerificationFailedError",
+                    "Vivado HLS C simulation log contains compiler or simulation errors.",
+                    recoverable=True,
+                    source="vivado.run_csim",
+                    suggested_action="Fix the candidate or testbench before attempting C synthesis.",
+                    details={"log_path": str(actual_log_path), "errors": log_errors[:20]},
+                )
+            )
         return {
             "status": "success" if simulation.get("status") == "success" else simulation.get("status", "error"),
             "log_path": str(actual_log_path),
@@ -564,19 +601,7 @@ class VivadoHLSAdapter:
         log_errors: list[str] = []
         if log_path and Path(log_path).exists():
             verification = parse_csim_verification(log_path, work_dir=work_dir)
-            log_text = Path(log_path).read_text(encoding="utf-8", errors="ignore")
-            for line in log_text.splitlines():
-                lowered = line.lower()
-                if re.search(r"\b0\s+error\(s\)", lowered):
-                    continue
-                if (
-                    re.search(r"\berror\b", lowered)
-                    or "fatal error" in lowered
-                    or "c preprocessor failed" in lowered
-                    or "compilation of the preprocessed source" in lowered
-                    or "failed before report" in lowered
-                ):
-                    log_errors.append(line.strip())
+            log_errors = self._hls_log_errors(log_path)
             if synthesis.get("status") == "success" and log_errors:
                 return error_result(
                     build_error(
