@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import re
 from collections import Counter
@@ -123,6 +124,40 @@ class MemoryManager:
         self.workspace_root = Path(workspace_root)
         self.policy = MemoryPolicy()
 
+    @staticmethod
+    def _identity(identity: dict[str, Any] | None = None, *, default_namespace: str = "global") -> dict[str, Any]:
+        identity = dict(identity or {})
+        return {
+            "namespace": str(identity.get("namespace") or default_namespace),
+            "user_id": identity.get("user_id"),
+            "project_id": identity.get("project_id"),
+            "session_id": identity.get("session_id"),
+        }
+
+    @staticmethod
+    def _content_hash(memory_type: str, key: str, value: Any) -> str:
+        encoded = json.dumps(
+            {"memory_type": memory_type, "key": key, "value": sanitize_memory_payload(value)},
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _save_governed_memory(self, payload: dict[str, Any], identity: dict[str, Any] | None = None) -> tuple[int, bool]:
+        merged = {**self._identity(identity, default_namespace=str(payload.get("namespace") or "global")), **payload}
+        content_hash = self._content_hash(merged["memory_type"], merged["key"], merged.get("value", {}))
+        merged["content_hash"] = content_hash
+        existing = self.repository.find_active_memory_by_hash(
+            content_hash,
+            namespace=merged["namespace"],
+            user_id=merged.get("user_id"),
+            project_id=merged.get("project_id"),
+        )
+        if existing:
+            return int(existing["id"]), False
+        return self.repository.save_memory_item(merged), True
+
     def _run_dir(self, run_id: str) -> Path:
         return self.workspace_root / "runs" / run_id
 
@@ -197,12 +232,13 @@ class MemoryManager:
             adjusted -= 0.2
         return adjusted
 
-    def write_short_term(self, run_id: str, key: str, value: dict) -> dict:
+    def write_short_term(self, run_id: str, key: str, value: dict, identity: dict[str, Any] | None = None) -> dict:
         path = self._memory_dir(run_id) / "short_term.json"
         payload = self._read_json(path, {"run_id": run_id, "entries": {}})
         payload["entries"][key] = value
         self._write_json(path, payload)
-        self.repository.save_memory_item(
+        run_identity = {**self._identity(identity, default_namespace="session"), "namespace": "session"}
+        self._save_governed_memory(
             {
                 "memory_type": "short_term",
                 "scope": "run",
@@ -210,7 +246,8 @@ class MemoryManager:
                 "value": value,
                 "source_run_id": run_id,
                 "importance": 1,
-            }
+            },
+            run_identity,
         )
         return {"status": "success", "path": str(path), "short_term": payload}
 
@@ -331,14 +368,19 @@ class MemoryManager:
         self._write_json(path, {"run_id": run_id, "candidates": candidates})
         return candidates
 
-    def promote_to_long_term(self, run_id: str, candidates: list[dict]) -> dict:
+    def promote_to_long_term(
+        self,
+        run_id: str,
+        candidates: list[dict],
+        identity: dict[str, Any] | None = None,
+    ) -> dict:
         promoted: list[dict[str, Any]] = []
         for raw_candidate in candidates:
             candidate = self._sanitize_candidate(raw_candidate)
             memory_type = self.policy.classify(candidate)
             if not self.policy.should_promote(candidate):
                 continue
-            memory_id = self.repository.save_memory_item(
+            memory_id, created = self._save_governed_memory(
                 {
                     "memory_type": memory_type,
                     "scope": "long_term",
@@ -347,13 +389,15 @@ class MemoryManager:
                     "source_run_id": run_id,
                     "importance": self.policy.score_importance(candidate),
                     "confidence": candidate.get("confidence", 1.0),
-                }
+                },
+                self._identity(identity, default_namespace="project"),
             )
             promoted_item = {
                 "id": memory_id,
                 "memory_type": memory_type,
                 "key": candidate["key"],
                 "summary": candidate.get("summary") or candidate.get("name"),
+                "deduplicated": not created,
             }
             if candidate.get("fact"):
                 fact_id = self.repository.save_memory_fact(
@@ -390,6 +434,7 @@ class MemoryManager:
                         "run_id": run_id,
                         "key": candidate["key"],
                         "domain": candidate.get("domain") or self._domain_for_memory_type(memory_type),
+                        **self._identity(identity, default_namespace="project"),
                     },
                 )
             promoted.append(promoted_item)
@@ -408,8 +453,19 @@ class MemoryManager:
             return "episodic"
         return "general"
 
-    def retrieve_similar_experiences(self, query: str, top_k: int = 5) -> list[dict]:
-        items = self.repository.list_memory_items(["episodic", "implementation", "optimization", "verified_implementation", "parameter_experience"])
+    def retrieve_similar_experiences(
+        self,
+        query: str,
+        top_k: int = 5,
+        identity: dict[str, Any] | None = None,
+    ) -> list[dict]:
+        scope = self._identity(identity)
+        items = self.repository.list_memory_items(
+            ["episodic", "implementation", "optimization", "verified_implementation", "parameter_experience", "conversation"],
+            namespace=scope["namespace"] if identity else None,
+            user_id=scope.get("user_id"),
+            project_id=scope.get("project_id"),
+        )
         scored = []
         anchors = _anchor_tokens(query)
         for item in items:
@@ -417,12 +473,15 @@ class MemoryManager:
             if not _matches_anchor(anchors, text):
                 continue
             score = self._adjust_memory_score(query, item, text, _score(query, text))
+            score += 0.12 * float(item.get("feedback_score") or 0.0)
             if score > 0:
                 scored.append({"id": item["id"], "memory_type": item["memory_type"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         scored.sort(key=lambda item: item["score"], reverse=True)
-        return scored[:top_k]
+        selected = scored[:top_k]
+        self.repository.touch_memory_items([int(item["id"]) for item in selected])
+        return selected
 
-    def retrieve_failure_cases(self, query: str, top_k: int = 5) -> list[dict]:
+    def retrieve_failure_cases(self, query: str, top_k: int = 5, identity: dict[str, Any] | None = None) -> list[dict]:
         if not _is_failure_query(query):
             return []
         scored = []
@@ -434,7 +493,13 @@ class MemoryManager:
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("run_id")})
-        for item in self.repository.list_memory_items(["failure"]):
+        scope = self._identity(identity)
+        for item in self.repository.list_memory_items(
+            ["failure"],
+            namespace=scope["namespace"] if identity else None,
+            user_id=scope.get("user_id"),
+            project_id=scope.get("project_id"),
+        ):
             text = self._memory_item_text(item)
             if not _matches_anchor(anchors, text):
                 continue
@@ -442,9 +507,11 @@ class MemoryManager:
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         scored.sort(key=lambda item: item["score"], reverse=True)
-        return scored[:top_k]
+        selected = scored[:top_k]
+        self.repository.touch_memory_items([int(item["id"]) for item in selected if item.get("id")])
+        return selected
 
-    def retrieve_optimization_rules(self, query: str, top_k: int = 5) -> list[dict]:
+    def retrieve_optimization_rules(self, query: str, top_k: int = 5, identity: dict[str, Any] | None = None) -> list[dict]:
         scored = []
         anchors = _anchor_tokens(query)
         for item in self.repository.list_memory_facts():
@@ -454,7 +521,13 @@ class MemoryManager:
             score = _score(query, text)
             if score > 0:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
-        for item in self.repository.list_memory_items(["optimization", "parameter_experience", "verified_implementation", "semantic"]):
+        scope = self._identity(identity)
+        for item in self.repository.list_memory_items(
+            ["optimization", "parameter_experience", "verified_implementation", "semantic"],
+            namespace=scope["namespace"] if identity else None,
+            user_id=scope.get("user_id"),
+            project_id=scope.get("project_id"),
+        ):
             text = self._memory_item_text(item)
             if not _matches_anchor(anchors, text):
                 continue
@@ -470,6 +543,54 @@ class MemoryManager:
                 scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
         scored.sort(key=lambda item: item["score"], reverse=True)
         return scored[:top_k]
+
+    def remember_conversation(
+        self,
+        *,
+        summary: str,
+        identity: dict[str, Any],
+        key: str = "conversation.summary",
+        preferences: dict[str, Any] | None = None,
+        expires_at: str | None = None,
+    ) -> dict[str, Any]:
+        scope = self._identity(identity, default_namespace="user")
+        memory_id, created = self._save_governed_memory(
+            {
+                "memory_type": "conversation",
+                "scope": "long_term",
+                "key": key,
+                "value": {"summary": sanitize_memory_text(summary), "preferences": sanitize_memory_payload(preferences or {})},
+                "importance": 3,
+                "confidence": 1.0,
+                "expires_at": expires_at,
+            },
+            scope,
+        )
+        return {"status": "success", "id": memory_id, "created": created}
+
+    def recall_conversation(self, query: str, identity: dict[str, Any], top_k: int = 5) -> list[dict[str, Any]]:
+        return self.retrieve_similar_experiences(query, top_k=top_k, identity=identity)
+
+    def add_feedback(self, memory_id: int, score: float, reason: str = "", user_id: str | None = None) -> dict[str, Any]:
+        return self.repository.add_memory_feedback(memory_id, score, reason, user_id)
+
+    def submit_feedback(
+        self,
+        memory_id: int,
+        score: float,
+        reason: str = "",
+        user_id: str | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        from .feedback_governance import FeedbackGovernor
+
+        return FeedbackGovernor(self.repository).submit(memory_id, score, reason, user_id, evidence)
+
+    def forget(self, memory_id: int, reason: str = "user_request") -> dict[str, Any]:
+        return {"status": "success" if self.repository.forget_memory(memory_id, reason=reason) else "not_found", "id": memory_id}
+
+    def cleanup_expired(self) -> dict[str, Any]:
+        return {"status": "success", "expired": self.repository.cleanup_expired_memories()}
 
     def save_skill(self, name: str, steps: list[str], trigger_conditions: dict, success_criteria: dict) -> dict:
         skill_id = self.repository.save_procedural_memory(

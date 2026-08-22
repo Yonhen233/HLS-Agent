@@ -1,5 +1,7 @@
 {
   "name": "operator_fallback_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Generate fallback HLS implementation for supported operators, then run Vivado synthesis and reporting.",
   "intent": "operator_to_hls_fallback",
   "trigger": {
@@ -20,6 +22,16 @@
       "title": "Generate fallback HLS template",
       "assigned_tool": "fallback.generate_operator_hls",
       "assigned_specialist": null
+    },
+    {
+      "title": "Generate fallback testbench",
+      "assigned_tool": "fallback.generate_testbench",
+      "assigned_specialist": "VerificationSpecialist"
+    },
+    {
+      "title": "Run functional C simulation",
+      "assigned_tool": "vivado.run_csim",
+      "assigned_specialist": "VerificationSpecialist"
     },
     {
       "title": "Run Vivado HLS synthesis",
@@ -43,10 +55,15 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "task.validate_schema",
     "fallback.generate_operator_hls",
     "fallback.generate_testbench",
     "vivado.create_project",
+    "vivado.run_csim",
     "vivado.run_csynth",
     "vivado.parse_report",
     "vivado.parse_log",
@@ -55,6 +72,7 @@
   ],
   "allowed_specialists": [
     "VivadoSpecialist",
+    "VerificationSpecialist",
     "OptimizationSpecialist",
     "MemorySpecialist"
   ],

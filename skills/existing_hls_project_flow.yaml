@@ -1,5 +1,7 @@
 {
   "name": "existing_hls_project_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Use an existing HLS project and run Vivado synthesis/report flow.",
   "intent": "existing_hls_project_synthesis",
   "trigger": {
@@ -41,6 +43,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "task.validate_schema",
     "task.prepare_existing_project",
     "vivado.create_project",

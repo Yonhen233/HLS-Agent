@@ -79,7 +79,7 @@ def test_llm_plan_rejects_tool_specialist_mismatch(temp_workspace, monkeypatch):
     assert any("outside allowed_tools" in item.get("message", "") for item in state.errors)
 
 
-def test_llm_plan_rejects_private_tool_without_specialist(temp_workspace, monkeypatch):
+def test_llm_plan_repairs_private_tool_with_unambiguous_specialist(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
@@ -99,8 +99,12 @@ def test_llm_plan_rejects_private_tool_without_specialist(temp_workspace, monkey
     fake = FakeLLMClient(json_responses=[plan, plan])
     agent = MainAgent(temp_workspace, console=False)
     state = run_task_llm(str(temp_workspace / "examples" / "mlp_onnx_example.json"), agent=agent, llm_client=fake)
-    assert state.status == "failed"
-    assert any("specialist-private tool" in item.get("message", "") for item in state.errors)
+    assert state.status == "success"
+    repaired = [item for item in state.todos if item.assigned_tool == "hls4ml.check_support"]
+    assert repaired and repaired[0].assigned_specialist == "HLS4MLSpecialist"
+    trace_path = temp_workspace / "runs" / state.run_id / "trace.jsonl"
+    events = [json.loads(line)["event"] for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert "LLMPlanOwnershipRepaired" in events
 
 
 def test_llm_plan_dependencies_are_normalized_for_hls4ml_flow(temp_workspace, monkeypatch):
@@ -206,3 +210,36 @@ def test_llm_runtime_auto_delegates_preassigned_specialist_todo(temp_workspace, 
     events = [json.loads(line)["event"] for line in trace_path.read_text(encoding="utf-8").splitlines()]
     assert "LLMReActAutoDelegated" in events
     assert "LLMReActFailed" not in events
+
+
+def test_llm_runtime_auto_executes_preassigned_atomic_tool(temp_workspace, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = LLMFirstRuntime(agent, llm_client=FakeLLMClient(json_responses=[]))
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_operator.json"))
+    todo = TodoItem(
+        id="todo_001",
+        title="Validate task",
+        description="Validate task",
+        status="pending",
+        priority=1,
+        dependencies=[],
+        assigned_tool="task.validate_schema",
+        assigned_specialist=None,
+        inputs={"task": state.task},
+        outputs=None,
+        error=None,
+    )
+    runtime.todo_manager.todo_list = TodoList(run_id=state.run_id, items=[todo])
+    state.todos = [todo]
+
+    observation = runtime.execute_todo_with_react(state, todo)
+
+    assert observation["status"] == "completed"
+    assert todo.status == "completed"
+    assert todo.react_steps[-1]["action"]["type"] == "direct_tool_only_when_no_specialist"
+    trace_path = temp_workspace / "runs" / state.run_id / "trace.jsonl"
+    events = [json.loads(line)["event"] for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert "LLMReActAutoDirect" in events
+    assert "LLMCallStarted" not in events

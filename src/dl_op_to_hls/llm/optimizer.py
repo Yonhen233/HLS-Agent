@@ -34,7 +34,7 @@ class LLMOptimizationEngine:
         }
         try:
             result = client.complete_json(
-                system_prompt=prompts.OPTIMIZER_SYSTEM_PROMPT,
+                system_prompt=prompts.resolve_prompt(client.context, "optimizer"),
                 user_prompt=json.dumps(payload, ensure_ascii=False),
                 schema=OPTIMIZATION_SUGGESTION_SCHEMA,
                 temperature=0.2,

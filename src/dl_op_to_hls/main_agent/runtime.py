@@ -7,7 +7,10 @@ from typing import Any
 
 from ..core.context import ContextCompressor
 from ..core.errors import AgentRuntimeError, build_error
+from ..core.goal_contract import CompletionGate, GoalContractBuilder, PlanCoverageValidator
+from ..core.progress import ProgressSupervisor
 from ..memory.short_term import build_short_term_entry
+from ..rag.evidence import ClaimEvidenceVerifier
 from ..schemas.hls_project_schema import normalize_hls_project_task
 from ..schemas.model_schema import normalize_model_task
 from ..schemas.operator_schema import normalize_operator_task
@@ -38,14 +41,23 @@ def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
 
 
 class PlanExecuteReactRuntime:
-    def __init__(self, agent):
+    def __init__(self, agent, session_id: str | None = None):
         self.agent = agent
+        self.session_id = session_id
         self.context: dict[str, Any] | None = None
         self.executor: AgentExecutor | None = None
         self.todo_manager: TodoManager | None = None
         self.compressor: ContextCompressor | None = None
         self.context_builder = ContextBuilder()
         self.specialist_router = None
+        self.goal_contract_builder = GoalContractBuilder()
+        self.plan_coverage_validator = PlanCoverageValidator()
+        self.completion_gate = CompletionGate()
+        self.progress_supervisor = ProgressSupervisor(
+            max_steps=int(os.environ.get("DL_OP_TO_HLS_MAX_AGENT_STEPS", "64")),
+            replan_after=int(os.environ.get("DL_OP_TO_HLS_REPLAN_AFTER_REPEATS", "2")),
+            terminate_after=int(os.environ.get("DL_OP_TO_HLS_TERMINATE_AFTER_REPEATS", "3")),
+        )
 
     def run(self, task_path: str) -> AgentState:
         state = self.initialize(task_path)
@@ -56,7 +68,8 @@ class PlanExecuteReactRuntime:
             state = self.plan(state)
             state = self.create_todos(state)
             state = self.execute_todos(state)
-            state = self.finalize(state)
+            if state.status != "interrupted":
+                state = self.finalize(state)
         except AgentRuntimeError as exc:
             state.errors.append(exc.error.to_dict())
             state.status = "failed"
@@ -69,6 +82,8 @@ class PlanExecuteReactRuntime:
             reflect_on_errors(state)
             update_status_from_todos(state)
             state.pipeline_status = compute_pipeline_status(state)
+            if state.status != "interrupted":
+                self._apply_completion_gate(state)
             trace_path = self.context["run_dir"] / "trace.jsonl"
             if trace_path.exists():
                 self.context["artifact_manager"].register_file(trace_path, "trace")
@@ -84,13 +99,17 @@ class PlanExecuteReactRuntime:
         raw_task = _load_json(task_path)
         task = _normalize_task(raw_task)
         run_id = self.agent.make_run_id(task)
-        self.context = self.agent.create_run_context(run_id)
+        self.context = self.agent.create_run_context(run_id, self.session_id)
         self.executor = AgentExecutor(self.agent.registry, self.context)
         self.todo_manager = TodoManager(self.context["run_dir"], hooks=self.context["hooks"], artifact_manager=self.context["artifact_manager"])
         self.compressor = ContextCompressor(hooks=self.context["hooks"], run_id=run_id)
         self.specialist_router = build_default_router(self.context)
         state = AgentState(run_id=run_id, task=task, objective=task.get("objective"))
+        state.release_manifest = dict(self.context.get("release_manifest") or {})
+        state.telemetry = {"format": "otlp-jsonl", "path": str(self.context["run_dir"] / "otel_spans.jsonl")}
         state.artifacts["run_dir"] = str(self.context["run_dir"])
+        state.artifacts["telemetry"] = state.telemetry["path"]
+        self._initialize_governance(state)
         self.context["artifact_manager"].write_json("input.json", raw_task, "input_task")
         self.context["artifact_manager"].write_json("normalized_task.json", task, "normalized_task")
         self._call_tool(
@@ -107,23 +126,104 @@ class PlanExecuteReactRuntime:
         )
         return state
 
+    def _initialize_governance(self, state: AgentState) -> None:
+        if not state.goal_contract:
+            state.goal_contract = self.goal_contract_builder.build(state.task)
+        self.context["goal_contract"] = state.goal_contract
+        contract_path = self.context["artifact_manager"].write_json(
+            "goal_contract.json", state.goal_contract, "goal_contract"
+        )
+        state.artifacts["goal_contract"] = str(contract_path)
+
+    def _update_plan_coverage(self, state: AgentState) -> dict[str, Any]:
+        for item in state.todos:
+            item.requirement_ids = self.plan_coverage_validator.requirement_ids_for_tool(
+                state.goal_contract, item.assigned_tool
+            )
+        report = self.plan_coverage_validator.validate(
+            state.goal_contract,
+            [item.to_dict() for item in state.todos],
+        )
+        state.plan_coverage = report
+        path = self.context["artifact_manager"].write_json("plan_coverage.json", report, "plan_coverage")
+        state.artifacts["plan_coverage"] = str(path)
+        self.context["hooks"].emit(
+            "PlanCoverageEvaluated",
+            {
+                "run_id": state.run_id,
+                "status": report["status"],
+                "missing_requirements": [item["requirement_id"] for item in report["missing_requirements"]],
+            },
+        )
+        return report
+
     def retrieve_initial_memory(self, state: AgentState) -> AgentState:
         query = f"{state.task.get('name')} {state.task.get('op_type', '')} {state.objective} reuse factor DSP Vivado HLS"
-        similar = self._call_tool(state, "memory.retrieve_similar_experiences", {"query": query, "top_k": 5})
-        failures = self._call_tool(state, "memory.retrieve_failure_cases", {"query": query, "top_k": 5})
-        optimization = self._call_tool(state, "memory.retrieve_optimization_rules", {"query": query, "top_k": 5})
+        tool_jobs = {
+            "similar": lambda: self.executor.call("memory.retrieve_similar_experiences", {"query": query, "top_k": 5}),
+            "failures": lambda: self.executor.call("memory.retrieve_failure_cases", {"query": query, "top_k": 5}),
+            "optimization": lambda: self.executor.call("memory.retrieve_optimization_rules", {"query": query, "top_k": 5}),
+            "conversation": lambda: self.executor.call("memory.retrieve_conversation", {"query": query, "top_k": 3}),
+        }
+        scheduler = self.context.get("scheduler")
+        results = scheduler.run_independent(tool_jobs, kind="tool") if scheduler else {name: job() for name, job in tool_jobs.items()}
+        similar = results["similar"]
+        failures = results["failures"]
+        optimization = results["optimization"]
+        conversation = results["conversation"]
+        state.tool_results.extend(
+            [
+                {"tool": "memory.retrieve_similar_experiences", "result": similar},
+                {"tool": "memory.retrieve_failure_cases", "result": failures},
+                {"tool": "memory.retrieve_optimization_rules", "result": optimization},
+                {"tool": "memory.retrieve_conversation", "result": conversation},
+            ]
+        )
         retrieved = {
             "similar_experiences": similar.get("results", []),
             "failure_cases": failures.get("results", []),
             "optimization_rules": optimization.get("results", []),
+            "conversation_memories": conversation.get("results", []),
         }
         path = self.context["artifact_manager"].write_json("memory/retrieved_memories.json", retrieved, "memory_retrieved")
-        state.retrieved_memories = retrieved["similar_experiences"] + retrieved["failure_cases"] + retrieved["optimization_rules"]
+        raw_memories = (
+            retrieved["similar_experiences"]
+            + retrieved["failure_cases"]
+            + retrieved["optimization_rules"]
+            + retrieved["conversation_memories"]
+        )
+        evidence_report = self.agent.rag_memory.evidence_grader.grade_many(
+            query,
+            raw_memories,
+            require_citation=False,
+        )
+        state.retrieved_memories = evidence_report["results"]
+        state.rag_evidence_report = evidence_report
         state.rag_context = [
-            {"summary": item.get("text", "")[:200], "source": item.get("source_run_id") or item.get("id"), "text": item.get("text", "")}
+            {
+                "summary": item.get("text", "")[:200],
+                "source": item.get("source_run_id") or item.get("id"),
+                "citation": item.get("citation") or {"memory_id": item.get("id"), "run_id": item.get("source_run_id")},
+                "text": item.get("text", ""),
+                "evidence_grade": item.get("evidence_grade"),
+            }
             for item in state.retrieved_memories[:10]
         ]
         state.artifacts["retrieved_memories"] = str(path)
+        evidence_path = self.context["artifact_manager"].write_json(
+            "memory/rag_evidence_report.json", evidence_report, "rag_evidence_report"
+        )
+        state.artifacts["rag_evidence_report"] = str(evidence_path)
+        self.context["hooks"].emit(
+            "RagEvidenceGraded",
+            {
+                "run_id": state.run_id,
+                "raw_count": len(raw_memories),
+                "accepted_count": len(state.retrieved_memories),
+                "rejected_count": len(evidence_report["rejected"]),
+                "evidence_status": evidence_report["status"],
+            },
+        )
         state.parameter_advice = self._call_tool(state, "parameter_advisor.recommend", {"state": state.to_dict()})
         self._apply_parameter_advice(state)
         advice_path = self.context["artifact_manager"].write_json("parameter_advice.json", state.parameter_advice, "parameter_advice")
@@ -169,16 +269,42 @@ class PlanExecuteReactRuntime:
     def create_todos(self, state: AgentState) -> AgentState:
         todo_list = self.todo_manager.create_from_plan(state.run_id, state.plan, state.task)
         state.todos = todo_list.items
+        self._update_plan_coverage(state)
         state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
+        self._create_session_checkpoint(state, "todo_plan_created")
         return state
 
     def execute_todos(self, state: AgentState) -> AgentState:
         while self.todo_manager.has_pending_or_ready():
+            if self._interrupt_if_requested(state):
+                break
             todo = self.todo_manager.get_next_ready_item(self.todo_manager.todo_list)
             if todo is None:
                 break
             observation = self.execute_todo_with_react(state, todo)
             state = self.reflect(state, todo, observation)
+            self._update_plan_coverage(state)
+            progress = self.progress_supervisor.observe(
+                state,
+                todo,
+                observation,
+                completion_gate=self.completion_gate,
+                goal_contract=state.goal_contract,
+            )
+            self.context["hooks"].emit("AgentProgressEvaluated", {"run_id": state.run_id, **progress})
+            self._create_session_checkpoint(state, f"todo_boundary:{todo.id}:{todo.status}")
+            if progress["decision"] == "terminate":
+                error = build_error(
+                    "AgentStagnationError",
+                    f"Agent execution stopped by progress supervisor: {progress['reason']}.",
+                    recoverable=True,
+                    source="runtime.progress_supervisor",
+                    suggested_action="Replan from the latest checkpoint with a different tool or narrower goal.",
+                    details=progress,
+                ).to_dict()
+                state.errors.append(error)
+                state.status = "partial_success" if state.selected_path or state.artifacts else "failed"
+                break
             if self.should_stop(state):
                 break
         update_status_from_todos(state)
@@ -208,6 +334,21 @@ class PlanExecuteReactRuntime:
 
     def _execute_todo_with_specialist(self, state: AgentState, todo: TodoItem, specialist) -> dict[str, Any]:
         hooks = self.context["hooks"]
+        message_bus = self.context.get("message_bus")
+        delegation_message = None
+        if message_bus is not None:
+            delegation_message = message_bus.publish(
+                message_type="delegation_request",
+                sender="MainAgent",
+                recipient=specialist.name,
+                payload={
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "title": todo.title,
+                    "assigned_tool": todo.assigned_tool,
+                    "dependencies": list(todo.dependencies),
+                },
+            )
         hooks.emit(
             "SpecialistSelected",
             {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name},
@@ -276,6 +417,22 @@ class PlanExecuteReactRuntime:
                 },
             )
         state = self.executor.merge_specialist_result(state, todo, result)
+        if message_bus is not None and delegation_message is not None:
+            message_bus.publish(
+                message_type="delegation_result",
+                sender=specialist.name,
+                recipient="MainAgent",
+                correlation_id=delegation_message.correlation_id,
+                parent_message_id=delegation_message.message_id,
+                payload={
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "status": result.status,
+                    "summary": result.summary,
+                    "artifact_count": len(result.artifacts),
+                    "error_count": len(result.errors),
+                },
+            )
         hooks.emit(
             "SpecialistResultMerged",
             {"run_id": state.run_id, "todo_id": todo.id, "specialist": specialist.name},
@@ -812,6 +969,10 @@ class PlanExecuteReactRuntime:
         if not state.report:
             state.report = empty_report("missing")
         state.pipeline_status = compute_pipeline_status(state)
+        message_path = self.context["run_dir"] / "agent_messages.jsonl"
+        if message_path.exists():
+            self.context["artifact_manager"].register_file(message_path, "agent_messages")
+            state.artifacts["agent_messages"] = str(message_path)
         report_path = self.context["artifact_manager"].write_json("report.json", state.report, "report_json")
         state.artifacts["report_json"] = str(report_path)
         if state.verification:
@@ -831,6 +992,15 @@ class PlanExecuteReactRuntime:
         state.artifacts["compressed_logs"] = str(compressed_logs_path)
         update_status_from_todos(state)
         state.pipeline_status = compute_pipeline_status(state)
+        if isinstance(state.memory_candidates, dict):
+            state.memory_candidates = [state.memory_candidates]
+        if state.memory_candidates and not state.artifacts.get("memory_candidates"):
+            candidates_path = self.context["artifact_manager"].write_json(
+                "memory/memory_candidates.json",
+                {"run_id": state.run_id, "candidates": state.memory_candidates},
+                "memory_candidates",
+            )
+            state.artifacts["memory_candidates"] = str(candidates_path)
         if not state.memory_candidates:
             state_path = self._write_memory_ready_state_snapshot(state)
             state.artifacts["state"] = str(state_path)
@@ -867,6 +1037,7 @@ class PlanExecuteReactRuntime:
             state.suggestions = suggestion_result.get("suggestions", [])
             if suggestion_result.get("path"):
                 state.artifacts["suggestions"] = suggestion_result["path"]
+        self._verify_rag_claims(state)
         summary_result = self._call_tool(state, "summary.write_summary", {"state": state.to_dict()})
         if summary_result.get("path"):
             state.artifacts["summary"] = summary_result["path"]
@@ -888,6 +1059,7 @@ class PlanExecuteReactRuntime:
             self._call_tool(state, "rag.index_artifact", {"run_id": state.run_id, "artifact_paths": artifact_paths})
         update_status_from_todos(state)
         state.pipeline_status = compute_pipeline_status(state)
+        self._apply_completion_gate(state)
         self._call_tool(
             state,
             "db.save_experiment",
@@ -900,9 +1072,106 @@ class PlanExecuteReactRuntime:
                 "status": state.status,
             },
         )
+        run_budget = self.context.get("run_budget")
+        if run_budget is not None:
+            budget_path = self.context["artifact_manager"].write_json("run_budget.json", run_budget.to_dict(), "run_budget")
+            state.artifacts["run_budget"] = str(budget_path)
         self.todo_manager.save(state.run_id, self.todo_manager.todo_list)
         state.todos = self.todo_manager.todo_list.items
         return state
+
+    def _verify_rag_claims(self, state: AgentState) -> dict[str, Any]:
+        claims = [
+            str(item)
+            for item in state.suggestions
+            if any(marker in str(item).lower() for marker in ["prior experience", "historical", "retrieved memory"])
+        ]
+        verification = ClaimEvidenceVerifier().verify(claims, state.rag_context)
+        state.rag_evidence_report = {
+            **(state.rag_evidence_report or {}),
+            "claim_verification": verification,
+        }
+        if claims and not verification["passed"]:
+            unsupported = {item["claim"] for item in verification["checks"] if not item["supported"]}
+            state.suggestions = [item for item in state.suggestions if str(item) not in unsupported]
+        path = self.context["artifact_manager"].write_json(
+            "rag_claim_verification.json", verification, "rag_claim_verification"
+        )
+        state.artifacts["rag_claim_verification"] = str(path)
+        self.context["hooks"].emit(
+            "RagClaimsVerified",
+            {
+                "run_id": state.run_id,
+                "claim_count": verification["claim_count"],
+                "supported_count": verification["supported_count"],
+                "passed": verification["passed"],
+            },
+        )
+        return verification
+
+    def _apply_completion_gate(self, state: AgentState) -> dict[str, Any]:
+        state.evidence_receipts = list(self.context.get("evidence_receipts") or [])
+        evidence_path = self.context["artifact_manager"].write_json(
+            "tool_evidence.json",
+            {"run_id": state.run_id, "receipts": state.evidence_receipts},
+            "tool_evidence",
+        )
+        state.artifacts["tool_evidence"] = str(evidence_path)
+        completion = self.completion_gate.apply(state, state.goal_contract, state.evidence_receipts)
+        completion_path = self.context["artifact_manager"].write_json(
+            "completion_gate.json", completion, "completion_gate"
+        )
+        state.artifacts["completion_gate"] = str(completion_path)
+        self.context["hooks"].emit(
+            "CompletionGateEvaluated",
+            {
+                "run_id": state.run_id,
+                "passed": completion["passed"],
+                "recommended_status": completion["recommended_status"],
+                "stop_reason": completion["stop_reason"],
+                "false_success_prevented": completion["false_success_prevented"],
+                "evidence_level": completion["evidence_level"],
+                "production_ready": completion["production_ready"],
+                "missing_required": completion["missing_required"],
+            },
+        )
+        return completion
+
+    def _create_session_checkpoint(self, state: AgentState, reason: str) -> None:
+        session_id = self.context.get("session_id") if self.context else None
+        manager = self.context.get("session_manager") if self.context else None
+        if not session_id or manager is None:
+            return
+        state.todos = self.todo_manager.todo_list.items if self.todo_manager and self.todo_manager.todo_list else state.todos
+        budget = self.context.get("run_budget") if self.context else None
+        runtime_snapshot = {"run_budget": budget.to_dict()} if budget is not None else {}
+        checkpoint = manager.create_checkpoint(session_id, state.to_dict(), reason, runtime=runtime_snapshot)
+        self.context["hooks"].emit(
+            "SessionCheckpointCreated",
+            {"run_id": state.run_id, "session_id": session_id, "checkpoint_id": checkpoint["checkpoint_id"], "reason": reason},
+        )
+
+    def _interrupt_if_requested(self, state: AgentState) -> bool:
+        session_id = self.context.get("session_id") if self.context else None
+        manager = self.context.get("session_manager") if self.context else None
+        if not session_id or manager is None or not manager.pause_requested(session_id):
+            return False
+        state.status = "interrupted"
+        reason = manager.get(session_id).get("interrupt_reason") or "User requested interruption"
+        for todo in state.todos:
+            error = todo.error or {}
+            if error.get("error_type") == "ApprovalRequiredError" or "requires explicit session approval" in str(error.get("message", "")):
+                todo.status = "pending"
+                todo.error = None
+                todo.outputs = None
+        state.errors = [item for item in state.errors if item.get("error_type") != "ApprovalRequiredError"]
+        self._create_session_checkpoint(state, "interrupt_boundary")
+        manager.mark_interrupted(session_id, reason)
+        self.context["hooks"].emit(
+            "SessionInterrupted",
+            {"run_id": state.run_id, "session_id": session_id, "reason": reason},
+        )
+        return True
 
     def _write_memory_ready_state_snapshot(self, state: AgentState) -> Path:
         state.todos = self.todo_manager.todo_list.items

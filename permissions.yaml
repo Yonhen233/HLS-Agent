@@ -27,3 +27,21 @@ commands:
     - "scp"
     - "sudo"
 
+network:
+  allowed_schemes:
+    - "https"
+  allowed_domains:
+    - "api.deepseek.com"
+  denied_domains:
+    - "localhost"
+    - "127.0.0.1"
+    - "169.254.169.254"
+
+approvals:
+  risk_levels:
+    - "critical"
+  ttl_seconds: 900
+  max_uses: 1
+
+limits:
+  max_tool_argument_bytes: 1000000

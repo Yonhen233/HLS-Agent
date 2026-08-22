@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+import atexit
 from pathlib import Path
 from typing import Any
 
@@ -8,11 +11,21 @@ from ..adapters.hls4ml_adapter import HLS4MLAdapter
 from ..adapters.llm_adapter import LLMAdapter
 from ..adapters.vivado_hls_adapter import VivadoHLSAdapter
 from ..core.artifacts import ArtifactManager
+from ..core.agent_messages import AgentMessageBus
+from ..core.budgets import RunBudget
 from ..core.config import AppConfig
+from ..core.credential_broker import CredentialBroker
+from ..core.durable_queue import DurableJobQueue
 from ..core.hooks import ConsoleHook, DbHook, HookManager
+from ..core.observability import TelemetryHook
 from ..core.permissions import PermissionGate
+from ..core.release_governance import ReleaseManager
+from ..core.scheduler import BoundedScheduler, SchedulerPolicy
+from ..core.sessions import CancellationToken, SessionManager
+from ..core.tool_evidence import ToolPostconditionRegistry
 from ..core.tool_registry import ToolRegistry, ToolSpec
 from ..core.trace import TraceHook, TraceWriter, stable_hash
+from ..core.workspace_context import WorkspaceContext
 from ..db.database import Database
 from ..db.repositories import MetadataRepository
 from ..memory.memory_manager import MemoryManager
@@ -22,14 +35,18 @@ from ..memory.memory_tools import (
     promote_to_long_term,
     retrieve_failure_cases,
     retrieve_optimization_rules,
+    retrieve_conversation,
     retrieve_similar_experiences,
     save_skill,
     write_short_term,
 )
 from ..mcp_servers.hls4ml_server import register_hls4ml_tools
 from ..mcp_servers.vivado_hls_server import register_vivado_tools
+from ..mcp.client import StdioMCPClient
+from ..mcp.proxy import register_mcp_proxy_tools
 from ..llm.candidate_generator import LLMCandidateGenerator as RuntimeCandidateGenerator
 from ..llm.client import LLMClient
+from ..llm import prompts
 from ..rag.memory import RagMemory
 from ..schemas.task_schema import load_task
 from ..schemas.tool_schema import simple_schema
@@ -53,8 +70,25 @@ class MainAgent:
         schema_path = Path(__file__).resolve().parents[1] / "db" / "schema.sql"
         self.database = Database(self.config.db_path, schema_path)
         self.repository = MetadataRepository(self.database)
-        self.rag_memory = RagMemory(self.repository, self.config.workspace_root)
+        self.job_queue = DurableJobQueue(self.database)
+        self.release_manager = ReleaseManager(self.database)
+        self.credential_broker = CredentialBroker(
+            self.database,
+            secret_provider=lambda audience: os.environ.get(f"DL_OP_TO_HLS_SECRET_{audience.upper().replace('-', '_')}"),
+        )
+        self.rag_memory = RagMemory(
+            self.repository,
+            self.config.workspace_root,
+            semantic_config=self.config.rag_semantic_config,
+        )
         self.memory_manager = MemoryManager(self.repository, self.rag_memory, self.config.workspace_root)
+        self.session_manager = SessionManager(self.config.runs_root / "sessions", self.database)
+        self.workspace_context = WorkspaceContext(
+            self.config.workspace_root,
+            permission_gate=self.permission_gate,
+            index_path=self.config.runs_root / "workspace_index.json",
+        )
+        self.tool_postconditions = ToolPostconditionRegistry()
         self.registry = ToolRegistry()
         self.console = console
         self.llm_client = LLMClient()
@@ -68,8 +102,10 @@ class MainAgent:
             vivado_hls_path=self.config.vivado_hls_path,
             vitis_hls_path=self.config.vitis_hls_path,
         )
+        self._mcp_clients: list[StdioMCPClient] = []
         self.skill_registry = SkillRegistry(self.config.workspace_root / "skills")
         self.skill_registry.load_all()
+        self._bootstrap_releases()
         self.legacy_extractor = LegacyWorkflowExtractor(self.config.workspace_root)
         self.llm_generator = LLMCandidateGenerator(
             LLMAdapter(self.llm_client),
@@ -77,11 +113,40 @@ class MainAgent:
             llm_client=self.llm_client,
         )
         self._register_tools()
+        self._configure_tool_execution_policies()
         self._ensure_legacy_workflow_map()
+        atexit.register(self.close)
+
+    def _configure_tool_execution_policies(self) -> None:
+        cacheable_tools = {
+            "memory.retrieve_similar_experiences",
+            "memory.retrieve_failure_cases",
+            "memory.retrieve_optimization_rules",
+            "rag.retrieve_experience",
+            "hls4ml.inspect_model",
+            "hls4ml.check_support",
+            "hls4ml.check_hls4ml_support",
+        }
+        for spec in self.registry.list_tools():
+            if spec.permission_level == "read":
+                spec.idempotent = True
+                spec.max_retries = max(spec.max_retries, 1)
+            if spec.name in cacheable_tools:
+                spec.cacheable = True
+                spec.parallel_safe = True
+            if spec.required_capabilities is None:
+                if spec.name.startswith("memory.") or spec.name.startswith("rag."):
+                    spec.required_capabilities = ["memory.read" if spec.permission_level == "read" else "memory.write"]
+                elif spec.name.startswith(("hls4ml.", "vivado.")):
+                    spec.required_capabilities = ["hls.inspect" if spec.permission_level == "read" else "hls.execute"]
 
     def _register_tools(self) -> None:
-        register_hls4ml_tools(self.registry, self.hls4ml_adapter)
-        register_vivado_tools(self.registry, self.vivado_adapter)
+        if os.environ.get("DL_OP_TO_HLS_MCP_TRANSPORT", "local").lower() == "stdio":
+            self._register_stdio_mcp_tools()
+        else:
+            register_hls4ml_tools(self.registry, self.hls4ml_adapter)
+            register_vivado_tools(self.registry, self.vivado_adapter)
+        self._register_domain_tools()
         self.registry.register(
             ToolSpec(
                 name="task.validate_schema",
@@ -91,6 +156,133 @@ class MainAgent:
                 permission_level="read",
                 tags=["task"],
                 handler=lambda arguments, context: {"status": "success", "task": load_task(arguments["task"])},
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="memory.retrieve_conversation",
+                description="Recall relevant user-scoped memory across sessions without crossing user boundaries.",
+                input_schema=simple_schema({"query": {"type": "string"}, "top_k": {"type": "integer"}}, ["query"]),
+                output_schema=simple_schema({"status": {"type": "string"}}, ["status"]),
+                permission_level="read",
+                required_capabilities=["memory.read"],
+                tags=["memory", "cross_session"],
+                idempotent=True,
+                cacheable=True,
+                parallel_safe=True,
+                handler=retrieve_conversation,
+            )
+        )
+
+    def _register_stdio_mcp_tools(self) -> None:
+        server_configs = [
+            ("hls4ml", "serve-hls4ml", register_hls4ml_tools, self.hls4ml_adapter),
+            ("vivado_hls", "serve-vivado-hls", register_vivado_tools, self.vivado_adapter),
+        ]
+        for name, command_name, register, adapter in server_configs:
+            local_registry = ToolRegistry()
+            register(local_registry, adapter)
+            client = StdioMCPClient(
+                [sys.executable, "-m", "dl_op_to_hls.cli", command_name],
+                cwd=self.config.workspace_root,
+                timeout_seconds=float(os.environ.get("DL_OP_TO_HLS_MCP_TIMEOUT_SECONDS", "60")),
+                name=name,
+            )
+            register_mcp_proxy_tools(self.registry, local_registry.list_tools(), client)
+            self._mcp_clients.append(client)
+
+    def close(self) -> None:
+        for client in self._mcp_clients:
+            client.close()
+        self._mcp_clients.clear()
+
+    def _register_domain_tools(self) -> None:
+        result_schema = simple_schema({"status": {"type": "string"}}, ["status"])
+        self.registry.register(
+            ToolSpec(
+                name="workspace.scan",
+                description="Incrementally index mixed source and document files in the permitted workspace.",
+                input_schema=simple_schema(
+                    {"paths": {"type": "array", "items": {"type": "string", "x-permission": "read_path"}}}
+                ),
+                output_schema=result_schema,
+                permission_level="read",
+                required_capabilities=["workspace.read"],
+                idempotent=True,
+                cacheable=False,
+                handler=lambda arguments, context: self.workspace_context.scan(arguments.get("paths")),
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="workspace.read_batch",
+                description="Read bounded line ranges from multiple workspace files with source citations.",
+                input_schema=simple_schema(
+                    {
+                        "requests": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string", "x-permission": "read_path"},
+                                    "start_line": {"type": "integer"},
+                                    "end_line": {"type": "integer"},
+                                },
+                                "required": ["path"],
+                            },
+                        },
+                        "max_total_chars": {"type": "integer"},
+                    },
+                    ["requests"],
+                ),
+                output_schema=result_schema,
+                permission_level="read",
+                required_capabilities=["workspace.read"],
+                idempotent=True,
+                parallel_safe=True,
+                handler=lambda arguments, context: self.workspace_context.read_batch(
+                    arguments["requests"], max_total_chars=int(arguments.get("max_total_chars", 40000))
+                ),
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="workspace.search",
+                description="Search indexed workspace text and return ranked line citations.",
+                input_schema=simple_schema(
+                    {"query": {"type": "string"}, "top_k": {"type": "integer"}, "context_lines": {"type": "integer"}},
+                    ["query"],
+                ),
+                output_schema=result_schema,
+                permission_level="read",
+                required_capabilities=["workspace.read"],
+                idempotent=True,
+                cacheable=True,
+                parallel_safe=True,
+                handler=lambda arguments, context: self.workspace_context.search(
+                    arguments["query"],
+                    top_k=int(arguments.get("top_k", 20)),
+                    context_lines=int(arguments.get("context_lines", 2)),
+                ),
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="workspace.symbol_search",
+                description="Search Python, C/C++, and document symbols from the incremental workspace index.",
+                input_schema=simple_schema(
+                    {"query": {"type": "string"}, "top_k": {"type": "integer"}, "kind": {"type": "string"}},
+                    ["query"],
+                ),
+                output_schema=result_schema,
+                permission_level="read",
+                required_capabilities=["workspace.read"],
+                idempotent=True,
+                cacheable=True,
+                parallel_safe=True,
+                handler=lambda arguments, context: self.workspace_context.symbol_search(
+                    arguments["query"], top_k=int(arguments.get("top_k", 20)), kind=arguments.get("kind")
+                ),
             )
         )
         self.registry.register(
@@ -385,30 +577,35 @@ class MainAgent:
             "suggestion.generate": "suggestion.suggest_optimization",
         }
         for alias_name, target_name in alias_map.items():
-            target = self.registry.get(target_name)
-            self.registry.register(
-                ToolSpec(
-                    name=alias_name,
-                    description=f"Alias of {target_name}",
-                    input_schema=target.input_schema,
-                    output_schema=target.output_schema,
-                    permission_level=target.permission_level,
-                    handler=target.handler,
-                    server=target.server,
-                    tags=(target.tags or []) + ["alias"],
-                )
-            )
+            self.registry.register_alias(alias_name, target_name)
 
     def _rag_retrieve(self, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-        results = self.rag_memory.retrieve(
+        retrieval = self.rag_memory.retrieve_corrective(
             arguments["query"],
             top_k=int(arguments.get("top_k", 5)),
             domain=arguments.get("domain"),
+            identity=context.get("memory_identity"),
         )
         hooks = context.get("hooks")
         if hooks:
-            hooks.emit("RagRetrieved", {"run_id": context.get("run_id"), "query": arguments["query"], "count": len(results)})
-        return {"status": "success", "results": results}
+            diagnostics = retrieval.get("retrieval_diagnostics") or {}
+            hooks.emit(
+                "RagRetrieved",
+                {
+                    "run_id": context.get("run_id"),
+                    "query": arguments["query"],
+                    "count": len(retrieval["results"]),
+                    "evidence_status": retrieval["status"],
+                    "confidence": retrieval["confidence"],
+                    "abstained": retrieval["abstained"],
+                    "retrieval_mode": diagnostics.get("mode"),
+                    "embedding_model": diagnostics.get("embedding_model"),
+                    "reranker_model": diagnostics.get("reranker_model"),
+                    "embedding_error": diagnostics.get("embedding_error"),
+                    "reranker_error": diagnostics.get("reranker_error"),
+                },
+            )
+        return {"status": "success", **retrieval}
 
     def _ensure_legacy_workflow_map(self) -> None:
         path = self.config.docs_root / "legacy_workflow_map.md"
@@ -451,6 +648,45 @@ class MainAgent:
             return {"status": "success", "id": result}
         return result
 
+    def _bootstrap_releases(self) -> None:
+        skill_manifest = sorted(
+            (skill.name, skill.version, skill.status)
+            for skill in self.skill_registry.list_skills()
+        )
+        bundles = [
+            (
+                "model",
+                "main-agent",
+                self.llm_client.config.model,
+                {
+                    "provider": self.llm_client.config.provider,
+                    "base_url": self.llm_client.config.base_url,
+                    "model": self.llm_client.config.model,
+                },
+            ),
+            (
+                "prompt",
+                "runtime-prompts",
+                "2.0.0",
+                {
+                    "prompts": prompts.PROMPT_DEFAULTS,
+                    "fingerprints": prompts.prompt_fingerprints(),
+                    "contract": "goal-contract-and-evidence-gated-v3",
+                },
+            ),
+            ("skill", "approved-skills", stable_hash(skill_manifest)[:12], {"skills": skill_manifest}),
+        ]
+        bundles.extend(
+            ("skill", skill.name, skill.version, {"source": skill.source, "status": skill.status})
+            for skill in self.skill_registry.list_skills()
+        )
+        for component_type, name, version, config in bundles:
+            self.release_manager.register(component_type, name, version, config)
+            try:
+                self.release_manager.status(component_type, name)
+            except KeyError:
+                self.release_manager.set_baseline(component_type, name, version)
+
     def make_run_id(self, task: dict[str, Any]) -> str:
         name = str(task.get("name") or task.get("op_type") or task.get("task_type") or "run")
         safe = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in name).strip("_").lower() or "run"
@@ -462,12 +698,14 @@ class MainAgent:
             candidate = f"{base}_{counter:02d}"
         return candidate
 
-    def create_run_context(self, run_id: str) -> dict[str, Any]:
+    def create_run_context(self, run_id: str, session_id: str | None = None) -> dict[str, Any]:
         run_dir = self.config.runs_root / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         trace_writer = TraceWriter(run_dir / "trace.jsonl", run_id)
         hooks = HookManager()
         hooks.register("*", TraceHook(trace_writer))
+        telemetry = TelemetryHook(run_dir / "otel_spans.jsonl", run_id)
+        hooks.register("*", telemetry)
         if self.console:
             hooks.register("RunStarted", ConsoleHook())
             hooks.register("PreToolUse", ConsoleHook())
@@ -483,7 +721,7 @@ class MainAgent:
                 {
                     "run_id": run_id,
                     "tool_name": payload.get("tool", "unknown"),
-                    "server": None,
+                    "server": payload.get("server"),
                     "status": payload.get("status", "error" if event == "ToolFailed" else "success"),
                     "input_hash": payload.get("args_hash"),
                     "output_hash": payload.get("output_hash"),
@@ -494,15 +732,72 @@ class MainAgent:
 
         hooks.register("*", DbHook(tool_call_db_hook))
         artifact_manager = ArtifactManager(run_id=run_id, run_dir=run_dir, permission_gate=self.permission_gate, hooks=hooks)
+        run_budget = RunBudget(
+            max_llm_calls=self.llm_client.config.max_llm_calls,
+            max_tool_calls=int(os.environ.get("DL_OP_TO_HLS_MAX_TOOL_CALLS", "80")),
+            max_total_tokens=self.llm_client.config.max_total_tokens,
+        )
+        scheduler = BoundedScheduler(
+            SchedulerPolicy(
+                max_workers=int(os.environ.get("DL_OP_TO_HLS_MAX_PARALLEL_TOOLS", "2")),
+                max_parallel_llm_calls=1,
+            ),
+            hooks=hooks,
+            run_id=run_id,
+        )
+        message_bus = AgentMessageBus(
+            run_dir / "agent_messages.jsonl",
+            hooks=hooks,
+            database=self.database,
+            run_id=run_id,
+            session_id=session_id,
+        )
+        session_metadata: dict[str, Any] = {}
+        if session_id:
+            try:
+                session_metadata = dict(self.session_manager.get(session_id).get("metadata", {}))
+            except KeyError:
+                session_metadata = {}
+        memory_identity = {
+            "namespace": "project",
+            "user_id": session_metadata.get("user_id", "local-user"),
+            "project_id": session_metadata.get("project_id", self.config.workspace_root.name),
+            "session_id": session_id,
+        }
         return {
             "run_id": run_id,
             "run_dir": run_dir,
             "hooks": hooks,
+            "telemetry": telemetry,
+            "release_manifest": self.release_manager.resolve_bundle(run_id),
+            "credential_broker": self.credential_broker,
             "artifact_manager": artifact_manager,
+            "session_id": session_id,
+            "session_manager": self.session_manager,
+            "cancellation_token": CancellationToken(self.session_manager, session_id),
+            "message_bus": message_bus,
+            "scheduler": scheduler,
+            "run_budget": run_budget,
             "permission_gate": self.permission_gate,
+            "principal": {
+                "type": "agent",
+                "id": "MainAgent",
+                "capabilities": [
+                    "workspace.read",
+                    "workspace.write_runs",
+                    "memory.read",
+                    "memory.write",
+                    "hls.inspect",
+                    "hls.execute",
+                ],
+            },
             "repository": self.repository,
             "rag_memory": self.rag_memory,
             "memory_manager": self.memory_manager,
+            "memory_identity": memory_identity,
+            "workspace_context": self.workspace_context,
+            "tool_postcondition_registry": self.tool_postconditions,
+            "evidence_receipts": [],
             "llm_candidate_generator": self.llm_generator,
             "llm_client": self.llm_client,
             "hls4ml_adapter": self.hls4ml_adapter,
@@ -511,6 +806,7 @@ class MainAgent:
             "llm_fallback_policy": self.config.llm_fallback_policy,
             "optimization_fallback_mode": self.config.optimization_fallback_mode,
             "specialist_llm_decider_enabled": self.config.specialist_llm_decider_enabled,
+            "specialist_llm_mode": self.config.specialist_llm_mode,
             "config": self.config,
         }
 

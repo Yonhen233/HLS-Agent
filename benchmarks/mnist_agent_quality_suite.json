@@ -1,0 +1,141 @@
+{
+  "name": "mnist_agent_quality_suite_v1",
+  "description": "MNIST-first Agent quality suite. The primary real case is mnist_recognition_mlp; the remaining lightweight cases keep path-selection, unsupported honesty, and toolchain-recovery buckets visible without turning the suite into a hardware benchmark.",
+  "primary_task": "examples/mnist_recognition_mlp.json",
+  "llm_profile": {
+    "provider": "openai-compatible",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-pro",
+    "api_key_env": "DL_OP_TO_HLS_LLM_API_KEY"
+  },
+  "cases": [
+    {
+      "id": "mnist_recognition_real_hls4ml_primary",
+      "title": "MNIST recognition real hls4ml path",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_recognition_mlp.json",
+      "runner": "deterministic",
+      "mock_tools": false,
+      "tags": ["mnist", "primary", "real_tools", "hls4ml", "agent_metrics"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_specialists": ["HLS4MLSpecialist", "VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0,
+        "vivado_metrics_required": true,
+        "rag_no_pollution": true
+      }
+    },
+    {
+      "id": "mnist_recognition_llm_deepseek_path_selection",
+      "title": "MNIST recognition LLM path selection with DeepSeek-compatible API",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_recognition_mlp.json",
+      "runner": "llm",
+      "mock_tools": false,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["mnist", "llm", "deepseek", "path_selection"],
+      "expected": {
+        "allowed_statuses": ["success", "partial_success"],
+        "selected_path": "hls4ml_path",
+        "toolchain_for_path": true,
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "forbidden_error_types": ["PermissionDeniedError"],
+        "max_tool_failures": 1,
+        "rag_no_pollution": true
+      }
+    },
+    {
+      "id": "mnist_mlp_mock_hls4ml_smoke",
+      "title": "MNIST MLP fast hls4ml routing smoke",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_mlp_hls4ml.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["mnist", "mock", "hls4ml", "routing"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "max_todo_failed": 0
+      }
+    },
+    {
+      "id": "operator_fallback_routing_smoke",
+      "title": "Fallback operator routing bucket",
+      "category": "operator_fallback",
+      "task": "examples/dense_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["operator", "fallback", "routing_bucket"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "max_todo_failed": 0
+      }
+    },
+    {
+      "id": "unsupported_honesty_smoke",
+      "title": "Unsupported honesty bucket",
+      "category": "unsupported_recovery",
+      "task": "benchmarks/tasks/custom_unsupported_operator.json",
+      "runner": "deterministic",
+      "mock_tools": true,
+      "tags": ["unsupported", "honesty"],
+      "expected": {
+        "allowed_statuses": ["partial_success"],
+        "selected_path": "unsupported_path",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "unsupported_no_synthesis_metrics": true,
+        "unsupported_honesty": true,
+        "repair_success_required": true
+      }
+    },
+    {
+      "id": "toolchain_missing_recovery_smoke",
+      "title": "Toolchain recovery bucket",
+      "category": "toolchain_recovery",
+      "task": "benchmarks/tasks/dense_vivado_missing.json",
+      "runner": "deterministic",
+      "mock_tools": false,
+      "env": {
+        "DL_OP_TO_HLS_MOCK_HLS4ML": "1",
+        "DL_OP_TO_HLS_MOCK_VIVADO": "0",
+        "DL_OP_TO_HLS_VIVADO_HLS_PATH": "Z:/definitely_missing/vivado_hls.bat"
+      },
+      "tags": ["toolchain", "recovery"],
+      "expected": {
+        "allowed_statuses": ["success", "partial_success"],
+        "selected_path": "fallback_template_path",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_tool_groups": [["fallback.generate_operator_hls"], ["vivado.run_csynth"]],
+        "forbidden_error_types": ["PermissionDeniedError", "LLMGenerationError"],
+        "max_todo_failed": 0
+      }
+    }
+  ]
+}

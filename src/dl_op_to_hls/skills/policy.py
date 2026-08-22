@@ -3,19 +3,20 @@ from __future__ import annotations
 from typing import Any
 
 from .skill import Skill
+from .schema import SkillValidator
 
 
 class SkillPolicy:
     def validate_skill(self, skill: Skill, tool_registry, specialist_router) -> dict[str, Any]:
-        errors: list[str] = []
-        tool_names = {spec.name for spec in tool_registry.list_tools()}
-        specialist_names = {item["name"] for item in specialist_router.list_specialists()}
-        for tool in skill.allowed_tools:
-            if tool not in tool_names:
-                errors.append(f"Unknown tool in skill {skill.name}: {tool}")
-        for specialist in skill.allowed_specialists:
-            if specialist not in specialist_names:
-                errors.append(f"Unknown specialist in skill {skill.name}: {specialist}")
+        validator = SkillValidator()
+        runtime_report = validator.validate_runtime(
+            skill,
+            {spec.name for spec in tool_registry.list_tools()},
+            {item["name"] for item in specialist_router.list_specialists()},
+        )
+        errors: list[str] = list(runtime_report.errors)
+        if skill.status not in {"approved", "candidate", "deprecated"}:
+            errors.append(f"Invalid skill status for {skill.name}: {skill.status}")
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
     def validate_llm_plan_against_skill(
@@ -30,6 +31,11 @@ class SkillPolicy:
             errors.append("Todo plan must include at least one todo item.")
         if selected_skill is None:
             return {"status": "invalid" if errors else "valid", "errors": errors}
+        if selected_skill.status != "approved":
+            errors.append(f"Skill {selected_skill.name} is {selected_skill.status}; only approved skills may execute.")
+        max_steps = int(selected_skill.budget_policy.get("max_steps", 24))
+        if len(todos) > max_steps:
+            errors.append(f"Skill {selected_skill.name} plan exceeds max_steps={max_steps}.")
         if "report_metrics_available" in selected_skill.preconditions and not self._task_has_report_metrics(task or {}):
             errors.append(
                 f"Skill {selected_skill.name} requires existing report metrics; "
@@ -39,11 +45,14 @@ class SkillPolicy:
         allowed_specialists = set(selected_skill.allowed_specialists)
         verification_required = bool(selected_skill.verification_policy.get("generated_code_requires_verification"))
         seen_verification = False
+        tool_counts: dict[str, int] = {}
         for todo in todos:
             assigned_tool = todo.get("assigned_tool")
             assigned_specialist = todo.get("assigned_specialist")
             if assigned_tool and assigned_tool not in allowed_tools:
                 errors.append(f"Tool {assigned_tool} is outside selected skill allowlist.")
+            if assigned_tool:
+                tool_counts[assigned_tool] = tool_counts.get(assigned_tool, 0) + 1
             if assigned_specialist and assigned_specialist not in allowed_specialists:
                 errors.append(f"Specialist {assigned_specialist} is outside selected skill allowlist.")
             if assigned_specialist == "VerificationSpecialist" or str(assigned_tool).startswith("verify"):
@@ -51,6 +60,9 @@ class SkillPolicy:
             if assigned_tool in {"llm.generate_hls_candidate", "llm.generate_candidate"} and not seen_verification:
                 # soft-check later after full scan
                 pass
+        for tool_name, count in tool_counts.items():
+            if count > 2:
+                errors.append(f"Initial plan repeats tool {tool_name} {count} times; repairs must be added after observations.")
         if verification_required and any(
             todo.get("assigned_tool") in {"llm.generate_hls_candidate", "llm.generate_candidate"} for todo in todos
         ) and not any(

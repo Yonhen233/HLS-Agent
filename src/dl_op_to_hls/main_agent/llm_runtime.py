@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ..core.budgets import RunBudget
 from ..core.errors import AgentRuntimeError, build_error
 from ..llm.actions import MAIN_AGENT_ACTIONS, build_layered_tool_view
 from ..llm.client import LLMClient
@@ -22,8 +23,15 @@ from .todo import TodoList
 
 
 class LLMFirstRuntime(PlanExecuteReactRuntime):
-    def __init__(self, agent, llm_client: LLMClient | None = None):
-        super().__init__(agent)
+    def __init__(
+        self,
+        agent,
+        llm_client: LLMClient | None = None,
+        session_id: str | None = None,
+        user_id: str = "local-user",
+        project_id: str | None = None,
+    ):
+        super().__init__(agent, session_id=session_id)
         self.llm_client = llm_client or LLMClient()
         self.controller = LLMController()
         self.guard = LLMGuard()
@@ -32,28 +40,38 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self.skill_prompt_builder = SkillPromptContextBuilder()
         self.skill_expander = SkillExpander()
         self.selected_skill = None
+        self.user_id = user_id
+        self.project_id = project_id or agent.config.workspace_root.name
 
     def run(self, input_data: str | dict[str, Any]) -> AgentState:
+        session = self.agent.session_manager.create(
+            input_data,
+            self.session_id,
+            user_id=self.user_id,
+            project_id=self.project_id,
+        )
+        self.session_id = session["session_id"]
+        session_context = self.agent.session_manager.compact_messages(self.session_id)
+        session_context["last_task"] = (session.get("metadata") or {}).get("last_task")
+        self.llm_client.set_context({"session_id": self.session_id, "session_context": session_context})
         state = self.initialize(input_data)
+        self.agent.session_manager.bind_run(self.session_id, state.run_id)
+        self.agent.session_manager.set_metadata(self.session_id, last_task=state.task)
         self.llm_client.set_context(self.context)
         hooks = self.context["hooks"]
-        hooks.emit("RunStarted", {"run_id": state.run_id, "message": f"Starting LLM-first run for {state.task.get('name')}"})
+        hooks.emit(
+            "RunStarted",
+            {"run_id": state.run_id, "session_id": self.session_id, "message": f"Starting LLM-first run for {state.task.get('name')}"},
+        )
         try:
-            if not self.llm_client.is_enabled():
-                raise AgentRuntimeError(
-                    build_error(
-                        "LLMGenerationError",
-                        "LLM is not enabled or API key is missing.",
-                        recoverable=True,
-                        source="llm_runtime.run",
-                        suggested_action="Set DL_OP_TO_HLS_LLM_ENABLED=1 and DL_OP_TO_HLS_LLM_API_KEY.",
-                    )
-                )
+            self._ensure_llm_enabled()
             state = self.retrieve_initial_memory(state)
             state = self.build_skill_context(state)
             state = self.plan_todos(state)
+            self._create_session_checkpoint(state, "llm_plan_accepted")
             state = self.execute_todos(state)
-            state = self.finalize(state)
+            if state.status != "interrupted":
+                state = self.finalize(state)
         except AgentRuntimeError as exc:
             state.errors.append(exc.error.to_dict())
             state.status = "failed"
@@ -63,30 +81,171 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             )
             state.status = "failed"
         finally:
-            reflect_on_errors(state)
-            update_status_from_todos(state)
-            trace_path = self.context["run_dir"] / "trace.jsonl"
-            if trace_path.exists():
-                self.context["artifact_manager"].register_file(trace_path, "trace")
-                state.artifacts["trace"] = str(trace_path)
-            state_path = self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
-            state.artifacts["state"] = str(state_path)
-            Path(state_path).write_text(json.dumps(state.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8")
-            hooks.emit("RunFinished", {"run_id": state.run_id, "status": state.status})
+            self._close_run(state, hooks, resumed=False)
         return state
+
+    def resume(self, session_id: str) -> AgentState:
+        self.session_id = session_id
+        session = self.agent.session_manager.get(session_id)
+        if (session.get("metadata") or {}).get("replan_required"):
+            raise ValueError("The last user turn was retracted; submit replacement input with the same session_id to create a new plan.")
+        if session.get("status") == "completed":
+            raise ValueError("Completed session must be rolled back before it can be resumed")
+        checkpoint = self.agent.session_manager.load_active_checkpoint(session_id)
+        state = AgentState.from_dict(checkpoint["state"])
+        state.session_id = session_id
+        run_id = str(checkpoint.get("run_id") or state.run_id)
+        self.context = self.agent.create_run_context(run_id, session_id)
+        if state.release_manifest:
+            self.context["release_manifest"] = dict(state.release_manifest)
+        self._initialize_governance(state)
+        self._restore_run_budget(checkpoint)
+        self.llm_client.set_context(self.context)
+        self.executor = self._build_executor()
+        self.todo_manager = self._build_todo_manager()
+        self.compressor = self._build_compressor(run_id)
+        self.specialist_router = self._build_router()
+        self.todo_manager.todo_list = TodoList(run_id=run_id, items=state.todos)
+        for todo in state.todos:
+            if todo.status == "in_progress":
+                todo.status = "pending"
+        self.todo_manager.save(run_id, self.todo_manager.todo_list)
+        self.skill_registry.load_all()
+        self.skill_registry.pin_release_manifest(state.release_manifest)
+        if state.selected_skill:
+            try:
+                self.selected_skill = self.skill_registry.get(state.selected_skill)
+            except KeyError:
+                self.selected_skill = None
+        state.status = "initialized"
+        self.agent.session_manager.mark_running(session_id)
+        self.agent.session_manager.append_message(
+            session_id,
+            "system",
+            f"Resumed from {checkpoint['checkpoint_id']}",
+            {"kind": "resume", "checkpoint_id": checkpoint["checkpoint_id"]},
+        )
+        hooks = self.context["hooks"]
+        hooks.emit(
+            "RunResumed",
+            {"run_id": run_id, "session_id": session_id, "checkpoint_id": checkpoint["checkpoint_id"]},
+        )
+        try:
+            self._ensure_llm_enabled()
+            state = self.execute_todos(state)
+            if state.status != "interrupted":
+                state = self.finalize(state)
+        except AgentRuntimeError as exc:
+            state.errors.append(exc.error.to_dict())
+            state.status = "failed"
+        except Exception as exc:  # pragma: no cover - defensive
+            state.errors.append(build_error("InvalidTaskError", str(exc), recoverable=True, source="llm_runtime.resume").to_dict())
+            state.status = "failed"
+        finally:
+            self._close_run(state, hooks, resumed=True)
+        return state
+
+    def _restore_run_budget(self, checkpoint: dict[str, Any]) -> None:
+        budget_payload = ((checkpoint.get("runtime") or {}).get("run_budget") or {})
+        if not budget_payload:
+            budget_path = self.context["run_dir"] / "run_budget.json"
+            if budget_path.exists():
+                budget_payload = json.loads(budget_path.read_text(encoding="utf-8"))
+        if not budget_payload:
+            trace_path = self.context["run_dir"] / "trace.jsonl"
+            events = []
+            if trace_path.exists():
+                for line in trace_path.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        try:
+                            events.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+            current = self.context["run_budget"].to_dict()
+            usage_events = [item for item in events if item.get("event") == "LLMUsageRecorded"]
+            budget_payload = {
+                **current,
+                "llm_calls": sum(1 for item in events if item.get("event") == "LLMCallStarted"),
+                "tool_calls": sum(
+                    1
+                    for item in events
+                    if item.get("event") == "PreToolUse" and int(item.get("attempt") or 1) == 1
+                ),
+                "input_tokens": sum(int(item.get("input_tokens") or 0) for item in usage_events),
+                "output_tokens": sum(int(item.get("output_tokens") or 0) for item in usage_events),
+                "cache_hits": sum(1 for item in events if item.get("event") == "ToolCacheHit"),
+            }
+        self.context["run_budget"] = RunBudget.from_dict(budget_payload)
+
+    def _ensure_llm_enabled(self) -> None:
+        if self.llm_client.is_enabled():
+            return
+        raise AgentRuntimeError(
+            build_error(
+                "LLMGenerationError",
+                "LLM is not enabled or API key is missing.",
+                recoverable=True,
+                source="llm_runtime.run",
+                suggested_action="Set DL_OP_TO_HLS_LLM_ENABLED=1 and DL_OP_TO_HLS_LLM_API_KEY.",
+            )
+        )
+
+    def _close_run(self, state: AgentState, hooks, *, resumed: bool) -> None:
+        reflect_on_errors(state)
+        update_status_from_todos(state)
+        if state.status != "interrupted":
+            self._apply_completion_gate(state)
+        trace_path = self.context["run_dir"] / "trace.jsonl"
+        if trace_path.exists():
+            self.context["artifact_manager"].register_file(trace_path, "trace")
+            state.artifacts["trace"] = str(trace_path)
+        budget = self.context.get("run_budget")
+        if budget is not None:
+            budget_path = self.context["artifact_manager"].write_json("run_budget.json", budget.to_dict(), "run_budget")
+            state.artifacts["run_budget"] = str(budget_path)
+        state_path = self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+        state.artifacts["state"] = str(state_path)
+        Path(state_path).write_text(json.dumps(state.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+        self._create_session_checkpoint(state, "run_interrupted" if state.status == "interrupted" else "run_finished")
+        if state.status != "interrupted":
+            self.agent.session_manager.append_message(
+                self.session_id,
+                "assistant",
+                f"Run {state.run_id} finished with status {state.status}.",
+                {"kind": "run_result", "run_id": state.run_id, "status": state.status, "resumed": resumed},
+            )
+            self.agent.session_manager.mark_finished(self.session_id, state.status)
+            compacted = self.agent.session_manager.compact_messages(self.session_id)
+            memory_identity = dict(self.context.get("memory_identity") or {})
+            memory_identity["namespace"] = "user"
+            self.context["memory_manager"].remember_conversation(
+                summary=(compacted.get("summary") or f"Run {state.run_id} completed with status {state.status}."),
+                identity=memory_identity,
+                key=f"conversation.{self.session_id}.{state.run_id}",
+                preferences={"objective": state.objective, "selected_path": state.selected_path},
+            )
+        hooks.emit(
+            "RunFinished",
+            {"run_id": state.run_id, "session_id": self.session_id, "status": state.status, "resumed": resumed},
+        )
 
     def initialize(self, input_data: str | dict[str, Any]) -> AgentState:
         task = self._interpret_or_load_task(input_data)
         run_id = self.agent.make_run_id(task)
-        self.context = self.agent.create_run_context(run_id)
+        self.context = self.agent.create_run_context(run_id, self.session_id)
+        self.skill_registry.pin_release_manifest(self.context.get("release_manifest") or {})
         self.llm_client.set_context(self.context)
         self.executor = self.executor or self._build_executor()
         self.todo_manager = self.todo_manager or self._build_todo_manager()
         self.compressor = self.compressor or self._build_compressor(run_id)
         self.specialist_router = self.specialist_router or self._build_router()
 
-        state = AgentState(run_id=run_id, task=task, objective=task.get("objective"))
+        state = AgentState(run_id=run_id, task=task, session_id=self.session_id, objective=task.get("objective"))
+        state.release_manifest = dict(self.context.get("release_manifest") or {})
+        state.telemetry = {"format": "otlp-jsonl", "path": str(self.context["run_dir"] / "otel_spans.jsonl")}
         state.artifacts["run_dir"] = str(self.context["run_dir"])
+        state.artifacts["telemetry"] = state.telemetry["path"]
+        self._initialize_governance(state)
         self.context["artifact_manager"].write_json("input.json", task, "input_task")
         self.context["artifact_manager"].write_json("normalized_task.json", task, "normalized_task")
         self._call_tool(
@@ -169,6 +328,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     available_specialists=available_specialists,
                     layered_tool_view=layered_tool_view,
                     retrieved_memories=state.retrieved_memories,
+                    goal_contract=state.goal_contract,
                     client=self.llm_client,
                 )
             except AgentRuntimeError as exc:
@@ -180,15 +340,52 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                 )
                 continue
             last_plan = plan
-            guard = self.guard.validate_todo_plan(plan, self.agent.registry, self.specialist_router, self.skill_registry)
             selected_skill = None
             if plan.get("selected_skill"):
                 try:
                     selected_skill = self.skill_registry.get(plan["selected_skill"])
                 except KeyError:
                     pass
+            plan, coverage_repair = self.plan_coverage_validator.repair_with_skill(
+                plan,
+                selected_skill,
+                state.goal_contract,
+            )
+            if coverage_repair["repaired"]:
+                emit_llm_event(
+                    self.context,
+                    "LLMPlanCoverageRepaired",
+                    {
+                        "run_id": state.run_id,
+                        "attempt": attempt + 1,
+                        "added_tools": coverage_repair["added_tools"],
+                        "missing_before": [
+                            item["requirement_id"] for item in coverage_repair["before"]["missing_requirements"]
+                        ],
+                    },
+                )
+            terminal_tools = self._append_skill_terminal_todos(plan, selected_skill)
+            if terminal_tools:
+                emit_llm_event(
+                    self.context,
+                    "LLMPlanTerminalTodosAdded",
+                    {"run_id": state.run_id, "attempt": attempt + 1, "added_tools": terminal_tools},
+                )
+            ownership_repair = self._repair_specialist_ownership(plan, layered_tool_view)
+            if ownership_repair:
+                emit_llm_event(
+                    self.context,
+                    "LLMPlanOwnershipRepaired",
+                    {"run_id": state.run_id, "attempt": attempt + 1, "repairs": ownership_repair},
+                )
+            guard = self.guard.validate_todo_plan(plan, self.agent.registry, self.specialist_router, self.skill_registry)
+            coverage = self.plan_coverage_validator.validate(state.goal_contract, plan.get("todos", []))
             skill_policy_result = self.skill_policy.validate_llm_plan_against_skill(plan, selected_skill, state.task)
-            errors = guard["errors"] + skill_policy_result["errors"]
+            coverage_errors = [
+                f"Plan does not cover required goal {item['requirement_id']}."
+                for item in coverage["missing_requirements"]
+            ]
+            errors = guard["errors"] + skill_policy_result["errors"] + coverage_errors
             if not errors:
                 emit_llm_event(
                     self.context,
@@ -201,6 +398,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                 )
                 state.selected_skill = plan.get("selected_skill")
                 state.skill_usage_mode = plan.get("skill_usage")
+                state.plan_coverage = coverage
                 state.llm_decisions.append(
                     {
                         "phase": "plan",
@@ -209,6 +407,31 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     }
                 )
                 self.selected_skill = selected_skill
+                if selected_skill is not None:
+                    budget_policy = selected_skill.budget_policy
+                    self.context["run_budget"].tighten(
+                        max_llm_calls=budget_policy.get("max_llm_calls"),
+                        max_tool_calls=budget_policy.get("max_tool_calls"),
+                        max_total_tokens=budget_policy.get("max_tokens"),
+                    )
+                    concurrency_policy = selected_skill.concurrency_policy
+                    self.context["scheduler"].apply_limits(
+                        max_workers=concurrency_policy.get("max_parallel_tools"),
+                        max_parallel_llm_calls=concurrency_policy.get("max_parallel_llm_calls"),
+                    )
+                    invocation = {
+                        "skill": selected_skill.name,
+                        "version": selected_skill.version,
+                        "status": selected_skill.status,
+                        "usage_mode": state.skill_usage_mode,
+                        "allowed_tools": selected_skill.allowed_tools,
+                        "allowed_specialists": selected_skill.allowed_specialists,
+                        "context_policy": selected_skill.context_policy,
+                        "budget_policy": selected_skill.budget_policy,
+                        "concurrency_policy": selected_skill.concurrency_policy,
+                    }
+                    path = self.context["artifact_manager"].write_json("skill_invocation.json", invocation, "skill_invocation")
+                    state.artifacts["skill_invocation"] = str(path)
                 self._create_todos_from_llm_plan(state, plan)
                 return state
             emit_llm_event(
@@ -227,6 +450,50 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             )
         )
 
+    @staticmethod
+    def _append_skill_terminal_todos(plan: dict[str, Any], skill: Any) -> list[str]:
+        if skill is None:
+            return []
+        terminal_tools = {"suggestion.suggest_optimization", "memory.promote_to_long_term"}
+        existing = {item.get("assigned_tool") for item in plan.get("todos", [])}
+        added: list[str] = []
+        for item in getattr(skill, "recommended_todos", []) or []:
+            tool_name = item.get("assigned_tool") if isinstance(item, dict) else None
+            if tool_name in terminal_tools and tool_name not in existing:
+                plan.setdefault("todos", []).append(dict(item))
+                existing.add(tool_name)
+                added.append(str(tool_name))
+        return added
+
+    @staticmethod
+    def _repair_specialist_ownership(plan: dict[str, Any], layered_tool_view: dict[str, Any]) -> list[dict[str, str]]:
+        owners: dict[str, list[str]] = {}
+        for specialist in layered_tool_view.get("specialists", []):
+            for tool_name in specialist.get("capability_tools", []):
+                owners.setdefault(tool_name, []).append(str(specialist["name"]))
+        preferred = {
+            "fallback.generate_testbench": "VerificationSpecialist",
+            "vivado.run_csim": "VerificationSpecialist",
+            "vivado.run_csynth": "VivadoSpecialist",
+            "vivado.parse_report": "VivadoSpecialist",
+            "vivado.parse_log": "VivadoSpecialist",
+            "suggestion.suggest_optimization": "OptimizationSpecialist",
+            "memory.promote_to_long_term": "MemorySpecialist",
+        }
+        repairs: list[dict[str, str]] = []
+        for todo in plan.get("todos", []):
+            tool_name = todo.get("assigned_tool")
+            candidates = owners.get(tool_name, [])
+            current = todo.get("assigned_specialist")
+            if not candidates or current in candidates:
+                continue
+            selected = preferred.get(tool_name)
+            if selected not in candidates:
+                selected = candidates[0]
+            todo["assigned_specialist"] = selected
+            repairs.append({"title": str(todo.get("title") or ""), "tool": str(tool_name), "specialist": selected})
+        return repairs
+
     def _create_todos_from_llm_plan(self, state: AgentState, plan: dict[str, Any]) -> None:
         expanded = list(plan.get("todos", []))
         if self.selected_skill is not None and not expanded:
@@ -241,6 +508,11 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             item.description = spec.get("description", item.description)
             raw_inputs = spec.get("inputs", item.inputs)
             item.inputs = raw_inputs if isinstance(raw_inputs, dict) else {}
+            if self.selected_skill is not None:
+                max_context = self.selected_skill.context_policy.get("max_context_tokens")
+                if max_context:
+                    item.context_scope = {**item.context_scope, "max_context_tokens": int(max_context)}
+            self._coerce_unsupported_recovery_todo(item)
             raw_dependencies = spec.get("dependencies")
             if isinstance(raw_dependencies, list):
                 normalized: list[str] = []
@@ -253,7 +525,22 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self._normalize_llm_plan_dependencies(todo_list, state.task)
         self.todo_manager.save(state.run_id, todo_list)
         state.todos = todo_list.items
+        self._update_plan_coverage(state)
         state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
+
+    def _coerce_unsupported_recovery_todo(self, item) -> None:
+        if item.assigned_tool:
+            return
+        inputs = item.inputs if isinstance(item.inputs, dict) else {}
+        text = " ".join(str(value or "") for value in [item.title, item.description, inputs.get("reason"), inputs.get("action")]).lower()
+        if "unsupported" not in text:
+            return
+        action = str(inputs.get("action") or "").lower()
+        if action not in {"mark_failed", "mark_unsupported", "write_unsupported_report", ""} and "recover" not in text:
+            return
+        item.assigned_tool = "report.write_unsupported"
+        reason = inputs.get("reason") or item.description or item.title
+        item.inputs = {**inputs, "reason": reason}
 
     def _normalize_llm_plan_dependencies(self, todo_list, task: dict[str, Any]) -> None:
         """Project an LLM todo graph onto a valid acyclic workflow DAG.
@@ -391,6 +678,34 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     "reason_summary": "Planner already assigned a scoped specialist; deterministic delegation avoids a no-op Main Agent LLM call.",
                     "action": {
                         "type": "delegate_to_specialist",
+                        "tool_name": todo.assigned_tool,
+                    },
+                    "observation_summary": (
+                        observation.get("observation", {}).get("summary")
+                        or observation.get("observation", {}).get("status")
+                        or observation.get("status")
+                    ),
+                    "decision": self._decision_from_observation(state, todo, observation),
+                }
+            )
+            self._write_short_term_for_todo(state, todo, observation)
+            return observation
+        if specialist is None and todo.assigned_tool:
+            emit_llm_event(
+                self.context,
+                "LLMReActAutoDirect",
+                {
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "assigned_tool": todo.assigned_tool,
+                },
+            )
+            observation = self._execute_todo_actions(state, todo)
+            todo.react_steps.append(
+                {
+                    "reason_summary": "The validated plan already assigned an atomic tool; execute it without a redundant Main Agent LLM decision.",
+                    "action": {
+                        "type": "direct_tool_only_when_no_specialist",
                         "tool_name": todo.assigned_tool,
                     },
                     "observation_summary": (

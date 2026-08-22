@@ -1,5 +1,7 @@
 {
   "name": "unsupported_boundary_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Handle partially supported or unsupported hls4ml/model boundary cases with actionable reporting.",
   "intent": "unsupported_boundary_handling",
   "trigger": {
@@ -32,6 +34,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "task.validate_schema",
     "graph_rewrite.rewrite",
     "report.write_unsupported",

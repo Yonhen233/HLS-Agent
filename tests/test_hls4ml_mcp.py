@@ -259,13 +259,13 @@ def test_hls4ml_layer_list_adapter_rewrites_onnx18_spatial_reduce_mean():
 
     adapter = HLS4MLAdapter(mock_mode=False)
     layer_list, _input_layer, output_layer, rewrites = adapter._build_layer_list_from_onnx(model)
-    pool = next(layer for layer in layer_list if layer.get("class_name") == "AveragePooling2D")
+    pool = next(layer for layer in layer_list if layer.get("class_name") == "GlobalAveragePooling2D")
 
     assert output_layer == "global_average"
-    assert pool["pool_height"] == 4
-    assert pool["pool_width"] == 4
+    assert pool["in_height"] == 4
+    assert pool["in_width"] == 4
     assert pool["n_filt"] == 2
-    assert "ReduceMean spatial axes -> channels_last AveragePooling2D" in rewrites
+    assert "NCHW ReduceMean spatial axes -> channels_last GlobalAveragePooling2D layer-list" in rewrites
 
 
 def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():

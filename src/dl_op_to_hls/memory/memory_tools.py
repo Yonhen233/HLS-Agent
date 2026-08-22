@@ -11,10 +11,14 @@ def _artifact_path(context, path: str, artifact_type: str) -> None:
         artifact_manager.register_file(path, artifact_type)
 
 
+def _identity(context):
+    return context.get("memory_identity") or None
+
+
 def write_short_term(arguments, context):
     manager = context["memory_manager"]
     try:
-        result = manager.write_short_term(arguments["run_id"], arguments["key"], arguments["value"])
+        result = manager.write_short_term(arguments["run_id"], arguments["key"], arguments["value"], _identity(context))
         _artifact_path(context, result["path"], "memory_short_term")
         return result
     except Exception as exc:  # pragma: no cover - defensive
@@ -45,7 +49,7 @@ def extract_memory_candidates(arguments, context):
 def promote_to_long_term(arguments, context):
     manager = context["memory_manager"]
     try:
-        result = manager.promote_to_long_term(arguments["run_id"], arguments["candidates"])
+        result = manager.promote_to_long_term(arguments["run_id"], arguments["candidates"], _identity(context))
         _artifact_path(context, result["path"], "memory_promoted")
         return result
     except Exception as exc:  # pragma: no cover
@@ -55,7 +59,7 @@ def promote_to_long_term(arguments, context):
 def retrieve_similar_experiences(arguments, context):
     manager = context["memory_manager"]
     try:
-        return {"status": "success", "results": manager.retrieve_similar_experiences(arguments["query"], int(arguments.get("top_k", 5)))}
+        return {"status": "success", "results": manager.retrieve_similar_experiences(arguments["query"], int(arguments.get("top_k", 5)), _identity(context))}
     except Exception as exc:  # pragma: no cover
         return error_result(build_error("DatabaseError", str(exc), recoverable=True, source="memory.retrieve_similar_experiences"))
 
@@ -63,7 +67,7 @@ def retrieve_similar_experiences(arguments, context):
 def retrieve_failure_cases(arguments, context):
     manager = context["memory_manager"]
     try:
-        return {"status": "success", "results": manager.retrieve_failure_cases(arguments["query"], int(arguments.get("top_k", 5)))}
+        return {"status": "success", "results": manager.retrieve_failure_cases(arguments["query"], int(arguments.get("top_k", 5)), _identity(context))}
     except Exception as exc:  # pragma: no cover
         return error_result(build_error("DatabaseError", str(exc), recoverable=True, source="memory.retrieve_failure_cases"))
 
@@ -71,9 +75,22 @@ def retrieve_failure_cases(arguments, context):
 def retrieve_optimization_rules(arguments, context):
     manager = context["memory_manager"]
     try:
-        return {"status": "success", "results": manager.retrieve_optimization_rules(arguments["query"], int(arguments.get("top_k", 5)))}
+        return {"status": "success", "results": manager.retrieve_optimization_rules(arguments["query"], int(arguments.get("top_k", 5)), _identity(context))}
     except Exception as exc:  # pragma: no cover
         return error_result(build_error("DatabaseError", str(exc), recoverable=True, source="memory.retrieve_optimization_rules"))
+
+
+def retrieve_conversation(arguments, context):
+    manager = context["memory_manager"]
+    try:
+        identity = dict(_identity(context) or {})
+        identity["namespace"] = "user"
+        return {
+            "status": "success",
+            "results": manager.recall_conversation(arguments["query"], identity, int(arguments.get("top_k", 5))),
+        }
+    except Exception as exc:  # pragma: no cover
+        return error_result(build_error("DatabaseError", str(exc), recoverable=True, source="memory.retrieve_conversation"))
 
 
 def save_skill(arguments, context):
@@ -82,4 +99,3 @@ def save_skill(arguments, context):
         return manager.save_skill(arguments["name"], arguments["steps"], arguments.get("trigger_conditions", {}), arguments.get("success_criteria", {}))
     except Exception as exc:  # pragma: no cover
         return error_result(build_error("DatabaseError", str(exc), recoverable=True, source="memory.save_skill"))
-

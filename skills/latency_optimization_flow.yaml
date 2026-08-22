@@ -1,5 +1,7 @@
 {
   "name": "latency_optimization_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Optimize for latency and II while preserving timing closure.",
   "intent": "latency_optimization",
   "trigger": {
@@ -17,6 +19,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "rag.retrieve_experience",
     "memory.retrieve_optimization_rules",
     "suggestion.suggest_optimization"

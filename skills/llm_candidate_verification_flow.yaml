@@ -1,5 +1,7 @@
 {
   "name": "llm_candidate_verification_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Generate candidate HLS for unsupported operators with LLM and enforce verification loop.",
   "intent": "llm_generated_hls_candidate_verification",
   "trigger": {
@@ -44,6 +46,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "memory.retrieve_similar_experiences",
     "llm.generate_hls_candidate",
     "llm.generate_candidate",
@@ -53,6 +59,7 @@
     "vivado.run_csynth",
     "vivado.parse_report",
     "vivado.parse_log",
+    "report.write_unsupported",
     "memory.promote_to_long_term"
   ],
   "allowed_specialists": [

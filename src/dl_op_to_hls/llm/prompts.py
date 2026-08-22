@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 
 TASK_INTERPRETER_SYSTEM_PROMPT = """You are an HLS deployment task interpreter.
 Normalize user input into a strict JSON task for dl-op-to-hls.
@@ -91,3 +93,35 @@ sharing or staged reductions when useful. It is acceptable to trade latency for
 timing closure if the objective or repair context says timing failed.
 Do not use system(), popen(), networking, filesystem access, dynamic allocation,
 threads, exceptions, or non-synthesizable side effects in candidate design code."""
+
+
+PROMPT_DEFAULTS = {
+    "task_interpreter": TASK_INTERPRETER_SYSTEM_PROMPT,
+    "todo_planner": TODO_PLANNER_SYSTEM_PROMPT,
+    "react": REACT_SYSTEM_PROMPT,
+    "json_repair": JSON_REPAIR_SYSTEM_PROMPT,
+    "specialist_react": SPECIALIST_REACT_SYSTEM_PROMPT,
+    "reflection": REFLECTION_SYSTEM_PROMPT,
+    "optimizer": OPTIMIZER_SYSTEM_PROMPT,
+    "candidate_generator": CANDIDATE_GENERATOR_SYSTEM_PROMPT,
+}
+
+
+def resolve_prompt(context: dict | None, name: str) -> str:
+    """Resolve a versioned prompt selected by the run's immutable release manifest."""
+    if name not in PROMPT_DEFAULTS:
+        raise KeyError(name)
+    manifest = (context or {}).get("release_manifest") or {}
+    release = manifest.get(f"prompt:{name}") or manifest.get("prompt:runtime-prompts") or {}
+    config = release.get("selected_config") or {}
+    text = config.get("text")
+    if not text and isinstance(config.get("prompts"), dict):
+        text = config["prompts"].get(name)
+    return text if isinstance(text, str) and text.strip() else PROMPT_DEFAULTS[name]
+
+
+def prompt_fingerprints() -> dict[str, str]:
+    return {
+        name: hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+        for name, text in PROMPT_DEFAULTS.items()
+    }

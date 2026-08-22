@@ -10,6 +10,7 @@
 - artifacts、trace、state、memory 是否完整。
 - RAG 是否能召回相关经验，同时避免明显污染。
 - Vivado 不存在或模型不支持时，系统是否保持可解释的 partial success。
+- 长程任务的 repair/replan 是否有效，LLM/tool/token 成本是否可量化。
 
 ## Benchmark 层次
 
@@ -19,14 +20,22 @@
 
 - `status_counts`：success / partial_success / failed 分布。
 - `selected_path_counts`：fallback、hls4ml、unsupported、existing_project 等路径分布。
-- `runtime_s`：从 trace 时间戳估算 min / median / max。
+- `selected_path_valid_rate`：是否只落在明确支持的 Agent path。
+- `toolchain_selection_accuracy`：当前 path 是否调用了对应工具链。
+- `task_success_rate_by_category`：按 `operator_fallback`、`model_hls4ml`、`unsupported_recovery`、`toolchain_recovery` 分桶统计成功率。
+- `runtime_s`：从 trace 时间戳估算 min / p50 / p95 / max。
 - `llm_decision_count_total`：LLM ReAct 决策次数。
-- `tool_call_count_total`：ToolRegistry 工具调用次数。
+- `tool_call_count_total`、`avg_tool_calls_per_run`：ToolRegistry 工具调用成本。
+- `llm_call_count_total`、`avg_llm_calls_per_run`：LLM 调用成本。
+- `avg_estimated_tokens_per_run`：Specialist context token 估算。
 - `specialist_event_count_total`：Specialist 生命周期事件数量。
 - `artifact_completeness_avg`：关键 artifacts 完整率。
-- `rag_pollution_rate`：明显不相关经验被召回的比例。
-- `unsupported_semantics_pass_rate`：unsupported path 是否保持 partial_success、是否避免编造综合指标。
-- `vivado_metric_runs`：成功解析 latency / II / DSP / BRAM / LUT / FF / timing 的 run。
+- `trace_completeness_avg`：plan、todo、tool call、specialist result、artifact、error stage、summary 完整率。
+- `rag_evidence_hit_rate` / `rag_pollution_rate`：相关经验命中与不相关经验污染比例。
+- `unsupported_honesty_rate`：unsupported path 是否保持 `partial_success`/`unsupported`，是否避免编造综合或验证结果。
+- `repair_success_rate`：失败后 repair/replan 是否让 run 收敛到 success/partial_success。
+- `llm_harness`：LLM plan 接受率、JSON repair 成功率、guard rejection、candidate generation/repair 计数。
+- `vivado_metric_runs`：成功解析 latency / II / DSP / BRAM / LUT / FF / timing 的 run；这是二级硬件证据，不是主评测指标。
 
 第二层是 capability-suite checks，由 `benchmarks/agent_capability_suite.json` 定义每个 case 的期望契约：
 
@@ -35,12 +44,30 @@
 - 必须出现的 trace events，例如 `TodoCreated`、`SpecialistSelected`、`SpecialistResultMerged`。
 - 必须参与的 Specialist，例如 `VivadoSpecialist`、`OptimizationSpecialist`、`MemorySpecialist`。
 - 禁止出现的错误，例如 `PermissionDeniedError`。
-- 是否必须具备 Vivado synthesis metrics。
-- unsupported case 是否禁止出现伪造 latency / DSP 建议。
+- 是否必须调用与 path 匹配的工具链。
+- 是否必须具备完整 trace。
+- unsupported case 是否禁止出现伪造 latency / resource / verification。
+- repair case 是否要求修复成功。
+- 是否必须具备 Vivado synthesis metrics；该项只用于真实链路佐证。
 
 ## 当前 Suite 覆盖
 
-`benchmarks/agent_capability_suite.json` 当前包含 12 个 case：
+`benchmarks/mnist_agent_quality_suite.json` 是当前推荐的主评测 suite，因为真实跑通的主路径是 MNIST recognition：
+
+- Primary：`examples/mnist_recognition_mlp.json`，真实 hls4ml/Vivado 链路，报告 Agent 指标并保留 Vivado report 作为二级证据。
+- LLM：同一 MNIST 任务可走 `runner: llm`，使用 OpenAI-compatible DeepSeek 配置评估 path selection、toolchain selection 和 trace。
+- Bucket smoke：保留少量 fallback、unsupported、toolchain recovery case，用于分桶成功率，不把它们包装成硬件 benchmark。
+
+`benchmarks/llm_agent_harness_suite.json` 是更难的 LLM-first 面试展示 suite：
+
+- Primary：仍保留 `examples/mnist_recognition_mlp.json` 的真实 hls4ml/Vivado 链路。
+- Path diversity：Dense fallback、existing HLS project、ResNet18 unsupported honesty 都由 LLM planner 选择 skill/path。
+- LLM candidate：ScaleShift 走 `llm_candidate_path`，要求真实 LLM 生成 candidate、通过 sandbox、再由 verification/Vivado 工具链验证。
+- Repair/recovery：强制 candidate verification failure，要求 Agent 生成 repair todo，耗尽预算后诚实落到 unsupported，而不是伪造 report。
+
+如果旧 suite 各项指标都是 1.0，主要说明 smoke/contract case 太少、太稳定；不能证明 LLM Agent 泛化。LLM harness suite 才更接近互联网大厂关心的 planner/guard/tool-use/repair 可观测性。
+
+`benchmarks/agent_capability_suite.json` 仍是回归 suite，当前包含 12 个 case：
 
 - `operator_fallback`：Dense、MatMul、ReLU、Add，测试 fallback template、Vivado specialist、优化建议和 memory promotion。
 - `existing_project`：已有 HLS 工程路径，测试已有工程综合与 artifact 管理。
@@ -48,7 +75,7 @@
 - `unsupported_recovery`：自定义不支持算子、residual block、ResNet18 boundary，测试诚实 unsupported report。
 - `toolchain_recovery`：强制 Vivado 路径缺失，测试 `VivadoNotFoundError` 是否被结构化处理。
 
-这组 case 是“能力契约回归集”，不是大规模泛化集。它适合证明框架关键机制稳定工作，也适合防止后续修改破坏已有 Agent 契约。
+这组 case 是“能力契约回归集”，不是大规模泛化集。它适合证明框架关键机制稳定工作，也适合防止后续修改破坏已有 Agent 契约。正式展示时优先用 MNIST-first suite。
 
 ## RAG 评估指标
 
@@ -70,12 +97,36 @@ RAG 评估目前是小样本标注，主要用于发现污染和回归，不应�
 
 ```powershell
 $env:PYTHONPATH='src'
+$env:DL_OP_TO_HLS_LLM_API_KEY='<set-locally>'
+$env:DL_OP_TO_HLS_LLM_ENABLED='1'
+$env:DL_OP_TO_HLS_LLM_PROVIDER='openai-compatible'
+$env:DL_OP_TO_HLS_LLM_BASE_URL='https://api.deepseek.com'
+$env:DL_OP_TO_HLS_LLM_MODEL='deepseek-v4-pro'
 python -m dl_op_to_hls.cli benchmark `
   --run-suite `
-  --suite-file benchmarks\agent_capability_suite.json `
+  --suite-file benchmarks\mnist_agent_quality_suite.json `
   --rag-eval-file benchmarks\rag_eval_labels.json `
   --rag-top-k 5 `
-  --output runs\benchmarks\agent_capability_suite_smoke.json
+  --output runs\benchmarks\mnist_agent_quality_suite.json `
+  --quiet
+```
+
+LLM-first harness suite：
+
+```powershell
+$env:PYTHONPATH='src'
+$env:DL_OP_TO_HLS_LLM_API_KEY='<set-locally>'
+$env:DL_OP_TO_HLS_LLM_ENABLED='1'
+$env:DL_OP_TO_HLS_LLM_PROVIDER='openai-compatible'
+$env:DL_OP_TO_HLS_LLM_BASE_URL='https://api.deepseek.com'
+$env:DL_OP_TO_HLS_LLM_MODEL='deepseek-v4-pro'
+python -m dl_op_to_hls.cli benchmark `
+  --run-suite `
+  --suite-file benchmarks\llm_agent_harness_suite.json `
+  --rag-eval-file benchmarks\rag_eval_labels.json `
+  --rag-top-k 5 `
+  --output runs\benchmarks\llm_agent_harness_suite.json `
+  --quiet
 ```
 
 只对已有 run 复评：
@@ -84,10 +135,13 @@ python -m dl_op_to_hls.cli benchmark `
 $env:PYTHONPATH='src'
 python -m dl_op_to_hls.cli benchmark `
   --runs <run_id_1> <run_id_2> `
-  --suite-file benchmarks\agent_capability_suite.json `
+  --suite-file benchmarks\mnist_agent_quality_suite.json `
   --rag-eval-file benchmarks\rag_eval_labels.json `
-  --output runs\benchmarks\agent_capability_suite_eval.json
+  --output runs\benchmarks\mnist_agent_quality_eval.json `
+  --quiet
 ```
+
+长程评测时建议保持静默：使用 `--quiet` 只写 `json` 和同名 `md` 报告，不在终端持续刷完整 payload。
 
 输出文件会包含：
 
@@ -100,8 +154,8 @@ python -m dl_op_to_hls.cli benchmark `
 
 如果 suite pass_rate 为 1.0，只能说明：
 
-- 当前 12 个明确设计的 Agent 契约 case 全部通过。
-- 这些 case 覆盖了 fallback、hls4ml mock、unsupported、toolchain recovery、artifact/trace/memory 等关键路径。
+- 当前明确设计的 Agent 契约 case 全部通过。
+- MNIST 主路径、fallback、hls4ml、unsupported、toolchain recovery、artifact/trace/memory 等关键路径未回归。
 - 它是稳定的回归基线。
 
 不能说明：
@@ -110,6 +164,7 @@ python -m dl_op_to_hls.cli benchmark `
 - LLM planning 泛化已经满分。
 - RAG 在开放域中没有污染。
 - Vivado / hls4ml 真实工具链没有兼容问题。
+- 硬件 latency/resource 已经优化到最好。
 
 更强的下一步 benchmark 应包含：
 
@@ -124,7 +179,7 @@ python -m dl_op_to_hls.cli benchmark `
 
 可以把本 benchmark 描述为：
 
-> 我没有只做 demo，而是把 Agent 工程拆成可量化契约：规划路径、工具路由、specialist 隔离、trace/artifact 完整性、RAG 召回、unsupported 诚实性和 toolchain failure recovery。然后用一个可复现 suite 进行回归评估，保证每次框架改动都有指标反馈。
+> 我没有只做 demo，而是把 Agent 工程拆成可量化契约：path/toolchain selection、分桶成功率、repair、trace/artifact 完整性、RAG 命中/污染、unsupported 诚实性和 toolchain failure recovery。当前主评测以真实跑通的 MNIST recognition 为中心，硬件 report 只作为链路证据。
 
 这能体现的能力包括：
 

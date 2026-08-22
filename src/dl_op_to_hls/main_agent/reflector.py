@@ -2,6 +2,8 @@ from __future__ import annotations
 
 
 def reflect_on_errors(state) -> None:
+    if state.status == "interrupted":
+        return
     if state.errors and state.status not in {"partial_success", "failed"}:
         state.status = "partial_success" if state.report or state.selected_path else "failed"
 
@@ -12,9 +14,25 @@ def _is_superseded_cancellation(item) -> bool:
 
 
 def update_status_from_todos(state) -> None:
+    if state.status == "interrupted":
+        return
     statuses = {item.status for item in state.todos}
     if not statuses:
         return
+    unsupported_report_completed = any(
+        item.assigned_tool == "report.write_unsupported" and item.status in {"completed", "completed_with_warning"}
+        for item in state.todos
+    )
+    if state.selected_path == "unsupported_path" and unsupported_report_completed:
+        meaningful_unfinished = [
+            item
+            for item in state.todos
+            if item.status in {"blocked", "pending", "in_progress"}
+            and item.assigned_tool != "report.write_unsupported"
+        ]
+        if not meaningful_unfinished:
+            state.status = "partial_success"
+            return
     if "failed" in statuses and state.report is None:
         state.status = "failed"
         return

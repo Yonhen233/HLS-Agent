@@ -1,5 +1,7 @@
 # 深度学习算子转 HLS Agent
 
+完整 LLM Agent Harness 的架构、会话、权限、上下文、记忆、RAG、Skill、MCP 与评测实现，见 [成熟 LLM Agent 架构文档](docs/mature_llm_agent_architecture.md)。
+
 英文名：`DL-Operator-to-HLS-Agent`
 
 命令行名：`dl-op-to-hls`
@@ -16,17 +18,21 @@
 - 不承诺支持任意 PyTorch/ONNX/QONNX/QKeras 模型。
 - LLM 生成的 HLS 代码必须经过验证，不能直接作为最终实现。
 - SQLite 是结构化事实源；RAG 只是检索层，不替代数据库。
-- `run` 是确定性基线流程；`run-llm` 是 LLM-first Agent 流程，不会在 LLM 不可用时静默退回确定性 planner。
+- `run`、`agent-run` 和 `run-llm` 都进入持久化 LLM Agent Runtime；LLM 不可用时不会静默退回规则 planner。
+- `run-baseline` 只保留为兼容和消融实验入口，不是产品主路径。
 
 ## 核心架构
 
 ```text
 User Task
   ↓
+Durable Session
+  - conversation / checkpoint / interrupt / resume / rollback / approval
+  ↓
 Main Agent
   - 全局任务理解
   - TodoList 管理
-  - Specialist 调度
+  - bounded scheduler / Specialist 调度
   - 状态合并
   - Trace / Artifact / Memory / Summary
   ↓
@@ -41,7 +47,11 @@ Specialist Sub-agents
   - OptimizationSpecialist
   - MemorySpecialist
   ↓
-ToolRegistry / MCP-style Tools
+Correlated Agent Message Bus
+  - delegation_request / delegation_result
+  ↓
+Skill Policy / ToolRegistry / MCP-style Tools
+  - JSON Schema contract / permission / approval / retry / cache / budget
   - hls4ml tools
   - Vivado HLS tools
   - fallback templates
@@ -63,10 +73,15 @@ Artifacts + SQLite + RAG
 - Structured Error：失败以结构化错误返回，支持 partial success。
 - Context Compression：原始长日志和报告保存为 artifact，Agent 只接收摘要。
 - Memory Layer：短期记忆、长期 episodic/semantic memory、skills/playbooks。
-- RAG Memory：从 summary、suggestions、compressed context、memory facts 检索历史经验。
+- RAG Memory：embedding recall + cross-encoder rerank，从 summary、suggestions、compressed context、memory facts 检索历史经验，并保留 FTS 降级、证据门禁和实体污染防护。
 - Todo Board：每个任务拆成可观察、可恢复、可追踪的 TodoItem。
 - Plan-Execute-ReAct Hybrid：全局规划与局部 ReAct 决策结合。
 - Specialist Sub-agent：领域任务隔离，避免 Main Agent 污染上下文。
+- Durable Session：支持用户中断、Todo 边界 checkpoint、断点恢复、回滚、消息撤回和按参数哈希审批。
+- Agent Message Bus：Main Agent 与 Specialist 通过持久化、可关联的 request/result 消息通信。
+- Bounded Scheduler：只并行独立只读工作，LLM 调用和全局状态合并保持串行。
+- Run Budget：统一约束 LLM calls、tool calls 和 provider token usage，显式记录 cache hit 与预算超限。
+- Tool/Skill Contract：工具输入输出做 schema 校验；Skill 带版本、状态、权限、上下文、预算和并行策略。
 
 ## 两层 ReAct 设计
 
@@ -136,14 +151,7 @@ L4 Skills / Playbooks
 
 ## 运行模式
 
-### 确定性基线流程
-
-```powershell
-$env:PYTHONPATH="src"
-python -m dl_op_to_hls.cli run examples/dense_operator.json
-```
-
-### LLM-first Agent 流程
+### 持久化 LLM Agent 主流程
 
 ```powershell
 $env:PYTHONPATH="src"
@@ -152,18 +160,37 @@ $env:DL_OP_TO_HLS_LLM_PROVIDER="openai-compatible"
 $env:DL_OP_TO_HLS_LLM_BASE_URL="https://your-openai-compatible-endpoint/v1"
 $env:DL_OP_TO_HLS_LLM_MODEL="your-model"
 $env:DL_OP_TO_HLS_LLM_API_KEY="<your-api-key>"
-python -m dl_op_to_hls.cli run-llm examples/dense_operator.json
+python -m dl_op_to_hls.cli run examples/dense_operator.json
 ```
+
+`agent-run`、`run-llm` 是同一主 Runtime 的显式别名。确定性版本仅用于回归对照：
+
+```powershell
+python -m dl_op_to_hls.cli run-baseline examples/dense_operator.json
+```
+
+### 会话控制
+
+```powershell
+python -m dl_op_to_hls.cli session-list
+python -m dl_op_to_hls.cli session-interrupt <session_id> --reason "pause"
+python -m dl_op_to_hls.cli session-checkpoints <session_id>
+python -m dl_op_to_hls.cli session-resume <session_id>
+python -m dl_op_to_hls.cli session-rollback <session_id> --steps 1
+python -m dl_op_to_hls.cli session-retract <session_id>
+```
+
+详细设计、状态机、安全边界和评测口径见 `docs/llm_agent_runtime_v2.md`。
 
 ### Demo / strict 优化建议模式
 
-默认 `demo` 模式允许在 LLM 不可用时使用规则建议，便于演示：
+仓库主配置使用 `production + strict`，LLM 优化失败会返回结构化错误，不会用规则结果伪装 LLM 成功。仅在确定性基线或离线演示中显式开启 `demo`：
 
 ```powershell
 $env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="demo"
 ```
 
-开发排错时建议使用 `strict`，LLM 失败就暴露为结构化错误：
+主路径保持 `strict`：
 
 ```powershell
 $env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="strict"
@@ -297,6 +324,7 @@ python -m dl_op_to_hls.cli llm-status
 python -m dl_op_to_hls.cli report runs/<run_id>
 python -m dl_op_to_hls.cli suggest runs/<run_id>
 python -m dl_op_to_hls.cli rag-search "Dense reuse factor DSP"
+python -m dl_op_to_hls.cli rag-backfill --batch-size 256
 python -m dl_op_to_hls.cli memory-search "Dense high DSP reuse factor"
 python -m dl_op_to_hls.cli db-list-runs
 python -m dl_op_to_hls.cli skills-list
@@ -304,23 +332,51 @@ python -m dl_op_to_hls.cli specialists-list
 python -m dl_op_to_hls.cli specialist-show VivadoSpecialist
 ```
 
+Semantic RAG 的可选依赖与本地模型需要在部署阶段准备：
+
+```powershell
+python -m pip install -e ".[rag]"
+python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+```
+
+`runtime.yaml` 默认使用本地模型制品。模型不可用时会明确记录 `lexical_fallback`；不会把降级结果记作 embedding/cross-encoder 成功。
+
 ## Benchmark / Quantitative Evaluation
 
-The project includes an Agent-quality benchmark for measuring workflow and RAG improvements:
+The project includes an Agent-quality benchmark. The primary evaluation focus is Agent behavior, not hardware score chasing: path/toolchain selection, bucketed task success, unsupported honesty, repair success, trace completeness, RAG evidence hit/pollution, LLM harness signals, and runtime/tool/LLM/token cost. Hardware latency/resource metrics are secondary evidence for the real MNIST path.
 
 ```powershell
 $env:PYTHONPATH="src"
+$env:DL_OP_TO_HLS_LLM_API_KEY="<set-locally>"
+$env:DL_OP_TO_HLS_LLM_ENABLED="1"
+$env:DL_OP_TO_HLS_LLM_PROVIDER="openai-compatible"
+$env:DL_OP_TO_HLS_LLM_BASE_URL="https://api.deepseek.com"
+$env:DL_OP_TO_HLS_LLM_MODEL="deepseek-v4-pro"
 python -m dl_op_to_hls.cli benchmark `
-  --runs dense_16x32_af6abf3c_10 matmul_16x16_resource_9ac8e2e8_13 resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
-  --compare resnet18_boundary_demo_cd40d797_13 resnet18_boundary_demo_cd40d797_15 `
+  --run-suite `
+  --suite-file benchmarks\mnist_agent_quality_suite.json `
   --rag-eval-file benchmarks\rag_eval_labels.json `
   --rag-top-k 5 `
-  --output runs\benchmarks\agent_quality_benchmark_demo.json
+  --output runs\benchmarks\mnist_agent_quality_suite.json `
+  --quiet
 ```
 
-Metrics include runtime, LLM decision count, tool calls, specialist events, artifact completeness, RAG pollution rate, unsupported semantics pass rate, Vivado report metrics, Precision@K, Recall@K, Hit@K, MRR, nDCG@K, relevant-term coverage, and pollution@K.
+Use `--quiet` for long evaluations so the run writes JSON/Markdown artifacts without continuously printing the full payload. Do not store API keys in repository files.
+
+The recommended suite is MNIST-first because `examples/mnist_recognition_mlp.json` is the currently verified real path. Smaller fallback, unsupported, and toolchain-recovery cases remain as Agent contract buckets.
+
+For LLM Agent harness evaluation, run `benchmarks\llm_agent_harness_suite.json`. It keeps MNIST as the primary real-tool case, then adds LLM-first fallback, existing-project, unsupported-honesty, LLM candidate generation, and forced candidate repair/recovery cases. This suite is intentionally harder than the MNIST smoke suite and is better suited for Agent-role interview discussion.
 
 See `docs/benchmark_metrics.md` for metric definitions and interview-ready interpretation.
+
+The production-oriented Harness extensions, including durable workers, exactly-once state commit, release canaries, FAISS HNSW, hard-negative reranker calibration, OpenTelemetry/SLO, credential leases, container policy, and feedback quarantine, are documented in `docs/production_llm_agent_harness.md`.
+
+Bad Case governance is exercised separately from happy-path success metrics. It covers incomplete-plan repair, false-success prevention, RAG abstention/injection/contradiction handling, repeated-failure loop detection, semantic tool postconditions, and evidence receipts:
+
+```powershell
+python -m dl_op_to_hls.cli bad-case-benchmark --output runs\benchmarks\agent_bad_case_probe.json
+python -m dl_op_to_hls.cli semantic-rag-benchmark --output runs\benchmarks\semantic_rag_real_probe.json
+```
 
 ## 测试
 
@@ -371,6 +427,7 @@ runs/                本地运行产物，默认不进入 git
 - `docs/context_isolation.md`
 - `docs/llm_first_agent_design.md`
 - `docs/llm_guardrails.md`
+- `docs/production_llm_agent_harness.md`
 - `docs/development_log.md`
 
 ## 当前限制与未来工作

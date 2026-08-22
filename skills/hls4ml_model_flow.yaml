@@ -1,5 +1,7 @@
 {
   "name": "hls4ml_model_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Convert ONNX/Keras/QKeras models with hls4ml and run Vivado synthesis when available.",
   "intent": "model_to_hls_hls4ml",
   "trigger": {
@@ -58,6 +60,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "task.validate_schema",
     "hls4ml.inspect_model",
     "hls4ml.check_support",
@@ -66,6 +72,7 @@
     "graph_rewrite.rewrite",
     "report.write_unsupported",
     "vivado.create_project",
+    "vivado.run_csim",
     "vivado.run_csynth",
     "vivado.parse_report",
     "vivado.parse_log",

@@ -50,6 +50,7 @@ def main_agent_action_schema() -> dict[str, Any]:
 
 
 def build_layered_tool_view(tool_registry, specialist_router) -> dict[str, Any]:
+    canonical_tools = tool_registry.list_tools(include_aliases=False)
     specialist_specs = specialist_router.list_specialists()
     specialist_private_tools = {
         tool_name
@@ -58,18 +59,36 @@ def build_layered_tool_view(tool_registry, specialist_router) -> dict[str, Any]:
     }
     direct_tools = [
         tool.name
-        for tool in tool_registry.list_tools()
+        for tool in canonical_tools
         if tool.name not in specialist_private_tools
+    ]
+    direct_tool_specs = [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.input_schema,
+            "output_schema": tool.output_schema,
+            "permission_level": tool.permission_level,
+            "idempotent": tool.idempotent,
+            "cacheable": tool.cacheable,
+            "parallel_safe": tool.parallel_safe,
+            "risk_level": tool.risk_level,
+            "required_capabilities": tool.required_capabilities or [],
+        }
+        for tool in canonical_tools
+        if tool.name in direct_tools
     ]
     specialists = [
         {
             "name": item.get("name"),
             "description": item.get("description"),
+            "capability_tools": item.get("allowed_tools", []),
         }
         for item in specialist_specs
     ]
     return {
         "main_agent_actions": main_agent_action_schema(),
         "direct_tools": direct_tools,
+        "direct_tool_specs": direct_tool_specs,
         "specialists": specialists,
     }

@@ -1,5 +1,7 @@
 {
   "name": "memory_promotion_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Compress run context, extract memory candidates, promote long-term memories, and index retrieval chunks.",
   "intent": "memory_promotion",
   "trigger": {
@@ -16,6 +18,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "memory.write_short_term",
     "memory.compress_run_context",
     "memory.extract_memory_candidates",

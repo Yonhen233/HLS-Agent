@@ -72,3 +72,31 @@ def test_runtime_specific_mock_env_overrides_generic(tmp_path, monkeypatch):
 
     assert config.mock_hls4ml is True
     assert config.mock_vivado is False
+
+
+def test_runtime_loads_semantic_rag_and_environment_overrides(tmp_path, monkeypatch):
+    (tmp_path / "runtime.yaml").write_text(
+        "\n".join(
+            [
+                "runtime:",
+                "  mode: production",
+                "  rag:",
+                "    enabled: true",
+                "    embedding_model: local-embedding",
+                "    reranker_model: local-reranker",
+                "    candidate_pool_size: 24",
+                "    local_files_only: true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DL_OP_TO_HLS_RAG_CANDIDATE_POOL_SIZE", "40")
+    monkeypatch.setenv("DL_OP_TO_HLS_RAG_ALLOW_LEXICAL_FALLBACK", "0")
+
+    config = AppConfig.load(tmp_path)
+
+    assert config.rag_semantic_config["enabled"] is True
+    assert config.rag_semantic_config["embedding_model"] == "local-embedding"
+    assert config.rag_semantic_config["reranker_model"] == "local-reranker"
+    assert config.rag_semantic_config["candidate_pool_size"] == 40
+    assert config.rag_semantic_config["allow_lexical_fallback"] is False

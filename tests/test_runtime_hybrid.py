@@ -222,6 +222,56 @@ def test_unsupported_path_completed_workflow_remains_partial_success():
     assert state.status == "partial_success"
 
 
+def test_unsupported_report_keeps_partial_success_after_repair_todo_fails():
+    state = AgentState(run_id="r1", task={"task_type": "operator", "name": "custom"}, status="failed")
+    state.selected_path = "unsupported_path"
+    state.todos = [
+        TodoItem(
+            id="todo_001",
+            title="Repair candidate",
+            description="Repair candidate",
+            status="failed",
+            priority=1,
+            dependencies=[],
+            assigned_tool="llm.generate_candidate",
+            assigned_specialist=None,
+            inputs={},
+            outputs=None,
+            error={"error_type": "LLMGenerationError", "message": "Repair exhausted."},
+        ),
+        TodoItem(
+            id="todo_002",
+            title="Write unsupported report",
+            description="Write unsupported report",
+            status="completed",
+            priority=2,
+            dependencies=["todo_001"],
+            assigned_tool="report.write_unsupported",
+            assigned_specialist=None,
+            inputs={},
+            outputs={"status": "success"},
+            error=None,
+        ),
+        TodoItem(
+            id="todo_003",
+            title="Duplicate unsupported report",
+            description="Superseded duplicate report",
+            status="blocked",
+            priority=3,
+            dependencies=[],
+            assigned_tool="report.write_unsupported",
+            assigned_specialist=None,
+            inputs={},
+            outputs=None,
+            error={"message": "Superseded by completed unsupported report."},
+        ),
+    ]
+
+    update_status_from_todos(state)
+
+    assert state.status == "partial_success"
+
+
 def test_completed_model_without_selected_path_is_not_success():
     state = AgentState(run_id="r1", task={"task_type": "model", "name": "qonnx"}, status="initialized")
     state.report = {"status": "missing"}

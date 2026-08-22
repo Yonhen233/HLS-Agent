@@ -1,5 +1,7 @@
 {
   "name": "report_parse_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Parse csynth report and log summaries into structured metrics.",
   "intent": "report_parse",
   "trigger": {
@@ -21,6 +23,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "vivado.parse_report",
     "vivado.parse_log",
     "suggestion.suggest_optimization"

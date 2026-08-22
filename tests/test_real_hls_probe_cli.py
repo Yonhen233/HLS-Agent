@@ -20,8 +20,6 @@ def test_real_hls_probe_parser_reuses_existing_project_without_conversion():
         [
             "--name",
             "existing_project_probe",
-            "--model-path",
-            "models/model.onnx",
             "--hls-project-dir",
             "runs/already_generated/hls_project",
             "--top-function",

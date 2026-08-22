@@ -1,0 +1,216 @@
+{
+  "name": "llm_agent_harness_suite_v2",
+  "description": "LLM-first Agent harness suite with durable-session, delegation, budget, duplicate-call, tool-contract, path diversity, honesty, generation, and repair checks. MNIST remains the primary real-tool path.",
+  "primary_task": "examples/mnist_recognition_mlp.json",
+  "llm_profile": {
+    "provider": "openai-compatible",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-pro",
+    "api_key_env": "DL_OP_TO_HLS_LLM_API_KEY"
+  },
+  "expected_defaults": {
+    "require_session": true,
+    "min_checkpoints": 2,
+    "delegation_completion_min": 1.0,
+    "max_duplicate_tool_call_rate": 0.15,
+    "max_budget_exceeded": 0,
+    "max_tool_schema_rejections": 1,
+    "max_recorded_tokens": 100000,
+    "max_tool_calls_run": 60,
+    "max_llm_calls": 30
+  },
+  "cases": [
+    {
+      "id": "llm_mnist_real_hls4ml_primary",
+      "title": "LLM-first MNIST recognition real hls4ml primary path",
+      "category": "model_hls4ml",
+      "task": "examples/mnist_recognition_mlp.json",
+      "runner": "llm",
+      "mock_tools": false,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["mnist", "primary", "real_tools", "llm", "hls4ml"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "hls4ml_path",
+        "selected_skill": "hls4ml_model_flow",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 1,
+        "max_llm_guard_rejections": 0,
+        "required_specialists": ["HLS4MLSpecialist", "VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"],
+        "forbidden_error_types": ["PermissionDeniedError"],
+        "vivado_metrics_required": true,
+        "rag_no_pollution": true
+      }
+    },
+    {
+      "id": "llm_dense_mock_fallback_path",
+      "title": "LLM-first Dense operator fallback path",
+      "category": "operator_fallback",
+      "task": "examples/dense_operator.json",
+      "runner": "llm",
+      "mock_tools": true,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["operator", "fallback", "llm", "mock_toolchain"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "fallback_template_path",
+        "selected_skill": "operator_fallback_flow",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 1,
+        "max_llm_guard_rejections": 0,
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"]
+      }
+    },
+    {
+      "id": "llm_existing_project_mock_path",
+      "title": "LLM-first existing HLS project path",
+      "category": "existing_project",
+      "task": "examples/existing_hls_project.json",
+      "runner": "llm",
+      "mock_tools": true,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["existing_project", "llm", "mock_toolchain"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "existing_hls_project_path",
+        "selected_skill": "existing_hls_project_flow",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 1,
+        "max_llm_guard_rejections": 0,
+        "required_specialists": ["VivadoSpecialist", "OptimizationSpecialist", "MemorySpecialist"]
+      }
+    },
+    {
+      "id": "llm_resnet18_unsupported_honesty",
+      "title": "LLM-first ResNet18 unsupported honesty",
+      "category": "unsupported_recovery",
+      "task": "examples/resnet18_boundary.json",
+      "runner": "llm",
+      "mock_tools": true,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["resnet18", "unsupported", "honesty", "llm"],
+      "expected": {
+        "allowed_statuses": ["partial_success", "unsupported"],
+        "selected_path": "unsupported_path",
+        "selected_skill": "unsupported_boundary_flow",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 1,
+        "max_llm_guard_rejections": 0,
+        "unsupported_no_synthesis_metrics": true,
+        "unsupported_honesty": true,
+        "rag_no_pollution": true
+      }
+    },
+    {
+      "id": "llm_scale_shift_candidate_generation",
+      "title": "LLM candidate generation and verification path",
+      "category": "llm_candidate_generation",
+      "task": "examples/scale_shift_llm_candidate.json",
+      "runner": "llm",
+      "mock_tools": true,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["llm_candidate", "generation", "verification", "mock_toolchain"],
+      "expected": {
+        "allowed_statuses": ["success"],
+        "selected_path": "llm_candidate_path",
+        "selected_skill": "llm_candidate_verification_flow",
+        "toolchain_for_path": true,
+        "report_status": "success",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "LLMCandidateGenerated", "RunFinished"],
+        "required_tools": ["llm.generate_candidate", "verify_candidate.run", "vivado.run_csynth"],
+        "forbidden_tools": ["hls4ml.convert", "hls4ml.convert_with_hls4ml", "task.prepare_existing_project", "report.write_unsupported"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 2,
+        "min_llm_candidate_generations": 1,
+        "max_llm_guard_rejections": 0,
+        "required_specialists": ["VerificationSpecialist", "VivadoSpecialist", "MemorySpecialist"],
+        "vivado_metrics_required": true
+      }
+    },
+    {
+      "id": "llm_candidate_forced_repair_recovery",
+      "title": "LLM candidate forced verification failure repair and honest recovery",
+      "category": "llm_candidate_recovery",
+      "task": "benchmarks/tasks/scale_shift_llm_force_verify_fail.json",
+      "runner": "llm",
+      "mock_tools": true,
+      "env": {
+        "DL_OP_TO_HLS_LLM_ENABLED": "1",
+        "DL_OP_TO_HLS_LLM_PROVIDER": "openai-compatible",
+        "DL_OP_TO_HLS_LLM_BASE_URL": "https://api.deepseek.com",
+        "DL_OP_TO_HLS_LLM_MODEL": "deepseek-v4-pro",
+        "DL_OP_TO_HLS_LLM_MIN_REQUEST_INTERVAL_SEC": "1"
+      },
+      "tags": ["llm_candidate", "repair", "unsupported_honesty", "mock_toolchain"],
+      "expected": {
+        "allowed_statuses": ["partial_success", "unsupported"],
+        "selected_path": "unsupported_path",
+        "selected_skill": "llm_candidate_verification_flow",
+        "report_status": "missing",
+        "artifact_completeness_min": 1.0,
+        "trace_completeness_min": 1.0,
+        "required_artifacts": ["unsupported_report.md"],
+        "required_trace_events": ["LLMPlanGenerated", "LLMPlanAccepted", "RunFinished"],
+        "required_tools": ["llm.generate_candidate", "verify_candidate.run", "report.write_unsupported"],
+        "llm_plan_accepted": true,
+        "min_llm_calls": 2,
+        "min_llm_candidate_repair_todos": 1,
+        "repair_success_required": true,
+        "unsupported_no_synthesis_metrics": true,
+        "unsupported_honesty": true
+      }
+    }
+  ]
+}

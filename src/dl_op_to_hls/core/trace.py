@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,12 +23,13 @@ def stable_hash(payload: Any) -> str:
 class TraceWriter:
     path: Path
     run_id: str
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def append(self, event: str, payload: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         record = {"ts": utc_now(), "event": event, "run_id": self.run_id}
         record.update(payload)
-        with self.path.open("a", encoding="utf-8") as handle:
+        with self._lock, self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
 
@@ -38,4 +41,3 @@ class TraceHook:
         event = str(payload.get("event", "UnknownEvent"))
         record = {key: value for key, value in payload.items() if key != "event"}
         self.writer.append(event, record)
-

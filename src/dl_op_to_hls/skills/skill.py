@@ -20,6 +20,15 @@ class Skill:
     memory_policy: dict[str, Any]
     tags: list[str] = field(default_factory=list)
     source: str = "extracted_from_legacy_workflow"
+    version: str = "1.0"
+    status: str = "approved"
+    context_policy: dict[str, Any] = field(default_factory=dict)
+    budget_policy: dict[str, Any] = field(default_factory=dict)
+    concurrency_policy: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[dict[str, Any]] = field(default_factory=list)
+    permissions: dict[str, Any] = field(default_factory=dict)
+    tests: list[dict[str, Any]] = field(default_factory=list)
+    integrity: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], source: str = "extracted_from_legacy_workflow") -> "Skill":
@@ -38,6 +47,25 @@ class Skill:
             memory_policy=dict(payload.get("memory_policy", {})),
             tags=[str(item) for item in payload.get("tags", [])],
             source=source,
+            version=str(payload.get("version", "1.0")),
+            status=str(payload.get("status", "approved")),
+            context_policy=dict(
+                payload.get(
+                    "context_policy",
+                    {"max_context_tokens": 3000, "max_memory_items": 5, "artifact_mode": "references_only"},
+                )
+            ),
+            budget_policy=dict(payload.get("budget_policy", {"max_steps": 24, "max_repair_attempts": 2})),
+            concurrency_policy=dict(
+                payload.get(
+                    "concurrency_policy",
+                    {"max_parallel_tools": 2, "max_parallel_llm_calls": 1, "parallelize_read_only": True},
+                )
+            ),
+            dependencies=[dict(item) for item in payload.get("dependencies", [])],
+            permissions=dict(payload.get("permissions", {"risk_level": "low", "capabilities": []})),
+            tests=[dict(item) for item in payload.get("tests", [])],
+            integrity=dict(payload.get("integrity", {})),
         )
 
     def to_prompt_summary(self) -> dict[str, Any]:
@@ -65,4 +93,12 @@ class Skill:
             "key_failure_policies": failure_lines[:8],
             "allowed_specialists": self.allowed_specialists[:10],
             "tags": self.tags[:12],
+            "version": self.version,
+            "status": self.status,
+            "context_policy": self.context_policy,
+            "budget_policy": self.budget_policy,
+            "concurrency_policy": self.concurrency_policy,
+            "dependencies": self.dependencies,
+            "permissions": self.permissions,
+            "integrity": self.integrity,
         }

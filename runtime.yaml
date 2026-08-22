@@ -1,8 +1,32 @@
 runtime:
-  mode: demo
+  mode: production
   llm:
     fallback: error
+    provider: openai-compatible
+    base_url: https://api.deepseek.com
+    model: deepseek-v4-pro
   optimization:
-    fallback: demo
+    fallback: strict
   specialist:
-    llm_decider_enabled: false
+    mode: adaptive
+  rag:
+    enabled: true
+    embedding_model: sentence-transformers/all-MiniLM-L6-v2
+    reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
+    candidate_pool_size: 32
+    embedding_batch_size: 32
+    rerank_batch_size: 16
+    semantic_weight: 0.30
+    lexical_weight: 0.10
+    reranker_weight: 0.55
+    trust_weight: 0.05
+    min_embedding_score: 0.12
+    min_reranker_score: 0.02
+    local_files_only: true
+    allow_lexical_fallback: true
+    max_online_embeddings: 64
+    vector_backend: faiss_hnsw
+    ann_min_rows: 256
+    hnsw_m: 32
+    hnsw_ef_search: 96
+    calibration_path: runs/calibration/hls_reranker_calibration.json

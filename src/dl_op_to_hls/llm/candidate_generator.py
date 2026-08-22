@@ -40,7 +40,7 @@ class LLMCandidateGenerator:
             ],
         }
         result = client.complete_json(
-            system_prompt=prompts.CANDIDATE_GENERATOR_SYSTEM_PROMPT,
+            system_prompt=prompts.resolve_prompt(client.context, "candidate_generator"),
             user_prompt=json.dumps(payload, ensure_ascii=False),
             schema=CANDIDATE_GENERATION_SCHEMA,
             temperature=0.2,

@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "domain": "mnist_hls",
+  "cases": [
+    {
+      "id": "mnist_dense_not_conv",
+      "query": "MNIST dense MLP hls4ml conversion with reuse factor",
+      "positive": "Convert the MNIST Sequential Dense MLP through hls4ml and tune ReuseFactor in the generated config.",
+      "hard_negatives": ["Convert a CIFAR-10 convolutional network and tune Conv2D line buffers.", "Implement a standalone matrix multiplication fallback template without hls4ml."]
+    },
+    {
+      "id": "csim_not_csynth",
+      "query": "MNIST candidate functional C simulation mismatch repair",
+      "positive": "A csim mismatch is functional evidence; repair the testbench, quantization contract, or generated candidate and rerun csim.",
+      "hard_negatives": ["A csynth timing violation should be fixed by changing clock period and pipeline directives.", "Parse LUT and DSP utilization from the synthesis report."]
+    },
+    {
+      "id": "vivado_missing_not_parse",
+      "query": "VivadoNotFoundError recover toolchain path",
+      "positive": "When VivadoNotFoundError occurs, discover Vitis/Vivado installations, repair PATH or tool configuration, then retry.",
+      "hard_negatives": ["When csynth.xml is malformed, recover metrics from alternative report files.", "When hls4ml rejects a Keras layer, switch to an operator fallback template."]
+    },
+    {
+      "id": "report_parse_not_synthesis",
+      "query": "csynth report XML parse failure recover evidence",
+      "positive": "Treat report parsing as a separate stage: inspect XML/text reports, validate schemas, and never invent latency or resources.",
+      "hard_negatives": ["Run Vivado HLS synthesis with the selected FPGA part.", "Repair an LLM generated C++ syntax error and rerun csim."]
+    },
+    {
+      "id": "unsupported_honesty",
+      "query": "unsupported transformer operator no verified HLS report",
+      "positive": "Return unsupported or partial_success, identify the unsupported boundary, and leave latency/resource fields unverified.",
+      "hard_negatives": ["Estimate latency from layer count and report success.", "Reuse MNIST Dense synthesis numbers as representative evidence."]
+    },
+    {
+      "id": "qkeras_not_onnx",
+      "query": "MNIST QKeras quantized model hls4ml frontend",
+      "positive": "Use the QKeras/Keras hls4ml frontend and preserve quantizer configuration during conversion.",
+      "hard_negatives": ["Load the model with the ONNX frontend and QONNX graph cleanup.", "Generate handwritten ap_fixed Dense code from an operator template."]
+    },
+    {
+      "id": "existing_project",
+      "query": "existing MNIST HLS project rerun csim and synthesis",
+      "positive": "Select existing_project_path, inspect the project TCL and sources, then invoke the existing HLS toolchain.",
+      "hard_negatives": ["Select hls4ml_path and convert the original Keras model again.", "Select fallback_template_path and generate a new Dense kernel."]
+    },
+    {
+      "id": "operator_fallback",
+      "query": "single ScaleShift operator generate HLS template and testbench",
+      "positive": "Select fallback_template_path, generate the operator HLS source and testbench, then verify with csim.",
+      "hard_negatives": ["Select hls4ml_path for a full MNIST model conversion.", "Select existing_project_path and only parse old reports."]
+    },
+    {
+      "id": "stale_report",
+      "query": "avoid stale HLS report from previous MNIST run",
+      "positive": "Bind report evidence to the current run, tool call, artifact hash, and timestamp before accepting metrics.",
+      "hard_negatives": ["Use the newest report anywhere under runs regardless of run ID.", "Use historical average latency when current synthesis is unavailable."]
+    },
+    {
+      "id": "latency_vs_resource",
+      "query": "MNIST minimize latency objective optimization",
+      "positive": "For latency optimization, lower reuse where resources permit, pipeline critical loops, synthesize, and compare verified latency.",
+      "hard_negatives": ["For resource optimization, raise reuse and reduce parallel multipliers even if latency increases.", "Skip synthesis and infer latency from ReuseFactor."]
+    },
+    {
+      "id": "rag_error_correction",
+      "query": "retrieved HLS experience conflicts with current model evidence",
+      "positive": "Grade retrieval against current task anchors and artifacts; discard conflicting history and issue a corrective retrieval query.",
+      "hard_negatives": ["Trust the highest semantic score even when its model and error stage differ.", "Promote the retrieved advice directly into long-term memory."]
+    },
+    {
+      "id": "llm_candidate_repair",
+      "query": "LLM HLS candidate fails compile repair loop",
+      "positive": "Capture compiler evidence, constrain a repair prompt to the failed candidate and contract, regenerate once, then reverify.",
+      "hard_negatives": ["Mark partial_success immediately without a repair attempt.", "Ask the LLM to restart the whole task with the full conversation history."]
+    }
+  ]
+}

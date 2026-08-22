@@ -21,6 +21,16 @@ model-generation = [
   "torch",
   "onnx",
 ]
+rag = [
+  "numpy>=1.26",
+  "sentence-transformers>=3.0",
+  "faiss-cpu>=1.8",
+]
+observability = [
+  "opentelemetry-api>=1.25",
+  "opentelemetry-sdk>=1.25",
+  "opentelemetry-exporter-otlp-proto-http>=1.25",
+]
 
 [project.scripts]
 dl-op-to-hls = "dl_op_to_hls.cli:main"

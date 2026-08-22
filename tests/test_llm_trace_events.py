@@ -37,4 +37,9 @@ def test_llm_runtime_records_llm_trace(temp_workspace):
     assert "LLMSkillContextBuilt" in trace
     assert "LLMPlanGenerated" in trace
     assert "LLMPlanAccepted" in trace
-    assert "LLMReActDecision" in trace
+    assert "LLMReActAutoDirect" in trace
+    assert "SessionCheckpointCreated" in trace
+    assert state.session_id
+    session = agent.session_manager.get(state.session_id)
+    assert session["status"] == "completed"
+    assert agent.session_manager.list_checkpoints(state.session_id)

@@ -18,6 +18,13 @@ DEFAULT_PERMISSIONS = {
         "ask": ["python"],
         "deny": ["rm", "rm -rf", "curl", "wget", "ssh", "scp", "sudo"],
     },
+    "network": {
+        "allowed_schemes": ["https"],
+        "allowed_domains": [],
+        "denied_domains": ["localhost", "127.0.0.1", "169.254.169.254"],
+    },
+    "approvals": {"risk_levels": ["critical"], "ttl_seconds": 900, "max_uses": 1},
+    "limits": {"max_tool_argument_bytes": 1000000},
 }
 
 
@@ -84,6 +91,8 @@ class AppConfig:
     llm_fallback_policy: str = "error"
     optimization_fallback_mode: str = "demo"
     specialist_llm_decider_enabled: bool = False
+    specialist_llm_mode: str = "adaptive"
+    rag_semantic_config: dict[str, Any] = field(default_factory=dict)
     mock_hls4ml: bool = True
     mock_vivado: bool = True
     hls_toolchain: str = "vivado_hls"
@@ -101,6 +110,7 @@ class AppConfig:
         llm_section = runtime_section.get("llm", {}) if isinstance(runtime_section.get("llm", {}), dict) else {}
         optimization_section = runtime_section.get("optimization", {}) if isinstance(runtime_section.get("optimization", {}), dict) else {}
         specialist_section = runtime_section.get("specialist", {}) if isinstance(runtime_section.get("specialist", {}), dict) else {}
+        rag_section = runtime_section.get("rag", {}) if isinstance(runtime_section.get("rag", {}), dict) else {}
         runtime_mode = os.environ.get("DL_OP_TO_HLS_RUNTIME_MODE", runtime_section.get("mode", "demo")).lower()
         if runtime_mode not in {"strict", "demo", "production"}:
             raise ValueError(f"Invalid DL_OP_TO_HLS runtime mode: {runtime_mode}")
@@ -109,11 +119,25 @@ class AppConfig:
             optimization_section.get("fallback", "strict" if runtime_mode in {"strict", "production"} else "demo"),
         ).lower()
         llm_fallback_policy = os.environ.get("DL_OP_TO_HLS_LLM_FALLBACK_POLICY", llm_section.get("fallback", "error")).lower()
+        specialist_mode = str(
+            os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_MODE")
+            or specialist_section.get("mode")
+            or (
+                "always"
+                if specialist_section.get("llm_decider_enabled") is True
+                else "off"
+                if specialist_section.get("llm_decider_enabled") is False
+                else "adaptive"
+            )
+        ).lower()
+        if specialist_mode not in {"off", "adaptive", "always"}:
+            raise ValueError(f"Invalid specialist LLM mode: {specialist_mode}")
         specialist_llm_decider_enabled = os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED")
         if specialist_llm_decider_enabled is None:
-            specialist_llm_decider_enabled_value = bool(specialist_section.get("llm_decider_enabled", False))
+            specialist_llm_decider_enabled_value = specialist_mode != "off"
         else:
             specialist_llm_decider_enabled_value = specialist_llm_decider_enabled.strip().lower() in {"1", "true", "yes", "on"}
+            specialist_mode = "always" if specialist_llm_decider_enabled_value else "off"
         toolchain_section = runtime_section.get("toolchain", {}) if isinstance(runtime_section.get("toolchain", {}), dict) else {}
         hls_toolchain = _normalize_hls_toolchain(
             os.environ.get("DL_OP_TO_HLS_HLS_TOOLCHAIN")
@@ -125,6 +149,25 @@ class AppConfig:
             hls4ml_backend = "Vitis"
         generic_mock_tools = os.environ.get("DL_OP_TO_HLS_MOCK_TOOLS")
         default_mock = "1" if generic_mock_tools is None else generic_mock_tools
+        rag_semantic_config = dict(rag_section)
+        rag_semantic_config.setdefault("enabled", runtime_mode in {"strict", "production"})
+        rag_env = {
+            "enabled": os.environ.get("DL_OP_TO_HLS_RAG_SEMANTIC_ENABLED"),
+            "embedding_model": os.environ.get("DL_OP_TO_HLS_RAG_EMBEDDING_MODEL"),
+            "reranker_model": os.environ.get("DL_OP_TO_HLS_RAG_RERANKER_MODEL"),
+            "candidate_pool_size": os.environ.get("DL_OP_TO_HLS_RAG_CANDIDATE_POOL_SIZE"),
+            "local_files_only": os.environ.get("DL_OP_TO_HLS_RAG_LOCAL_FILES_ONLY"),
+            "allow_lexical_fallback": os.environ.get("DL_OP_TO_HLS_RAG_ALLOW_LEXICAL_FALLBACK"),
+        }
+        for key, value in rag_env.items():
+            if value is None:
+                continue
+            if key in {"enabled", "local_files_only", "allow_lexical_fallback"}:
+                rag_semantic_config[key] = value.strip().lower() in {"1", "true", "yes", "on"}
+            elif key == "candidate_pool_size":
+                rag_semantic_config[key] = int(value)
+            else:
+                rag_semantic_config[key] = value
         return cls(
             workspace_root=root,
             runs_root=root / "runs",
@@ -136,6 +179,8 @@ class AppConfig:
             llm_fallback_policy=llm_fallback_policy,
             optimization_fallback_mode=optimization_fallback_mode,
             specialist_llm_decider_enabled=specialist_llm_decider_enabled_value,
+            specialist_llm_mode=specialist_mode,
+            rag_semantic_config=rag_semantic_config,
             mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", default_mock) != "0",
             mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", default_mock) != "0",
             hls_toolchain=hls_toolchain,
@@ -168,6 +213,8 @@ class AppConfig:
             "llm_fallback_policy": self.llm_fallback_policy,
             "optimization_fallback_mode": self.optimization_fallback_mode,
             "specialist_llm_decider_enabled": self.specialist_llm_decider_enabled,
+            "specialist_llm_mode": self.specialist_llm_mode,
+            "rag_semantic_config": self.rag_semantic_config,
             "mock_hls4ml": self.mock_hls4ml,
             "mock_vivado": self.mock_vivado,
             "hls_toolchain": self.hls_toolchain,

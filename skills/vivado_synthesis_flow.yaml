@@ -1,5 +1,7 @@
 {
   "name": "vivado_synthesis_flow",
+  "version": "1.0.0",
+  "status": "approved",
   "description": "Create Vivado project and run csynth with structured error handling.",
   "intent": "vivado_synthesis",
   "trigger": {
@@ -21,6 +23,10 @@
     }
   ],
   "allowed_tools": [
+    "workspace.scan",
+    "workspace.search",
+    "workspace.read_batch",
+    "workspace.symbol_search",
     "vivado.create_project",
     "vivado.run_csim",
     "vivado.run_csynth",

@@ -66,3 +66,8 @@ def register_hls4ml_tools(registry: ToolRegistry, adapter) -> None:
         )
     )
 
+
+def build_hls4ml_registry(adapter) -> ToolRegistry:
+    registry = ToolRegistry()
+    register_hls4ml_tools(registry, adapter)
+    return registry

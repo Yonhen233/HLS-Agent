@@ -25,7 +25,7 @@ class LLMReflectionEngine:
             "state_summary": state_summary,
         }
         result = client.complete_json(
-            system_prompt=prompts.REFLECTION_SYSTEM_PROMPT,
+            system_prompt=prompts.resolve_prompt(client.context, "reflection"),
             user_prompt=json.dumps(payload, ensure_ascii=False),
             schema=REFLECTION_DECISION_SCHEMA,
             temperature=0.0,

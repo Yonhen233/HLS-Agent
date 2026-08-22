@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from ..core.budgets import BudgetExceededError
 from ..core.errors import AgentRuntimeError, build_error
 from . import prompts
 from .config import LLMConfig
@@ -29,6 +30,18 @@ class LLMClient:
 
     def set_context(self, context: dict[str, Any]) -> None:
         self.context = context
+
+    def active_model(self) -> str:
+        release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
+        return str(release.get("selected_version") or self.config.model)
+
+    def active_provider(self) -> str:
+        release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
+        return str((release.get("selected_config") or {}).get("provider") or self.config.provider)
+
+    def active_base_url(self) -> str:
+        release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
+        return str((release.get("selected_config") or {}).get("base_url") or self.config.base_url)
 
     def is_enabled(self) -> bool:
         return self.config.configured
@@ -96,7 +109,7 @@ class LLMClient:
             {
                 "run_id": self.context.get("run_id"),
                 "prompt_type": "json",
-                "model": self.config.model,
+                "model": self.active_model(),
                 "schema_name": schema.get("title", "unnamed_schema"),
             },
         )
@@ -128,7 +141,7 @@ class LLMClient:
                 {
                     "run_id": self.context.get("run_id"),
                     "prompt_type": "json",
-                    "model": self.config.model,
+                    "model": self.active_model(),
                     "status": "success",
                 },
             )
@@ -140,7 +153,7 @@ class LLMClient:
                 {
                     "run_id": self.context.get("run_id"),
                     "prompt_type": "json",
-                    "model": self.config.model,
+                    "model": self.active_model(),
                     "status": "failed",
                     "error_type": type(exc).__name__,
                     "message": str(exc),
@@ -170,6 +183,7 @@ class LLMClient:
         user_prompt: str,
         temperature: float = 0.2,
         force_json: bool = False,
+        _finalization_attempted: bool = False,
     ) -> str:
         if not self.is_enabled():
             raise AgentRuntimeError(
@@ -180,18 +194,31 @@ class LLMClient:
                     source="llm.complete_text",
                 )
             )
-        if self.config.provider.lower() not in {"openai", "openai-compatible"}:
+        permission_gate = self.context.get("permission_gate")
+        if permission_gate is not None:
+            network_decision = permission_gate.check_url(self.active_base_url())
+            if network_decision["decision"] != "allow":
+                raise AgentRuntimeError(
+                    build_error(
+                        "PermissionDeniedError",
+                        network_decision["reason"],
+                        recoverable=True,
+                        source="llm.complete_text",
+                        suggested_action="Allow-list the configured LLM provider domain in permissions.yaml.",
+                    )
+                )
+        if self.active_provider().lower() not in {"openai", "openai-compatible"}:
             raise AgentRuntimeError(
                 build_error(
                     "LLMGenerationError",
-                    f"Unsupported provider: {self.config.provider}",
+                    f"Unsupported provider: {self.active_provider()}",
                     recoverable=True,
                     source="llm.complete_text",
                 )
             )
 
         body: dict[str, Any] = {
-            "model": self.config.model,
+            "model": self.active_model(),
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -203,6 +230,26 @@ class LLMClient:
             body["response_format"] = {"type": "json_object"}
         request_raw = json.dumps(body).encode("utf-8")
         request_bytes = len(request_raw)
+        estimated_input_tokens = max(1, len(system_prompt + user_prompt) // 4)
+        run_budget = self.context.get("run_budget")
+        if run_budget is not None:
+            try:
+                run_budget.reserve_llm_call(estimated_input_tokens)
+            except BudgetExceededError as exc:
+                emit_llm_event(
+                    self.context,
+                    "BudgetExceeded",
+                    {"run_id": self.context.get("run_id"), "budget_type": "llm", "message": str(exc)},
+                )
+                raise AgentRuntimeError(
+                    build_error(
+                        "BudgetExceededError",
+                        str(exc),
+                        recoverable=True,
+                        source="llm.complete_text",
+                        suggested_action="Reduce plan/reflection calls or increase the explicit run token budget.",
+                    )
+                ) from exc
         request = urllib.request.Request(
             self._chat_completions_url(),
             data=request_raw,
@@ -275,10 +322,62 @@ class LLMClient:
             choice = payload["choices"][0]
             message = choice["message"]
             content = message.get("content")
+            usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+            input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or estimated_input_tokens)
+            output_tokens = int(
+                usage.get("completion_tokens")
+                or usage.get("output_tokens")
+                or max(1, len(str(content or message.get("reasoning_content") or "")) // 4)
+            )
+            if run_budget is not None:
+                try:
+                    run_budget.record_llm_usage(input_tokens, output_tokens)
+                except BudgetExceededError as exc:
+                    emit_llm_event(
+                        self.context,
+                        "BudgetExceeded",
+                        {"run_id": self.context.get("run_id"), "budget_type": "tokens", "message": str(exc)},
+                    )
+                    raise AgentRuntimeError(
+                        build_error(
+                            "BudgetExceededError",
+                            str(exc),
+                            recoverable=True,
+                            source="llm.complete_text",
+                        )
+                    ) from exc
+            emit_llm_event(
+                self.context,
+                "LLMUsageRecorded",
+                {
+                    "run_id": self.context.get("run_id"),
+                    "model": self.active_model(),
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+            )
             if content:
                 return content
             reasoning_content = message.get("reasoning_content") or (message.get("provider_specific_fields") or {}).get("reasoning_content")
             if reasoning_content:
+                if not _finalization_attempted:
+                    emit_llm_event(
+                        self.context,
+                        "LLMFinalizationRetryStarted",
+                        {
+                            "run_id": self.context.get("run_id"),
+                            "model": self.active_model(),
+                            "finish_reason": choice.get("finish_reason"),
+                        },
+                    )
+                    return self.complete_text(
+                        system_prompt,
+                        user_prompt
+                        + "\n\nThe prior attempt spent its response budget on reasoning. Return only the concise final response now; do not include reasoning.",
+                        temperature=0.0,
+                        force_json=force_json,
+                        _finalization_attempted=True,
+                    )
                 raise AgentRuntimeError(
                     build_error(
                         "LLMGenerationError",
@@ -308,7 +407,7 @@ class LLMClient:
             ) from exc
 
     def _chat_completions_url(self) -> str:
-        base_url = self.config.base_url.rstrip("/")
+        base_url = self.active_base_url().rstrip("/")
         parsed = urllib.parse.urlparse(base_url)
         if parsed.path in {"", "/"}:
             base_url = f"{base_url}/v1"
@@ -366,7 +465,7 @@ class LLMClient:
             ],
         }
         repaired_text = self.complete_text(
-            prompts.JSON_REPAIR_SYSTEM_PROMPT,
+            prompts.resolve_prompt(self.context, "json_repair"),
             json.dumps(repair_payload, ensure_ascii=False, default=str),
             temperature=0.0,
             force_json=True,

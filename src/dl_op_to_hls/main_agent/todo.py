@@ -53,6 +53,7 @@ class TodoItem:
     specialist_result: dict[str, Any] | None = None
     created_at: str = ""
     updated_at: str = ""
+    requirement_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -148,6 +149,7 @@ class TodoManager:
                 context_scope=self._context_scope_for_specialist(assigned_specialist),
                 created_at=_now(),
                 updated_at=_now(),
+                requirement_ids=[],
             )
             items.append(item)
             previous_id = todo_id
@@ -288,6 +290,7 @@ class TodoManager:
             context_scope=self._context_scope_for_specialist(resolved_specialist),
             created_at=_now(),
             updated_at=_now(),
+            requirement_ids=[],
         )
         self.todo_list.items.append(item)
         self._emit("TodoCreated", {"run_id": self.todo_list.run_id, "todo_id": todo_id, "title": title})

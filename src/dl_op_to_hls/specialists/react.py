@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..core.errors import AgentRuntimeError, build_error
-from ..llm.prompts import SPECIALIST_REACT_SYSTEM_PROMPT
+from ..llm import prompts
 from ..llm.schemas import SPECIALIST_REACT_DECISION_SCHEMA
 from .context import ContextEnvelope
 
@@ -60,7 +60,7 @@ class SpecialistReActDecider:
                 "allowed_actions": SPECIALIST_REACT_ACTIONS,
             }
             decision = client.complete_json(
-                system_prompt=SPECIALIST_REACT_SYSTEM_PROMPT,
+                system_prompt=prompts.resolve_prompt(client.context, "specialist_react"),
                 user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
                 schema=SPECIALIST_REACT_DECISION_SCHEMA,
                 temperature=0.0,

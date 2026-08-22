@@ -44,7 +44,25 @@ class BaseSpecialist(ABC):
         context = dict(self.runtime_context)
         context.setdefault("run_id", envelope.run_id)
         context.setdefault("permission_gate", permission_gate)
+        context["principal"] = {
+            "type": "specialist",
+            "id": self.name,
+            "capabilities": self._capabilities(),
+        }
         return context
+
+    def _capabilities(self) -> list[str]:
+        capabilities: set[str] = set()
+        for tool in self.allowed_tools:
+            if tool.startswith("workspace."):
+                capabilities.add("workspace.read")
+            elif tool.startswith(("memory.retrieve", "rag.")):
+                capabilities.add("memory.read")
+            elif tool.startswith("memory."):
+                capabilities.add("memory.write")
+            elif tool.startswith(("hls4ml.", "vivado.")):
+                capabilities.update({"hls.inspect", "hls.execute"})
+        return sorted(capabilities)
 
     def _call_tool(self, tool_name: str, arguments: dict[str, Any], envelope: ContextEnvelope, tool_registry, permission_gate) -> dict[str, Any]:
         if tool_name not in envelope.allowed_tools or tool_name not in self.allowed_tools:
@@ -66,12 +84,25 @@ class BaseSpecialist(ABC):
         arguments: dict[str, Any] | None = None,
         force_deterministic: bool = False,
     ) -> dict[str, Any]:
-        llm_decider_enabled = str(
+        legacy_enabled = str(
             self.runtime_context.get(
                 "specialist_llm_decider_enabled",
                 os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED", "0"),
             )
         ).lower() in {"1", "true", "yes", "on"}
+        mode = str(
+            self.runtime_context.get(
+                "specialist_llm_mode",
+                os.environ.get("DL_OP_TO_HLS_SPECIALIST_LLM_MODE", "always" if legacy_enabled else "off"),
+            )
+        ).lower()
+        has_failure_observation = any(
+            str((item.get("result") or item).get("status", "")).lower() in {"failed", "error", "blocked"}
+            for item in observations
+            if isinstance(item, dict) and isinstance(item.get("result") or item, dict)
+        )
+        needs_reasoning = preferred_tool is None or has_failure_observation or (not arguments and len(envelope.allowed_tools) > 1)
+        llm_decider_enabled = legacy_enabled and (mode == "always" or (mode == "adaptive" and needs_reasoning))
         if force_deterministic:
             llm_decider_enabled = False
         decision = self.local_react_decider.decide(

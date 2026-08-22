@@ -1,5 +1,6 @@
 __pycache__/
 .pytest_cache/
+.pytest_tmp*/
 *.pyc
 runs/*
 !runs/.gitkeep

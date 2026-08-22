@@ -1,6 +1,52 @@
 from dl_op_to_hls.db.database import Database
 from dl_op_to_hls.db.repositories import MetadataRepository
 from dl_op_to_hls.rag.memory import RagMemory
+from dl_op_to_hls.rag.retriever import RagRetriever
+from dl_op_to_hls.rag.semantic import SemanticRagConfig
+
+
+class _FakeEmbedder:
+    model_id = "test-embedding-v1"
+
+    def __init__(self, vectors):
+        self.vectors = vectors
+        self.batches = []
+
+    def encode(self, texts, *, batch_size):
+        self.batches.append(list(texts))
+        return [list(self.vectors[text]) for text in texts]
+
+
+class _FakeReranker:
+    model_id = "test-cross-encoder-v1"
+
+    def __init__(self, scores):
+        self.scores = scores
+        self.pairs = []
+
+    def predict(self, pairs, *, batch_size):
+        self.pairs.extend(pairs)
+        return [float(self.scores[document]) for _, document in pairs]
+
+
+def _semantic_memory(tmp_path, vectors, rerank_scores):
+    database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
+    repository = MetadataRepository(database)
+    embedder = _FakeEmbedder(vectors)
+    reranker = _FakeReranker(rerank_scores)
+    config = SemanticRagConfig(
+        enabled=True,
+        candidate_pool_size=8,
+        min_embedding_score=0.0,
+        min_reranker_score=0.01,
+    )
+    memory = RagMemory(
+        repository,
+        semantic_config=config,
+        embedder=embedder,
+        reranker=reranker,
+    )
+    return memory, repository, embedder, reranker
 
 
 def _memory(tmp_path):
@@ -24,6 +70,8 @@ def test_rag_retrieve_experience(tmp_path):
     memory.index_text("doc1", "Dense DSP reuse factor hint", {"op_type": "Dense"})
     results = memory.retrieve("Dense reuse factor", top_k=3)
     assert results
+    assert results[0]["retrieval"]["hybrid_score"] >= results[0]["retrieval"]["lexical_score"]
+    assert results[0]["provenance"]["trust_score"] > 0
 
 
 def test_rag_retrieve_filters_generic_resource_overlap_when_anchor_mismatches(tmp_path):
@@ -138,3 +186,130 @@ def test_rag_domain_filter_separates_parameter_and_optimization_memory(tmp_path)
     assert all(item["metadata"].get("domain") == "parameter" for item in parameter_results)
     assert optimization_results
     assert all(item["metadata"].get("domain") == "optimization" for item in optimization_results)
+
+
+def test_embedding_recall_finds_semantic_match_without_lexical_anchor(tmp_path):
+    query = "lower multiplier energy"
+    relevant = "Reducing parallel arithmetic saves power in the synthesized circuit."
+    irrelevant = "The report parser reads XML files from the build directory."
+    memory, _, _, _ = _semantic_memory(
+        tmp_path,
+        {
+            query: [1.0, 0.0],
+            relevant: [0.95, 0.05],
+            irrelevant: [0.0, 1.0],
+        },
+        {relevant: 4.0, irrelevant: -4.0},
+    )
+    memory.index_text("power-guide", relevant, {"source_type": "static_doc"})
+    memory.index_text("parser-guide", irrelevant, {"source_type": "static_doc"})
+
+    result = memory.retrieve_corrective(query, top_k=2)
+
+    assert result["abstained"] is False
+    assert result["results"][0]["source_id"] == "power-guide"
+    assert result["results"][0]["retrieval"]["mode"] == "embedding_cross_encoder"
+    assert result["results"][0]["evidence_grade"]["semantic_support"] is True
+
+
+def test_cross_encoder_reranks_embedding_candidate_pool(tmp_path):
+    query = "best implementation approach"
+    embedding_favorite = "Candidate A implementation."
+    reranker_favorite = "Candidate B implementation."
+    memory, _, _, _ = _semantic_memory(
+        tmp_path,
+        {
+            query: [1.0, 0.0],
+            embedding_favorite: [1.0, 0.0],
+            reranker_favorite: [0.7, 0.7],
+        },
+        {embedding_favorite: -4.0, reranker_favorite: 4.0},
+    )
+    memory.index_text("candidate-a", embedding_favorite, {})
+    memory.index_text("candidate-b", reranker_favorite, {})
+
+    results = memory.retrieve(query, top_k=2)
+
+    assert results[0]["source_id"] == "candidate-b"
+    assert results[0]["retrieval"]["cross_encoder_score"] > results[1]["retrieval"]["cross_encoder_score"]
+
+
+def test_indexed_embeddings_are_persisted_and_reused(tmp_path):
+    query = "semantic query"
+    document = "Persisted semantic document."
+    memory, repository, embedder, _ = _semantic_memory(
+        tmp_path,
+        {query: [1.0, 0.0], document: [1.0, 0.0]},
+        {document: 4.0},
+    )
+    memory.index_text("doc", document, {})
+    document_encoding_count = sum(document in batch for batch in embedder.batches)
+
+    results = memory.retrieve(query, top_k=1)
+    stored = repository.get_rag_embeddings([1], embedder.model_id)
+
+    assert results
+    assert stored[1]["embedding"] == [1.0, 0.0]
+    assert sum(document in batch for batch in embedder.batches) == document_encoding_count
+
+
+def test_online_embedding_migration_is_bounded(tmp_path):
+    database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
+    repository = MetadataRepository(database)
+    legacy = RagMemory(repository)
+    documents = [f"Power optimization note {index}." for index in range(5)]
+    for index, document in enumerate(documents):
+        legacy.index_text(f"legacy-{index}", document, {})
+    query = "power optimization advice"
+    embedder = _FakeEmbedder({query: [1.0, 0.0], **{item: [1.0, 0.0] for item in documents}})
+    reranker = _FakeReranker({item: 2.0 for item in documents})
+    memory = RagMemory(
+        repository,
+        semantic_config=SemanticRagConfig(
+            enabled=True,
+            max_online_embeddings=2,
+            min_embedding_score=0.0,
+            min_reranker_score=0.01,
+        ),
+        embedder=embedder,
+        reranker=reranker,
+    )
+
+    results = memory.retrieve(query, top_k=2)
+    diagnostics = memory.retriever.last_diagnostics
+
+    assert results
+    assert diagnostics["online_embedding_count"] == 2
+    assert diagnostics["unembedded_candidate_count"] == 3
+    assert diagnostics["vector_coverage"] == 0.4
+    assert sum(len(batch) for batch in embedder.batches if query not in batch) == 2
+
+
+def test_embedding_backfill_is_resumable_and_reports_coverage(tmp_path):
+    database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
+    repository = MetadataRepository(database)
+    legacy = RagMemory(repository)
+    documents = [f"Legacy HLS note {index}." for index in range(3)]
+    for index, document in enumerate(documents):
+        legacy.index_text(f"legacy-{index}", document, {})
+    memory = RagMemory(
+        repository,
+        semantic_config=SemanticRagConfig(enabled=True),
+        embedder=_FakeEmbedder({item: [1.0, 0.0] for item in documents}),
+        reranker=_FakeReranker({item: 1.0 for item in documents}),
+    )
+
+    first = memory.backfill_embeddings(batch_size=1, max_chunks=2)
+    second = memory.backfill_embeddings(batch_size=4)
+
+    assert first["embeddings_indexed"] == 2
+    assert first["coverage"]["coverage"] == 0.6667
+    assert second["embeddings_indexed"] == 1
+    assert second["coverage"]["coverage"] == 1.0
+
+
+def test_windows_paths_are_distinct_rag_source_families():
+    assert RagRetriever._source_family(r"D:\runs\one\summary.md") != RagRetriever._source_family(
+        r"D:\runs\two\summary.md"
+    )
+    assert RagRetriever._source_family("memory_fact:1") == RagRetriever._source_family("memory_fact:2")

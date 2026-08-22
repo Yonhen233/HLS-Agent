@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run one real hls4ml -> Vivado HLS conversion, CSim, and optional synthesis probe."
     )
     parser.add_argument("--name", required=True, help="Probe directory name under runs/.")
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--model-path", help="ONNX model path; required unless --hls-project-dir is supplied.")
     parser.add_argument(
         "--hls-project-dir",
         help="Reuse an already generated HLS project instead of running hls4ml conversion again.",
@@ -82,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps({"converted": converted}, indent=2), flush=True)
     else:
+        if not args.model_path:
+            parser.error("--model-path is required unless --hls-project-dir is supplied.")
         hls4ml = HLS4MLAdapter(mock_mode=False)
         config_args = {
             "model_path": args.model_path,

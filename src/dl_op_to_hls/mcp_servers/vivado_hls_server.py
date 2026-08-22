@@ -66,3 +66,8 @@ def register_vivado_tools(registry: ToolRegistry, adapter) -> None:
         )
     )
 
+
+def build_vivado_registry(adapter) -> ToolRegistry:
+    registry = ToolRegistry()
+    register_vivado_tools(registry, adapter)
+    return registry

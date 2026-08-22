@@ -1,0 +1,50 @@
+{
+  "task_type": "operator",
+  "op_type": "ScaleShift",
+  "name": "scale_shift_llm_force_verify_fail",
+  "input_shape": [16],
+  "output_shape": [16],
+  "dtype": "ap_fixed<16,6>",
+  "top_function": "scale_shift_llm_force_verify_fail",
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 8
+  },
+  "optimization": {
+    "objective": "latency",
+    "pipeline_ii": 1
+  },
+  "force_fail": true,
+  "max_repair_attempts": 1,
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 1,
+    "verification_required": true,
+    "reason": "Negative harness case: force mock candidate verification to fail so the Agent must repair once and then honestly recover to unsupported instead of inventing metrics."
+  },
+  "candidate_contract": {
+    "top_function": "scale_shift_llm_force_verify_fail",
+    "required_files": [
+      "candidate/scale_shift_llm_force_verify_fail.h",
+      "candidate/scale_shift_llm_force_verify_fail.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void scale_shift_llm_force_verify_fail(data_t input[16], data_t output[16])",
+    "dtype": "typedef ap_fixed<16,6> data_t",
+    "operation": "for each i in [0, 15], output[i] = input[i] * 2 + 1",
+    "testbench": {
+      "input_pattern": "input[i] = i - 8",
+      "expected_formula": "expected = input[i] * 2 + 1",
+      "success_marker": "GOLDEN_CHECK_PASSED",
+      "failure_marker": "GOLDEN_CHECK_FAILED",
+      "tolerance": 0.001
+    },
+    "hls_constraints": [
+      "Use static arrays only.",
+      "Include ap_fixed.h in the header.",
+      "Do not use dynamic allocation, file I/O, system calls, exceptions, threads, STL containers, or networking.",
+      "Use Vivado HLS 2018.3 compatible C++."
+    ]
+  }
+}

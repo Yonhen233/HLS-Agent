@@ -12,6 +12,7 @@ from .todo import TodoItem
 class AgentState:
     run_id: str
     task: dict
+    session_id: str | None = None
     status: str = "initialized"
     objective: str | None = None
     plan: list[str] = field(default_factory=list)
@@ -38,6 +39,14 @@ class AgentState:
     rag_context: list[dict] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     llm_decisions: list[dict[str, Any]] = field(default_factory=list)
+    goal_contract: dict[str, Any] = field(default_factory=dict)
+    plan_coverage: dict[str, Any] = field(default_factory=dict)
+    completion: dict[str, Any] = field(default_factory=dict)
+    progress: dict[str, Any] = field(default_factory=dict)
+    rag_evidence_report: dict[str, Any] = field(default_factory=dict)
+    evidence_receipts: list[dict[str, Any]] = field(default_factory=list)
+    release_manifest: dict[str, Any] = field(default_factory=dict)
+    telemetry: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
