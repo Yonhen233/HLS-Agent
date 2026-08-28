@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_template_vs_llm_suite",
+  "primary_path": "llm_candidate",
+  "template_role": "fair_baseline_only",
+  "cases": [
+    {
+      "case_id": "dense_latency_fair",
+      "operator": "Dense",
+      "objective": "latency",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "dense_resource_fair",
+      "operator": "Dense",
+      "objective": "resource",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_latency_fair",
+      "operator": "MatMul",
+      "objective": "latency",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_resource_fair",
+      "operator": "MatMul",
+      "objective": "resource",
+      "status": "pending_real_run"
+    }
+  ],
+  "fixed_constraints": [
+    "shape",
+    "dtype",
+    "part",
+    "clock",
+    "input_data",
+    "golden_reference",
+    "vivado_version"
+  ]
+}

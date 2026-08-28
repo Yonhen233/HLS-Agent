@@ -1,0 +1,199 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_real_csynth_suite",
+  "evidence_class": "real_csynth",
+  "mock_tools": false,
+  "minimum_case_count": 10,
+  "cases": [
+    {
+      "case_id": "dense_latency",
+      "operator": "Dense",
+      "objective": "latency",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "dense_resource",
+      "operator": "Dense",
+      "objective": "resource",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_latency",
+      "operator": "MatMul",
+      "objective": "latency",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_resource",
+      "operator": "MatMul",
+      "objective": "resource",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "conv_small_latency",
+      "operator": "Conv2D",
+      "objective": "latency",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "conv_medium_resource",
+      "operator": "Conv2D",
+      "objective": "resource",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "relu_latency",
+      "operator": "ReLU",
+      "objective": "latency",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "add_latency",
+      "operator": "Add",
+      "objective": "latency",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "scale_shift_resource",
+      "operator": "ScaleShift",
+      "objective": "resource",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "dense_timing_pressure",
+      "operator": "Dense",
+      "objective": "timing_failure_detection",
+      "generation_path": "llm_candidate",
+      "required_fields": [
+        "latency",
+        "interval",
+        "resources",
+        "timing",
+        "tool_version",
+        "part",
+        "run_id",
+        "git_commit",
+        "artifact_hash",
+        "functional_verification"
+      ],
+      "status": "pending_real_run"
+    }
+  ]
+}

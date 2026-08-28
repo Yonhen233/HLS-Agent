@@ -13,6 +13,8 @@ class LLMGuard:
             return {"status": "invalid", "errors": errors}
 
         selected_skill = plan.get("selected_skill")
+        if plan.get("skill_usage") not in {"strict", "adapted"}:
+            errors.append("skill_usage must be exactly 'strict' or 'adapted'.")
         if selected_skill:
             try:
                 skill_registry.get(selected_skill)

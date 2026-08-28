@@ -343,6 +343,47 @@ def test_verification_specialist_mock_success(temp_workspace):
     assert result.memory_candidates
 
 
+def test_verification_specialist_propagates_target_clock_and_part(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    state = _dense_state(temp_workspace)
+    state.task["target"]["clock_period"] = 10
+    calls = []
+
+    class RecordingRegistry:
+        def call(self, name, arguments, tool_context):
+            calls.append((name, arguments))
+            return {"status": "verified", "csim": {"status": "passed"}}
+
+    specialist = VerificationSpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(
+        state,
+        _todo("Verify LLM candidate", "verify_candidate.run"),
+        "VerificationSpecialist",
+    )
+    result = specialist.handle(envelope, RecordingRegistry(), agent.permission_gate)
+
+    assert result.status == "success"
+    assert calls[0][1]["clock_period"] == 10
+    assert calls[0][1]["part"] == state.task["target"]["part"]
+
+
+def test_memory_specialist_retrieval_does_not_promote(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    state = _dense_state(temp_workspace)
+    todo = _todo("Retrieve similar experiences", "memory.retrieve_similar_experiences", "MemorySpecialist")
+    todo.inputs = {"query": "Dense latency", "top_k": 2}
+    specialist = MemorySpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(state, todo, "MemorySpecialist")
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+
+    called_tools = [item.get("tool") for item in result.observations if item.get("tool")]
+    assert result.status == "success"
+    assert called_tools == ["memory.retrieve_similar_experiences"]
+    assert "memory.promote_to_long_term" not in called_tools
+
+
 def test_optimization_specialist_uses_rag_context(temp_workspace):
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")

@@ -290,6 +290,7 @@ class ToolRegistry:
                                 "receipt_id": receipt.get("receipt_id"),
                                 "valid": receipt.get("valid"),
                                 "mock_evidence": receipt.get("mock_evidence"),
+                                "evidence_class": receipt.get("evidence_class"),
                             },
                         )
                 duration_ms = int((time.time() - started) * 1000)

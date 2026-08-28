@@ -2,6 +2,19 @@ from __future__ import annotations
 
 
 class MemoryPolicy:
+    @staticmethod
+    def _has_real_synthesis_evidence(value: dict) -> bool:
+        if not isinstance(value, dict):
+            return False
+        report = value.get("report") if isinstance(value.get("report"), dict) else {}
+        receipt = report.get("evidence_receipt") if isinstance(report.get("evidence_receipt"), dict) else {}
+        return (
+            report.get("status") == "success"
+            and receipt.get("valid") is True
+            and receipt.get("mock_evidence") is not True
+            and receipt.get("evidence_class") == "real_csynth"
+        )
+
     def _is_functionally_verified(self, verification: dict) -> bool:
         if not isinstance(verification, dict):
             return False
@@ -37,11 +50,24 @@ class MemoryPolicy:
         value = candidate.get("value", {})
         verification = value.get("verification", {}) if isinstance(value, dict) else {}
         verified = self._is_functionally_verified(verification)
-        if candidate.get("kind") in {"optimization", "implementation", "verified_implementation", "parameter_experience"} and not verified:
+        evidence_backed_kinds = {
+            "optimization",
+            "implementation",
+            "verified_implementation",
+            "parameter_experience",
+        }
+        if candidate.get("kind") in evidence_backed_kinds and (
+            not verified or not self._has_real_synthesis_evidence(value)
+        ):
             return False
         if candidate.get("kind") == "synthesis_success":
             report = value.get("report", {}) if isinstance(value, dict) else {}
-            return isinstance(report, dict) and report.get("status") == "success" and not verified
+            return (
+                isinstance(report, dict)
+                and report.get("status") == "success"
+                and not verified
+                and self._has_real_synthesis_evidence(value)
+            )
         if candidate.get("kind") in {"skill", "failure", "optimization", "semantic", "episodic"}:
             return True
         if value.get("status") == "verified":

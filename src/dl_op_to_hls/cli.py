@@ -10,6 +10,7 @@ from .benchmarks.agent_quality_benchmark import main as benchmark_main
 from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
 from .benchmarks.maturity_benchmark import run_maturity_benchmark
 from .benchmarks.semantic_rag_benchmark import run_semantic_rag_benchmark
+from .benchmarks.operator_benchmark import run_operator_benchmark
 from .core.design_objectives import list_objective_modes
 from .core.durable_queue import DurableWorker
 from .core.observability import SLOEvaluator
@@ -47,12 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_llm_parser.add_argument("--session-id")
     run_llm_parser.add_argument("--user-id", default="local-user")
     run_llm_parser.add_argument("--project-id")
+    run_llm_parser.add_argument("--mock-tools", action="store_true", help="Explicitly use mock toolchains.")
+    run_llm_parser.add_argument("--real-tools", action="store_true", help="Explicitly require real toolchains.")
 
     agent_run_parser = subparsers.add_parser("agent-run", help="Primary durable LLM Agent runtime.")
     agent_run_parser.add_argument("task_input")
     agent_run_parser.add_argument("--session-id")
     agent_run_parser.add_argument("--user-id", default="local-user")
     agent_run_parser.add_argument("--project-id")
+    agent_run_parser.add_argument("--mock-tools", action="store_true", help="Explicitly use mock toolchains.")
+    agent_run_parser.add_argument("--real-tools", action="store_true", help="Explicitly require real toolchains.")
 
     run_nl_parser = subparsers.add_parser("run-nl")
     run_nl_parser.add_argument("prompt")
@@ -115,6 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     bad_case_parser.add_argument("--output", default="runs/benchmarks/agent_bad_case_probe.json")
     semantic_rag_parser = subparsers.add_parser("semantic-rag-benchmark")
     semantic_rag_parser.add_argument("--output", default="runs/benchmarks/semantic_rag_real_probe.json")
+    operator_benchmark_parser = subparsers.add_parser("operator-benchmark")
+    operator_benchmark_parser.add_argument("--output", default="runs/benchmarks/operator_release.json")
 
     rag_calibrate_parser = subparsers.add_parser("rag-calibrate")
     rag_calibrate_parser.add_argument("--dataset", default="benchmarks/hls_reranker_hard_negatives.json")
@@ -301,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(state.to_dict(), indent=2, ensure_ascii=False))
         return 0
     if args.command in {"run-llm", "agent-run"}:
-        agent = _build_agent()
+        agent = _build_agent(mock_tools=args.mock_tools, real_tools=args.real_tools)
         try:
             state = run_task_llm(
                 args.task_input,
@@ -441,6 +448,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "semantic-rag-benchmark":
         payload = run_semantic_rag_benchmark(Path.cwd(), args.output)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "operator-benchmark":
+        payload = run_operator_benchmark(Path.cwd(), args.output)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
     if args.command == "rag-calibrate":

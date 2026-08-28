@@ -28,6 +28,52 @@ def _current_reuse_factor(state: dict[str, Any] | None) -> int | None:
         return None
 
 
+def _compact_optimization_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Expose only decision-relevant state; never send full todos/traces/tool results."""
+    task = state.get("task") if isinstance(state.get("task"), dict) else {}
+    target = task.get("target") if isinstance(task.get("target"), dict) else {}
+    optimization = task.get("optimization") if isinstance(task.get("optimization"), dict) else {}
+    hls4ml = task.get("hls4ml") if isinstance(task.get("hls4ml"), dict) else {}
+    errors = state.get("errors") if isinstance(state.get("errors"), list) else []
+    return {
+        "run_id": state.get("run_id"),
+        "task": {
+            "task_type": task.get("task_type"),
+            "name": task.get("name"),
+            "op_type": task.get("op_type"),
+            "input_shape": task.get("input_shape"),
+            "output_shape": task.get("output_shape"),
+            "dtype": task.get("dtype"),
+            "target": {
+                "part": target.get("part"),
+                "clock_period": target.get("clock_period"),
+            },
+            "optimization": {
+                "objective": optimization.get("objective"),
+                "reuse_factor": optimization.get("reuse_factor"),
+                "pipeline_ii": optimization.get("pipeline_ii"),
+            },
+            "hls4ml": {
+                "precision": hls4ml.get("precision"),
+                "reuse_factor": hls4ml.get("reuse_factor"),
+                "strategy": hls4ml.get("strategy"),
+            },
+        },
+        "objective": state.get("objective"),
+        "selected_path": state.get("selected_path"),
+        "pipeline_status": state.get("pipeline_status"),
+        "error_summaries": [
+            {
+                "error_type": item.get("error_type"),
+                "message": str(item.get("message") or "")[:240],
+                "recoverable": item.get("recoverable"),
+            }
+            for item in errors[-3:]
+            if isinstance(item, dict)
+        ],
+    }
+
+
 def build_suggestions(
     report: dict[str, Any],
     rag_context: list[dict],
@@ -232,6 +278,10 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
             "fallback_mode": "not_applicable",
         }
     llm_client = context.get("llm_client")
+    if llm_client is not None and hasattr(llm_client, "set_context"):
+        # Atomic entry points must bind the active run so provider usage and
+        # token telemetry are correlated with the surrounding tool trace.
+        llm_client.set_context(context)
     llm_result = None
     fallback_mode = (
         arguments.get("fallback_mode")
@@ -275,8 +325,8 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
             llm_result = LLMOptimizationEngine().generate(
                 report=report,
                 objective=objective,
-                rag_context=rag_context,
-                state_summary=state,
+                rag_context=rag_context[:3],
+                state_summary=_compact_optimization_state(state),
                 client=llm_client,
                 fallback=_rule_fallback,
                 allow_rule_fallback=allow_rule_fallback,

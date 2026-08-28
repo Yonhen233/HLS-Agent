@@ -1,0 +1,606 @@
+{
+  "schema_version": "1.0",
+  "generation_policy": "llm_candidate_first",
+  "real_evidence_policy": "Only explicit current-run real_csim/real_csynth receipts are counted.",
+  "operators": [
+    {
+      "operator": "Dense",
+      "deterministic_template": true,
+      "llm_candidate": true,
+      "onnx_patterns": [
+        "Gemm",
+        "MatMul+Add"
+      ],
+      "known_limitations": [
+        "static dimensions",
+        "static weights for model conversion"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          8,
+          8
+        ],
+        [
+          16,
+          32
+        ],
+        [
+          32,
+          16
+        ],
+        [
+          32,
+          64
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 24,
+      "real_csim_count": 0,
+      "real_csynth_count": 0,
+      "mock_case_count": 3,
+      "fixture_case_count": 0,
+      "evidence_runs": [
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "db.save_experiment",
+          "receipt_id": "te_e11e02b52a92e302"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.retrieve_failure_cases",
+          "receipt_id": "te_a95bb0dc6eb2b167"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.retrieve_similar_experiences",
+          "receipt_id": "te_64e33e8c52801f7c"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.retrieve_conversation",
+          "receipt_id": "te_f33dbf5437a9a39a"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.retrieve_optimization_rules",
+          "receipt_id": "te_d862a4543c658a3d"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "parameter_advisor.recommend",
+          "receipt_id": "te_548a950c3f330a79"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "task.validate_schema",
+          "receipt_id": "te_de4de7b7a9aa347b"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_ba179694d50335ea"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "hls4ml.check_support",
+          "receipt_id": "te_90d832b12166a6f5"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_531c67862a4510df"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "graph_rewrite.rewrite",
+          "receipt_id": "te_8c4827c6d3d109fd"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_e8252f5a0110a0c6"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "fallback.generate_operator_hls",
+          "receipt_id": "te_8f5f733a85a57a86"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "db.save_implementation",
+          "receipt_id": "te_ae07f65634bc4806"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_9dd111b11830aa61"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_baad1ac96b0dfa75"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_dd321e37c28107ed"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_e6c93c3d22c11cc3"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_942e7f0937889e4b"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_6bf43eac250b8aa9"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.retrieve_optimization_rules",
+          "receipt_id": "te_81a51cf497bacdc2"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "suggestion.suggest_optimization",
+          "receipt_id": "te_ce266e0d5f94bcac"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.write_short_term",
+          "receipt_id": "te_41471313572f4f3f"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.compress_run_context",
+          "receipt_id": "te_b4f0cc7980bfc643"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "memory.promote_to_long_term",
+          "receipt_id": "te_864bcae0f45fceeb"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "suggestion.suggest_optimization",
+          "receipt_id": "te_e9d17d76bc24de29"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "summary.write_summary",
+          "receipt_id": "te_27628efe4adb02bd"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "rag.index_artifact",
+          "receipt_id": "te_67d26090fb680bc0"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_30",
+          "evidence_class": "mock",
+          "tool": "db.save_experiment",
+          "receipt_id": "te_ed0bcdd742eec3a4"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_f25b4dc8fe963277"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_4750b57110a5435f"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_83a67cbb0859c144"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_ecaf3bff14c60553"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_4750b57110a5435f"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_83a67cbb0859c144"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_33",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_ecaf3bff14c60553"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_b14e1d018769d02a"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_311906b6b1215541"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_01ddda74fa88d63b"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_f633b36170b419cf"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_311906b6b1215541"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_01ddda74fa88d63b"
+        },
+        {
+          "run_id": "dense_16x32_af6abf3c_34",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_f633b36170b419cf"
+        }
+      ],
+      "support_status": "functional_reference_ready"
+    },
+    {
+      "operator": "MatMul",
+      "deterministic_template": true,
+      "llm_candidate": true,
+      "onnx_patterns": [
+        "static MatMul"
+      ],
+      "known_limitations": [
+        "static dimensions",
+        "dynamic right-hand input is operator-task only"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          4,
+          4,
+          4
+        ],
+        [
+          8,
+          8,
+          8
+        ],
+        [
+          16,
+          16,
+          16
+        ],
+        [
+          8,
+          16,
+          4
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 24,
+      "real_csim_count": 0,
+      "real_csynth_count": 0,
+      "mock_case_count": 0,
+      "fixture_case_count": 0,
+      "evidence_runs": [],
+      "support_status": "functional_reference_ready"
+    },
+    {
+      "operator": "ReLU",
+      "deterministic_template": true,
+      "llm_candidate": true,
+      "onnx_patterns": [
+        "Relu"
+      ],
+      "known_limitations": [
+        "static tensor length in operator task"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          16
+        ],
+        [
+          64
+        ],
+        [
+          256
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 18,
+      "real_csim_count": 0,
+      "real_csynth_count": 0,
+      "mock_case_count": 0,
+      "fixture_case_count": 0,
+      "evidence_runs": [],
+      "support_status": "functional_reference_ready"
+    },
+    {
+      "operator": "Add",
+      "deterministic_template": true,
+      "llm_candidate": true,
+      "onnx_patterns": [
+        "bias Add only"
+      ],
+      "known_limitations": [
+        "residual/branched elementwise Add is unsupported by the restricted graph adapter"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          16
+        ],
+        [
+          64
+        ],
+        [
+          256
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 18,
+      "real_csim_count": 0,
+      "real_csynth_count": 0,
+      "mock_case_count": 0,
+      "fixture_case_count": 0,
+      "evidence_runs": [],
+      "support_status": "functional_reference_ready"
+    },
+    {
+      "operator": "ScaleShift",
+      "deterministic_template": false,
+      "llm_candidate": true,
+      "onnx_patterns": [],
+      "known_limitations": [
+        "LLM candidate must pass sandbox, golden CSim, and CSynth"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          16
+        ],
+        [
+          64
+        ],
+        [
+          256
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 18,
+      "real_csim_count": 0,
+      "real_csynth_count": 0,
+      "mock_case_count": 0,
+      "fixture_case_count": 0,
+      "evidence_runs": [],
+      "support_status": "functional_reference_ready"
+    },
+    {
+      "operator": "Conv2D",
+      "deterministic_template": false,
+      "llm_candidate": true,
+      "onnx_patterns": [
+        "Conv",
+        "Conv+BatchNorm fold",
+        "Conv+Activation"
+      ],
+      "known_limitations": [
+        "static NHWC",
+        "group=1",
+        "no depthwise/grouped convolution",
+        "static kernel/stride/padding/weights/bias"
+      ],
+      "primary_generation_path": "llm_candidate",
+      "tested_shapes": [
+        [
+          6,
+          6,
+          1
+        ],
+        [
+          8,
+          8,
+          3
+        ],
+        [
+          16,
+          16,
+          4
+        ]
+      ],
+      "tested_dtypes": [
+        "ap_fixed<12,4>",
+        "ap_fixed<16,6>",
+        "ap_fixed<8,3>"
+      ],
+      "functional_case_count": 18,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
+      "mock_case_count": 1,
+      "fixture_case_count": 0,
+      "evidence_runs": [
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_05",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_bdea082409fddf15"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_05",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_bdea082409fddf15",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_05",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_fe836269c87b684b"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_05",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_9b435c0a02c505eb"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_06",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_168fcb4a33d91f54"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_06",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_168fcb4a33d91f54",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_06",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_09039465230c9f00"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_06",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_71565e27a97fc1a7"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_08",
+          "evidence_class": "mock",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_56c97bd3a78a12bf"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_08",
+          "evidence_class": "mock",
+          "tool": "vivado.create_project",
+          "receipt_id": "te_aee568131423574b"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_08",
+          "evidence_class": "mock",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_9426d721078f0341"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_08",
+          "evidence_class": "mock",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_944cfdee7e804341"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_09",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_4f6320df36459897"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_09",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_4f6320df36459897",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_09",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_55fdfce4a9937e38"
+        },
+        {
+          "run_id": "conv2d_6x6x1_to2_llm_c87e2ec6_09",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_da12f4a63b727ec2"
+        }
+      ],
+      "support_status": "functional_reference_ready"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .trace import stable_hash
+from ..benchmarks.operator_evidence import assess_tool_evidence
 
 
 SUCCESS_STATUSES = {"success", "supported", "candidate_generated", "verified"}
@@ -74,6 +75,14 @@ class ToolPostconditionRegistry:
                 }
             )
         valid = all(item.get("passed") is not False for item in checks)
+        mock_evidence = self._is_mock(tool_name, result, context)
+        assessment = assess_tool_evidence(
+            tool_name,
+            result,
+            context,
+            mock_evidence=mock_evidence,
+            arguments=arguments,
+        )
         return {
             "receipt_id": f"te_{stable_hash({'tool': tool_name, 'args': arguments, 'result': result})[:16]}",
             "run_id": context.get("run_id"),
@@ -84,7 +93,9 @@ class ToolPostconditionRegistry:
             "valid": valid,
             "checks": checks,
             "artifacts": artifacts,
-            "mock_evidence": self._is_mock(tool_name, result, context),
+            "mock_evidence": mock_evidence,
+            "evidence_class": assessment.evidence_class,
+            "evidence_assessment": assessment.to_dict(),
             "observed_at": _utc_now(),
         }
 

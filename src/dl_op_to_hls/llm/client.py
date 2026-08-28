@@ -27,6 +27,8 @@ class LLMClient:
     _last_request_ts: float = field(default=0.0, init=False, repr=False)
     _cooldown_until_ts: float = field(default=0.0, init=False, repr=False)
     _adaptive_min_interval_sec: float = field(default=0.0, init=False, repr=False)
+    _call_sequence: int = field(default=0, init=False, repr=False)
+    _previous_input_tokens: int = field(default=0, init=False, repr=False)
 
     def set_context(self, context: dict[str, Any]) -> None:
         self.context = context
@@ -103,6 +105,11 @@ class LLMClient:
                 )
             )
 
+        policy = self._json_request_policy(schema)
+        previous_policy = self.context.get("_llm_request_policy")
+        previous_stage = self.context.get("llm_stage")
+        self.context["_llm_request_policy"] = policy
+        self.context["llm_stage"] = policy["stage"]
         emit_llm_event(
             self.context,
             "LLMCallStarted",
@@ -118,6 +125,26 @@ class LLMClient:
             try:
                 payload = self._parse_json_payload(text)
             except json.JSONDecodeError as parse_exc:
+                if schema.get("title") == "CandidateGenerationSchema":
+                    artifact_path = self._write_llm_debug_artifact(
+                        schema=schema,
+                        error=str(parse_exc),
+                        raw_text=text,
+                        parsed_payload=None,
+                    )
+                    raise AgentRuntimeError(
+                        build_error(
+                            "LLMGenerationError",
+                            "Candidate response was incomplete or malformed; regenerate the complete candidate instead of repairing partial source code.",
+                            recoverable=True,
+                            source="llm.complete_json",
+                            suggested_action="Regenerate the candidate with a compact implementation and complete JSON payload.",
+                            details={
+                                "failure_kind": "candidate_payload_incomplete",
+                                **({"llm_debug_artifact": artifact_path} if artifact_path else {}),
+                            },
+                        )
+                    ) from parse_exc
                 payload = self._repair_json_payload(
                     original_text=text,
                     parsed_payload={},
@@ -176,6 +203,15 @@ class LLMClient:
                     details={"llm_debug_artifact": artifact_path} if artifact_path else {},
                 )
             ) from exc
+        finally:
+            if previous_policy is None:
+                self.context.pop("_llm_request_policy", None)
+            else:
+                self.context["_llm_request_policy"] = previous_policy
+            if previous_stage is None:
+                self.context.pop("llm_stage", None)
+            else:
+                self.context["llm_stage"] = previous_stage
 
     def complete_text(
         self,
@@ -217,6 +253,19 @@ class LLMClient:
                 )
             )
 
+        self._call_sequence += 1
+        call_id = f"llm_{self._call_sequence:04d}"
+        stage = str(
+            self.context.get("llm_stage")
+            or self.context.get("current_todo_id")
+            or self.context.get("specialist_name")
+            or "unclassified"
+        )
+        request_policy = self.context.get("_llm_request_policy") or {}
+        effective_max_tokens = min(
+            self.config.max_output_tokens,
+            int(request_policy.get("max_output_tokens") or self.config.max_output_tokens),
+        )
         body: dict[str, Any] = {
             "model": self.active_model(),
             "messages": [
@@ -224,8 +273,13 @@ class LLMClient:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": temperature,
-            "max_tokens": self.config.max_output_tokens,
+            "max_tokens": effective_max_tokens,
         }
+        thinking_mode = request_policy.get("thinking")
+        if thinking_mode in {"enabled", "disabled"} and self.active_model().lower().startswith("deepseek"):
+            body["thinking"] = {"type": thinking_mode}
+            if thinking_mode == "enabled":
+                body["reasoning_effort"] = str(request_policy.get("reasoning_effort") or "low")
         if force_json:
             body["response_format"] = {"type": "json_object"}
         request_raw = json.dumps(body).encode("utf-8")
@@ -346,14 +400,38 @@ class LLMClient:
                             source="llm.complete_text",
                         )
                     ) from exc
+            token_source = "provider" if usage else "estimated"
+            token_anomalies: list[str] = []
+            if output_tokens >= int(effective_max_tokens * 0.95):
+                token_anomalies.append("output_near_limit")
+            if input_tokens > 12_000:
+                token_anomalies.append("large_input_context")
+            if self._previous_input_tokens and input_tokens > max(4_000, self._previous_input_tokens * 2.5):
+                token_anomalies.append("input_context_growth_spike")
+            estimate_ratio = input_tokens / max(1, estimated_input_tokens)
+            if token_source == "provider" and (estimate_ratio > 2.5 or estimate_ratio < 0.4):
+                token_anomalies.append("provider_estimate_divergence")
+            self._previous_input_tokens = input_tokens
+            cumulative = run_budget.to_dict() if run_budget is not None else {}
             emit_llm_event(
                 self.context,
                 "LLMUsageRecorded",
                 {
                     "run_id": self.context.get("run_id"),
+                    "call_id": call_id,
+                    "stage": stage,
                     "model": self.active_model(),
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "token_source": token_source,
+                    "estimated_input_tokens": estimated_input_tokens,
+                    "request_bytes": request_bytes,
+                    "response_bytes": len(json.dumps(payload, ensure_ascii=False).encode("utf-8")),
+                    "max_output_tokens": effective_max_tokens,
+                    "thinking": thinking_mode or "provider_default",
+                    "reasoning_effort": request_policy.get("reasoning_effort"),
+                    "cumulative_total_tokens": cumulative.get("total_tokens"),
+                    "token_anomalies": token_anomalies,
                 },
             )
             if content:
@@ -370,14 +448,24 @@ class LLMClient:
                             "finish_reason": choice.get("finish_reason"),
                         },
                     )
-                    return self.complete_text(
-                        system_prompt,
-                        user_prompt
-                        + "\n\nThe prior attempt spent its response budget on reasoning. Return only the concise final response now; do not include reasoning.",
-                        temperature=0.0,
-                        force_json=force_json,
-                        _finalization_attempted=True,
-                    )
+                    previous_policy = self.context.get("_llm_request_policy")
+                    final_policy = dict(previous_policy or {})
+                    final_policy.update({"thinking": "disabled", "reasoning_effort": None})
+                    self.context["_llm_request_policy"] = final_policy
+                    try:
+                        return self.complete_text(
+                            system_prompt,
+                            user_prompt
+                            + "\n\nThe prior attempt spent its response budget on reasoning. Return only the concise final response now; do not include reasoning.",
+                            temperature=0.0,
+                            force_json=force_json,
+                            _finalization_attempted=True,
+                        )
+                    finally:
+                        if previous_policy is None:
+                            self.context.pop("_llm_request_policy", None)
+                        else:
+                            self.context["_llm_request_policy"] = previous_policy
                 raise AgentRuntimeError(
                     build_error(
                         "LLMGenerationError",
@@ -388,7 +476,7 @@ class LLMClient:
                         details={
                             "finish_reason": choice.get("finish_reason"),
                             "reasoning_chars": len(str(reasoning_content)),
-                            "max_tokens": self.config.max_output_tokens,
+                            "max_tokens": effective_max_tokens,
                         },
                     )
                 )
@@ -412,6 +500,23 @@ class LLMClient:
         if parsed.path in {"", "/"}:
             base_url = f"{base_url}/v1"
         return f"{base_url}/chat/completions"
+
+    @staticmethod
+    def _json_request_policy(schema: dict[str, Any]) -> dict[str, Any]:
+        """Keep control-plane JSON concise while preserving reasoning for HLS code generation."""
+        title = str(schema.get("title") or "unnamed_schema")
+        policies = {
+            "TodoPlan": {"max_output_tokens": 1800, "thinking": "disabled"},
+            "MainAgentReActDecision": {"max_output_tokens": 900, "thinking": "disabled"},
+            "SpecialistLocalReActDecision": {"max_output_tokens": 900, "thinking": "disabled"},
+            "OptimizationSuggestionSchema": {"max_output_tokens": 1800, "thinking": "disabled"},
+            "CandidateGenerationSchema": {
+                "max_output_tokens": 8000,
+                "thinking": "enabled",
+                "reasoning_effort": "low",
+            },
+        }
+        return {"stage": title, **policies.get(title, {"max_output_tokens": 1600, "thinking": "disabled"})}
 
     def _parse_json_payload(self, text: str) -> dict[str, Any]:
         try:
@@ -538,6 +643,20 @@ class LLMClient:
         required = set(schema.get("required", []))
         normalized = dict(payload)
         properties = schema.get("properties", {})
+
+        if schema.get("title") == "CandidateGenerationSchema":
+            files = normalized.get("files") if isinstance(normalized.get("files"), list) else []
+            if not normalized.get("candidate_name"):
+                for item in files:
+                    if not isinstance(item, dict):
+                        continue
+                    relative_path = str(item.get("relative_path") or "")
+                    stem = relative_path.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                    if stem and stem not in {"testbench", "run_hls"}:
+                        normalized["candidate_name"] = stem
+                        break
+            normalized.setdefault("assumptions", [])
+            normalized.setdefault("requires_verification", True)
 
         if "todos" in properties and not isinstance(normalized.get("todos"), list):
             normalized["todos"] = []

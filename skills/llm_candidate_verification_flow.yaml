@@ -1,6 +1,6 @@
 {
   "name": "llm_candidate_verification_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Generate candidate HLS for unsupported operators with LLM and enforce verification loop.",
   "intent": "llm_generated_hls_candidate_verification",
@@ -14,6 +14,11 @@
     "verification_required"
   ],
   "recommended_todos": [
+    {
+      "title": "Validate task schema",
+      "assigned_tool": "task.validate_schema",
+      "assigned_specialist": null
+    },
     {
       "title": "Retrieve similar implementations",
       "assigned_tool": "memory.retrieve_similar_experiences",
@@ -46,6 +51,7 @@
     }
   ],
   "allowed_tools": [
+    "task.validate_schema",
     "workspace.scan",
     "workspace.search",
     "workspace.read_batch",

@@ -1,0 +1,3015 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_functional_suite",
+  "description": "Layer-1 independent mathematical and bit-accurate golden cases; not real HLS evidence.",
+  "case_count": 120,
+  "evidence_class": "unit",
+  "cases": [
+    {
+      "case_id": "dense_001",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "zeros",
+      "seed": 1000,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_002",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "overflow_pressure",
+      "seed": 1001,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_003",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "ones",
+      "seed": 1002,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_004",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "sparse",
+      "seed": 1003,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_005",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "alternating",
+      "seed": 1004,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_006",
+      "operator": "Dense",
+      "shape": [
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "symmetric",
+      "seed": 1005,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_007",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "random_small",
+      "seed": 1006,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_008",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "impulse",
+      "seed": 1007,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_009",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_limits",
+      "seed": 1008,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_010",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_boundary",
+      "seed": 1009,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_011",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "overflow_pressure",
+      "seed": 1010,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_012",
+      "operator": "Dense",
+      "shape": [
+        16,
+        32
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "zeros",
+      "seed": 1011,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_013",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "sparse",
+      "seed": 1012,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_014",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "ones",
+      "seed": 1013,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_015",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "symmetric",
+      "seed": 1014,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_016",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "alternating",
+      "seed": 1015,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_017",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "impulse",
+      "seed": 1016,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_018",
+      "operator": "Dense",
+      "shape": [
+        32,
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "random_small",
+      "seed": 1017,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_019",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_boundary",
+      "seed": 1018,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_020",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_limits",
+      "seed": 1019,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_021",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "zeros",
+      "seed": 1020,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_022",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "overflow_pressure",
+      "seed": 1021,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_023",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "ones",
+      "seed": 1022,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "dense_024",
+      "operator": "Dense",
+      "shape": [
+        32,
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "sparse",
+      "seed": 1023,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_025",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "alternating",
+      "seed": 1024,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_026",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "symmetric",
+      "seed": 1025,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_027",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "random_small",
+      "seed": 1026,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_028",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "impulse",
+      "seed": 1027,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_029",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_limits",
+      "seed": 1028,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_030",
+      "operator": "MatMul",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_boundary",
+      "seed": 1029,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_031",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "overflow_pressure",
+      "seed": 1030,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_032",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "zeros",
+      "seed": 1031,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_033",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "sparse",
+      "seed": 1032,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_034",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "ones",
+      "seed": 1033,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_035",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "symmetric",
+      "seed": 1034,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_036",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        8,
+        8
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "alternating",
+      "seed": 1035,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_037",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "impulse",
+      "seed": 1036,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_038",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "random_small",
+      "seed": 1037,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_039",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_boundary",
+      "seed": 1038,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_040",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_limits",
+      "seed": 1039,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_041",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "zeros",
+      "seed": 1040,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_042",
+      "operator": "MatMul",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "overflow_pressure",
+      "seed": 1041,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_043",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "ones",
+      "seed": 1042,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_044",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "sparse",
+      "seed": 1043,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_045",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "alternating",
+      "seed": 1044,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_046",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "symmetric",
+      "seed": 1045,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_047",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "random_small",
+      "seed": 1046,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "matmul_048",
+      "operator": "MatMul",
+      "shape": [
+        8,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "impulse",
+      "seed": 1047,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_049",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_limits",
+      "seed": 1048,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_050",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_boundary",
+      "seed": 1049,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_051",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "overflow_pressure",
+      "seed": 1050,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_052",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "zeros",
+      "seed": 1051,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_053",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "sparse",
+      "seed": 1052,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_054",
+      "operator": "ReLU",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "ones",
+      "seed": 1053,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_055",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "symmetric",
+      "seed": 1054,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_056",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "alternating",
+      "seed": 1055,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_057",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "impulse",
+      "seed": 1056,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_058",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "random_small",
+      "seed": 1057,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_059",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_boundary",
+      "seed": 1058,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_060",
+      "operator": "ReLU",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_limits",
+      "seed": 1059,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_061",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "zeros",
+      "seed": 1060,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_062",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "overflow_pressure",
+      "seed": 1061,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_063",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "ones",
+      "seed": 1062,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_064",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "sparse",
+      "seed": 1063,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_065",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "alternating",
+      "seed": 1064,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "relu_066",
+      "operator": "ReLU",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "symmetric",
+      "seed": 1065,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_067",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "random_small",
+      "seed": 1066,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_068",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "impulse",
+      "seed": 1067,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_069",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_limits",
+      "seed": 1068,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_070",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_boundary",
+      "seed": 1069,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_071",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "overflow_pressure",
+      "seed": 1070,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_072",
+      "operator": "Add",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "zeros",
+      "seed": 1071,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_073",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "sparse",
+      "seed": 1072,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_074",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "ones",
+      "seed": 1073,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_075",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "symmetric",
+      "seed": 1074,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_076",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "alternating",
+      "seed": 1075,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_077",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "impulse",
+      "seed": 1076,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_078",
+      "operator": "Add",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "random_small",
+      "seed": 1077,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_079",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_boundary",
+      "seed": 1078,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_080",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_limits",
+      "seed": 1079,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_081",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "zeros",
+      "seed": 1080,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_082",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "overflow_pressure",
+      "seed": 1081,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_083",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "ones",
+      "seed": 1082,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "add_084",
+      "operator": "Add",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "sparse",
+      "seed": 1083,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {},
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_085",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "alternating",
+      "seed": 1084,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_086",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "symmetric",
+      "seed": 1085,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_087",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "random_small",
+      "seed": 1086,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_088",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "impulse",
+      "seed": 1087,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_089",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_limits",
+      "seed": 1088,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_090",
+      "operator": "ScaleShift",
+      "shape": [
+        16
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_boundary",
+      "seed": 1089,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_091",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "overflow_pressure",
+      "seed": 1090,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_092",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "zeros",
+      "seed": 1091,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_093",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "sparse",
+      "seed": 1092,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_094",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "ones",
+      "seed": 1093,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_095",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "symmetric",
+      "seed": 1094,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_096",
+      "operator": "ScaleShift",
+      "shape": [
+        64
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "alternating",
+      "seed": 1095,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_097",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "impulse",
+      "seed": 1096,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_098",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "random_small",
+      "seed": 1097,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_099",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_boundary",
+      "seed": 1098,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_100",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "near_limits",
+      "seed": 1099,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_101",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "zeros",
+      "seed": 1100,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "scaleshift_102",
+      "operator": "ScaleShift",
+      "shape": [
+        256
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "overflow_pressure",
+      "seed": 1101,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "scale": 1.5,
+        "shift": -0.25
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_103",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "ones",
+      "seed": 1102,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_104",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "sparse",
+      "seed": 1103,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_105",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "alternating",
+      "seed": 1104,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_106",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "symmetric",
+      "seed": 1105,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_107",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "random_small",
+      "seed": 1106,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_108",
+      "operator": "Conv2D",
+      "shape": [
+        6,
+        6,
+        1
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "impulse",
+      "seed": 1107,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          6,
+          6,
+          1
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 2,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "valid",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_109",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_limits",
+      "seed": 1108,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_110",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "near_boundary",
+      "seed": 1109,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_111",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "overflow_pressure",
+      "seed": 1110,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_112",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "zeros",
+      "seed": 1111,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_113",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "sparse",
+      "seed": 1112,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_114",
+      "operator": "Conv2D",
+      "shape": [
+        8,
+        8,
+        3
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "ones",
+      "seed": 1113,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          8,
+          8,
+          3
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 4,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_115",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "symmetric",
+      "seed": 1114,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_116",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<8,3>",
+      "input_family": "alternating",
+      "seed": 1115,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<16,7>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.03125,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_117",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "impulse",
+      "seed": 1116,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_118",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<12,4>",
+      "input_family": "random_small",
+      "seed": 1117,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<20,8>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.00390625,
+      "expected_outcome": "reference_ready",
+      "objective": "latency",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_119",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_boundary",
+      "seed": 1118,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "resource",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 5,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    },
+    {
+      "case_id": "conv2d_120",
+      "operator": "Conv2D",
+      "shape": [
+        16,
+        16,
+        4
+      ],
+      "dtype": "ap_fixed<16,6>",
+      "input_family": "near_limits",
+      "seed": 1119,
+      "rounding_mode": "AP_TRN",
+      "overflow_mode": "AP_WRAP",
+      "accumulator_dtype": "ap_fixed<24,10>",
+      "golden_mode": "python_math_and_bit_accurate",
+      "tolerance": 0.0009765625,
+      "expected_outcome": "reference_ready",
+      "objective": "balanced",
+      "target_part": "xc7z020clg400-1",
+      "clock_period": 10,
+      "params": {
+        "input_shape": [
+          16,
+          16,
+          4
+        ],
+        "kernel": [
+          3,
+          3
+        ],
+        "output_channels": 8,
+        "stride": [
+          1,
+          1
+        ],
+        "padding": "same",
+        "layout": "NHWC",
+        "groups": 1
+      },
+      "evidence_class": "unit"
+    }
+  ]
+}

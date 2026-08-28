@@ -31,7 +31,12 @@ class VerificationSpecialist(BaseSpecialist):
             "candidate_dir": scoped.get("candidate_dir"),
             "report_dir": str(run_dir / "reports"),
             "force_fail": bool(scoped.get("force_fail")),
+            "top_function": scoped.get("top_function"),
+            "part": scoped.get("part"),
+            "clock_period": scoped.get("clock_period"),
+            "tolerance": scoped.get("tolerance", 0.0),
         }
+        args.update({key: value for key, value in (scoped.get("todo_inputs") or {}).items() if value is not None})
         decision = self._local_react_step(envelope, observations, "verify_candidate.run", args)
         if decision["decision"] == "mark_blocked":
             return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, decision))

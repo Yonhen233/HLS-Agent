@@ -90,6 +90,7 @@ class ContextBuilder:
             "todo_title": todo.title,
             "assigned_tool": getattr(todo, "assigned_tool", None),
             "assigned_specialist": getattr(todo, "assigned_specialist", None),
+            "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
         }
         scoped_state = self._scoped_state(state, todo, specialist_name)
         artifact_refs = self._artifact_refs(state, specialist_name)
@@ -169,6 +170,10 @@ class ContextBuilder:
                 "tolerance": task.get("tolerance", 0.0),
                 "max_repair_attempts": task.get("max_repair_attempts", 2),
                 "force_fail": bool(task.get("force_fail")),
+                "top_function": task.get("top_function") or task.get("name"),
+                "part": target.get("part"),
+                "clock_period": target.get("clock_period"),
+                "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
             }
         if specialist_name == "OptimizationSpecialist":
             return {
@@ -194,6 +199,7 @@ class ContextBuilder:
                 "errors": state.errors[-5:],
                 "memory_candidates": state.memory_candidates,
                 "promoted_memories": state.promoted_memories,
+                "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
             }
         return {"task": task}
 

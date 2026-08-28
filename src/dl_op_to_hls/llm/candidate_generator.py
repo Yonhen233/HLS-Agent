@@ -28,10 +28,23 @@ class LLMCandidateGenerator:
         client,
         permission_gate,
     ) -> dict[str, Any]:
+        contract_errors = self.validate_operator_contract(op_spec)
+        if contract_errors:
+            raise AgentRuntimeError(
+                build_error(
+                    "UnsupportedOperatorError",
+                    "; ".join(contract_errors),
+                    recoverable=False,
+                    source="llm.generate_hls_candidate",
+                    suggested_action="Use a static NHWC group=1 Conv2D contract or split the operator before generation.",
+                    details={"contract_errors": contract_errors},
+                )
+            )
         hls_contract = self._hls_contract(op_spec)
+        reuse_context = self._select_reuse_context(op_spec, rag_context)
         payload = {
             "op_spec": op_spec,
-            "rag_context": rag_context[:5],
+            "verified_reuse_context": reuse_context,
             "hls_contract": hls_contract,
             "constraints": [
                 "Write files only under candidate/ relative path",
@@ -107,6 +120,12 @@ class LLMCandidateGenerator:
             "candidate_name": result.get("candidate_name"),
             "assumptions": result.get("assumptions", []),
             "sandbox_scan": sandbox_result,
+            "reuse_context": {
+                "candidate_count": len(rag_context),
+                "accepted_count": len(reuse_context),
+                "policy": "same-operator verified evidence only",
+                "sources": [item.get("source_id") or item.get("source_run_id") for item in reuse_context],
+            },
         }
 
     @staticmethod
@@ -118,10 +137,80 @@ class LLMCandidateGenerator:
             for key in ("dtype", "precision", "input_dtype", "output_dtype")
         )
         match = re.search(r"(?:ap_)?fixed\s*<\s*(\d+)", type_text, flags=re.IGNORECASE)
-        return {
+        contract = {
             "data_bitwidth": int(match.group(1)) if match else None,
             "max_complete_partition_elements": int(op_spec.get("max_complete_partition_elements", 256)),
+            "top_function": op_spec.get("top_function") or op_spec.get("name"),
+            "operator": op_spec.get("op_type"),
+            "input_shape": op_spec.get("input_shape"),
+            "output_shape": op_spec.get("output_shape"),
         }
+        if str(op_spec.get("op_type")) == "Conv2D":
+            params = op_spec.get("operator_params") or op_spec.get("params") or {}
+            contract["conv2d"] = {
+                "layout": params.get("layout", "NHWC"),
+                "kernel_size": params.get("kernel_size") or params.get("kernel"),
+                "stride": params.get("stride", [1, 1]),
+                "padding": params.get("padding", "valid"),
+                "groups": params.get("groups", 1),
+                "output_channels": params.get("output_channels") or params.get("out_channels"),
+                "weights": params.get("weights"),
+                "bias": params.get("bias"),
+            }
+        return contract
+
+    @staticmethod
+    def validate_operator_contract(op_spec: dict[str, Any]) -> list[str]:
+        if str(op_spec.get("op_type")) != "Conv2D":
+            return []
+        params = op_spec.get("operator_params") or op_spec.get("params") or {}
+        errors: list[str] = []
+        shape = op_spec.get("input_shape")
+        if not isinstance(shape, list) or len(shape) != 3 or not all(isinstance(value, int) and value > 0 for value in shape):
+            errors.append("Conv2D input_shape must be static [height, width, channels]")
+        if str(params.get("layout", "NHWC")).upper() != "NHWC":
+            errors.append("Conv2D LLM candidate currently requires NHWC layout")
+        if int(params.get("groups", 1)) != 1:
+            errors.append("Grouped/depthwise Conv2D is not supported")
+        kernel = params.get("kernel_size") or params.get("kernel")
+        if not isinstance(kernel, list) or len(kernel) != 2 or not all(isinstance(value, int) and value > 0 for value in kernel):
+            errors.append("Conv2D kernel_size must contain two static positive integers")
+        stride = params.get("stride", [1, 1])
+        if not isinstance(stride, list) or len(stride) != 2 or not all(isinstance(value, int) and value > 0 for value in stride):
+            errors.append("Conv2D stride must contain two static positive integers")
+        if str(params.get("padding", "valid")).lower() not in {"valid", "same"}:
+            errors.append("Conv2D padding must be valid or same")
+        if not isinstance(params.get("weights"), list) or not isinstance(params.get("bias"), list):
+            errors.append("Conv2D weights and bias must be explicit static arrays")
+        return errors
+
+    @staticmethod
+    def _select_reuse_context(op_spec: dict[str, Any], rag_context: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        operator = str(op_spec.get("op_type") or "").lower()
+        accepted: list[dict[str, Any]] = []
+        seen_sources: set[str] = set()
+        for item in rag_context:
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            kind = str(item.get("kind") or item.get("memory_type") or metadata.get("memory_type") or "").lower()
+            verification = item.get("verification") if isinstance(item.get("verification"), dict) else metadata.get("verification")
+            verified = kind in {"verified_implementation", "parameter_experience"} or (
+                isinstance(verification, dict) and verification.get("passed") is True
+            )
+            text = json.dumps(item, ensure_ascii=False, default=str).lower()
+            if verified and operator and operator in text:
+                source_key = str(
+                    item.get("source_run_id")
+                    or metadata.get("source_run_id")
+                    or item.get("source_id")
+                    or metadata.get("source_id")
+                    or text
+                )
+                if source_key in seen_sources:
+                    continue
+                seen_sources.add(source_key)
+                accepted.append(item)
+        accepted.sort(key=lambda item: float(item.get("score") or 0.0), reverse=True)
+        return accepted[:3]
 
     def _write_rejected_candidate_artifact(self, candidate: dict[str, Any], sandbox_result: dict[str, Any], client) -> str | None:
         artifact_manager = getattr(client, "context", {}).get("artifact_manager")

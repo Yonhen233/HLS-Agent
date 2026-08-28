@@ -201,10 +201,15 @@ class PlanExecuteReactRuntime:
         state.rag_evidence_report = evidence_report
         state.rag_context = [
             {
+                "id": item.get("id"),
+                "memory_type": item.get("memory_type"),
                 "summary": item.get("text", "")[:200],
                 "source": item.get("source_run_id") or item.get("id"),
+                "source_run_id": item.get("source_run_id"),
                 "citation": item.get("citation") or {"memory_id": item.get("id"), "run_id": item.get("source_run_id")},
                 "text": item.get("text", ""),
+                "metadata": item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
+                "verification": item.get("verification") if isinstance(item.get("verification"), dict) else None,
                 "evidence_grade": item.get("evidence_grade"),
             }
             for item in state.retrieved_memories[:10]

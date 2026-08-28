@@ -160,7 +160,13 @@ def test_memory_policy_promotes_optimization():
     candidate = {
         "kind": "optimization",
         "summary": "Reuse factor reduced DSP.",
-        "value": {"verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"}},
+        "value": {
+            "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+            "report": {
+                "status": "success",
+                "evidence_receipt": {"valid": True, "mock_evidence": False, "evidence_class": "real_csynth"},
+            },
+        },
     }
     assert policy.should_promote(candidate) is True
 
@@ -177,6 +183,46 @@ def test_memory_policy_ignores_raw_log():
     assert policy.should_promote(candidate) is False
 
 
+def test_memory_policy_rejects_mock_verified_implementation():
+    policy = MemoryPolicy()
+    candidate = {
+        "kind": "verified_implementation",
+        "value": {
+            "verification": {"passed": True, "mode": "golden_testbench"},
+            "report": {
+                "status": "success",
+                "evidence_receipt": {
+                    "valid": True,
+                    "mock_evidence": True,
+                    "evidence_class": "mock",
+                },
+            },
+        },
+    }
+
+    assert policy.should_promote(candidate) is False
+
+
+def test_memory_policy_promotes_real_verified_implementation():
+    policy = MemoryPolicy()
+    candidate = {
+        "kind": "verified_implementation",
+        "value": {
+            "verification": {"passed": True, "mode": "golden_testbench"},
+            "report": {
+                "status": "success",
+                "evidence_receipt": {
+                    "valid": True,
+                    "mock_evidence": False,
+                    "evidence_class": "real_csynth",
+                },
+            },
+        },
+    }
+
+    assert policy.should_promote(candidate) is True
+
+
 def test_memory_promote_to_long_term(tmp_path):
     manager = _manager(tmp_path)
     result = manager.promote_to_long_term(
@@ -186,7 +232,14 @@ def test_memory_promote_to_long_term(tmp_path):
                 "kind": "optimization",
                 "key": "optimization.r1",
                 "summary": "Reuse factor reduced DSP.",
-                "value": {"dsp": 12, "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"}},
+                "value": {
+                    "dsp": 12,
+                    "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+                    "report": {
+                        "status": "success",
+                        "evidence_receipt": {"valid": True, "mock_evidence": False, "evidence_class": "real_csynth"},
+                    },
+                },
             }
         ],
     )
@@ -234,6 +287,10 @@ def test_memory_promotion_strips_second_order_prior_experience(tmp_path):
                     "value": {
                         "name": "resnet18_boundary_demo",
                         "verification": {"status": "csim_passed", "passed": True, "mode": "hls4ml_reference_compare"},
+                        "report": {
+                            "status": "success",
+                            "evidence_receipt": {"valid": True, "mock_evidence": False, "evidence_class": "real_csynth"},
+                        },
                         "suggestions": [
                         "Optimization is not applicable yet.",
                         "RuleSuggestion: Prior experience hint: optimization.matmul_run increased reuse_factor to reduce DSP.",

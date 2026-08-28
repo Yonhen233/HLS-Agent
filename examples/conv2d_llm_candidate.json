@@ -1,0 +1,50 @@
+{
+  "task_type": "operator",
+  "op_type": "Conv2D",
+  "name": "conv2d_6x6x1_to2_llm",
+  "top_function": "conv2d_6x6x1_to2",
+  "input_shape": [6, 6, 1],
+  "output_shape": [4, 4, 2],
+  "dtype": "ap_fixed<12,4>",
+  "operator_params": {
+    "layout": "NHWC",
+    "kernel_size": [3, 3],
+    "stride": [1, 1],
+    "padding": "valid",
+    "groups": 1,
+    "output_channels": 2,
+    "weights": [0.25, -0.125, 0.5, 0.25, -0.25, 0.125, 0.375, 0.25, -0.125, -0.25, 0.125, 0.375, 0.5, -0.375, 0.25, 0.125, 0.25, -0.5],
+    "bias": [0.125, -0.25]
+  },
+  "target": {
+    "backend": "VivadoHLS",
+    "part": "xc7z020clg400-1",
+    "clock_period": 10
+  },
+  "optimization": {
+    "objective": "balanced",
+    "pipeline_ii": 1
+  },
+  "llm_candidate": {
+    "required": true,
+    "max_repair_attempts": 6,
+    "reuse_verified_implementations": true
+  },
+  "candidate_contract": {
+    "top_function": "conv2d_6x6x1_to2",
+    "required_files": [
+      "candidate/conv2d_6x6x1_to2.h",
+      "candidate/conv2d_6x6x1_to2.cpp",
+      "candidate/testbench.cpp"
+    ],
+    "signature": "void conv2d_6x6x1_to2(data_t input[6][6][1], data_t output[4][4][2])",
+    "success_marker": "GOLDEN_CHECK_PASSED",
+    "requires_independent_golden": true,
+    "vivado_version": "2018.3"
+  },
+  "demo": {
+    "expected_path": "llm_candidate_path",
+    "mock_tools": false,
+    "description": "LLM-first static Conv2D operator anchor; no hls4ml generation path is allowed."
+  }
+}

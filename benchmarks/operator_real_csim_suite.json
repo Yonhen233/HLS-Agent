@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_real_csim_suite",
+  "evidence_class": "real_csim",
+  "minimum_case_count": 18,
+  "cases": [
+    {
+      "case_id": "dense_8x8_fx8",
+      "operator": "Dense",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "dense_16x32_boundary",
+      "operator": "Dense",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "dense_32x16_fx16",
+      "operator": "Dense",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_4x4_fx8",
+      "operator": "MatMul",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_8x8_boundary",
+      "operator": "MatMul",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "matmul_8x16x4_fx16",
+      "operator": "MatMul",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "relu_16_default",
+      "operator": "ReLU",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "relu_64_boundary",
+      "operator": "ReLU",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "relu_256_fx8",
+      "operator": "ReLU",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "add_16_default",
+      "operator": "Add",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "add_64_overflow",
+      "operator": "Add",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "add_256_fx12",
+      "operator": "Add",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "scale_shift_16_default",
+      "operator": "ScaleShift",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "scale_shift_64_boundary",
+      "operator": "ScaleShift",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "scale_shift_256_fx8",
+      "operator": "ScaleShift",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "conv_6x6x1_valid",
+      "operator": "Conv2D",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "conv_8x8x3_same",
+      "operator": "Conv2D",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    },
+    {
+      "case_id": "conv_8x8x3_boundary",
+      "operator": "Conv2D",
+      "generation_path": "llm_candidate",
+      "evidence_class": "real_csim",
+      "mock_tools": false,
+      "required_marker": "GOLDEN_CHECK_PASSED",
+      "status": "pending_real_run"
+    }
+  ]
+}

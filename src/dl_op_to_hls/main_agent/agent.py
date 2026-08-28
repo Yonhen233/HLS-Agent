@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import atexit
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -653,6 +654,8 @@ class MainAgent:
             (skill.name, skill.version, skill.status)
             for skill in self.skill_registry.list_skills()
         )
+        prompt_fingerprints = prompts.prompt_fingerprints()
+        prompt_version = f"2.1.0-{stable_hash(prompt_fingerprints)[:12]}"
         bundles = [
             (
                 "model",
@@ -667,11 +670,11 @@ class MainAgent:
             (
                 "prompt",
                 "runtime-prompts",
-                "2.0.0",
+                prompt_version,
                 {
                     "prompts": prompts.PROMPT_DEFAULTS,
-                    "fingerprints": prompts.prompt_fingerprints(),
-                    "contract": "goal-contract-and-evidence-gated-v3",
+                    "fingerprints": prompt_fingerprints,
+                    "contract": "goal-contract-evidence-and-operator-contract-v4",
                 },
             ),
             ("skill", "approved-skills", stable_hash(skill_manifest)[:12], {"skills": skill_manifest}),
@@ -767,6 +770,7 @@ class MainAgent:
         return {
             "run_id": run_id,
             "run_dir": run_dir,
+            "run_started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "hooks": hooks,
             "telemetry": telemetry,
             "release_manifest": self.release_manager.resolve_bundle(run_id),

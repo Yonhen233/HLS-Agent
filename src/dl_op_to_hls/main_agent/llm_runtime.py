@@ -231,6 +231,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
 
     def initialize(self, input_data: str | dict[str, Any]) -> AgentState:
         task = self._interpret_or_load_task(input_data)
+        task = self._apply_generation_policy(task)
         run_id = self.agent.make_run_id(task)
         self.context = self.agent.create_run_context(run_id, self.session_id)
         self.skill_registry.pin_release_manifest(self.context.get("release_manifest") or {})
@@ -261,6 +262,26 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             },
         )
         return state
+
+    def _apply_generation_policy(self, task: dict[str, Any]) -> dict[str, Any]:
+        """Make the configured operator path explicit before skill selection."""
+
+        if task.get("task_type") != "operator":
+            return task
+        if self.agent.config.operator_generation_path != "llm_candidate":
+            return task
+        normalized = dict(task)
+        candidate = dict(normalized.get("llm_candidate") or {})
+        candidate["required"] = True
+        candidate.setdefault("reuse_verified_implementations", self.agent.config.reuse_verified_implementations)
+        candidate.setdefault("reason", "Runtime generation policy requires the verified LLM candidate path.")
+        normalized["llm_candidate"] = candidate
+        normalized["generation_policy"] = {
+            "primary_path": "llm_candidate",
+            "hls4ml_allowed": self.agent.config.allow_hls4ml_generation,
+            "template_role": "fair_baseline_only",
+        }
+        return normalized
 
     def _build_executor(self):
         from .executor import AgentExecutor

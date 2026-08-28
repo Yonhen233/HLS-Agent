@@ -6,7 +6,7 @@
 
 命令行名：`dl-op-to-hls`
 
-这是一个面向 FPGA HLS 工作流的 Agent 工程原型：用户输入深度学习算子、小模型或已有 HLS 工程任务，系统通过 Agent 编排 hls4ml 风格工具、Vivado HLS 风格工具、fallback HLS 模板、RAG Memory、SQLite 元数据和 Specialist Sub-agent，生成 HLS 工程、运行/模拟综合流程、解析报告，并给出可追踪的优化建议。
+这是一个面向 FPGA HLS 工作流的 Agent 工程原型：用户输入深度学习算子、小模型或已有 HLS 工程任务，系统通过 Agent 编排 LLM Candidate、Vivado HLS 工具、受限基线模板、RAG Memory、SQLite 元数据和 Specialist Sub-agent，生成候选 HLS 工程、执行功能/综合验证、解析报告，并给出可追踪的优化建议。当前算子 Benchmark 默认采用 LLM Candidate 主路径；hls4ml 不参与该主路径。
 
 本项目的重点不是“支持任意模型”，而是展示一套可面试演示、可调试、可扩展的 Agent 工程架构。
 
@@ -20,6 +20,19 @@
 - SQLite 是结构化事实源；RAG 只是检索层，不替代数据库。
 - `run`、`agent-run` 和 `run-llm` 都进入持久化 LLM Agent Runtime；LLM 不可用时不会静默退回规则 planner。
 - `run-baseline` 只保留为兼容和消融实验入口，不是产品主路径。
+- 算子任务默认 `llm_candidate.required=true`；模板只用于公平基线与已验证实现复用，不作为静默兜底。
+- Unit、Mock、Fixture、Real CSim 与 Real CSynth 分开统计，任何真实指标必须绑定当前 Run Artifact 与 SHA256。
+
+## 算子 Benchmark
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m dl_op_to_hls.cli operator-benchmark --output runs\benchmarks\operator_release.json
+```
+
+该命令生成 120 个独立 Layer-1 Golden Case、算子支持矩阵、真实 CSim/CSynth 计划、LLM pass³ 计划、Bad Case 计划和统一 Release Gate。首次报告会诚实保持 `interview_ready=false`，直到真实 Vivado 与真实 LLM 样本达到门槛。
+
+关键文档：`docs/operator_support_audit.md`、`docs/operator_testing_methodology.md`、`docs/operator_interview_guide.md`。
 
 ## 核心架构
 
@@ -434,15 +447,14 @@ runs/                本地运行产物，默认不进入 git
 
 当前限制：
 
-- hls4ml 对 ONNX/QONNX/QKeras 的真实支持取决于本地库版本和模型图结构。
+- 当前 LLM-first Conv2D 仅支持静态 NHWC、group=1、静态权重/Bias、valid/same padding。
 - Vivado HLS 真实综合取决于本机安装、license、环境变量和 Windows batch 调用。
 - boundary demo 设计目标是展示“安全拒绝/边界处理”，不是 full synthesis success。
 - LLM API 有速率限制时需要配置请求节流。
 
 未来工作：
 
-- 增强 graph rewrite，例如 Gemm → MatMul + Add、Shape/Flatten 静态消除。
-- 增强真实 hls4ml custom layer suggestion。
-- 增加 precision/reuse factor sweep。
+- 完成 18 个真实 CSim、10 个真实 CSynth 和 15 次真实 LLM pass³ 锚点。
+- 增加 precision/reuse factor 的小规模 Pareto DSE。
 - 将 MCP-style in-process tools 升级为真实 MCP server/client。
 - 引入更系统的 benchmark report 和 experiment comparison。

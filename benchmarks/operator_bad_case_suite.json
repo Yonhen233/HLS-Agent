@@ -1,0 +1,312 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_bad_case_suite",
+  "release_targets": {
+    "false_success_rate": 0.0,
+    "stale_artifact_acceptance": 0.0,
+    "unsafe_candidate_acceptance": 0.0,
+    "unsupported_fake_metric_rate": 0.0
+  },
+  "cases": [
+    {
+      "case_id": "bad_01",
+      "fault": "shape mismatch",
+      "expected_error_type": "InvalidTaskError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_02",
+      "fault": "invalid dtype",
+      "expected_error_type": "InvalidTaskError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_03",
+      "fault": "dynamic array",
+      "expected_error_type": "UnsupportedOperatorError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_04",
+      "fault": "dynamic memory",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_05",
+      "fault": "file/network/system call",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_06",
+      "fault": "non-byte-aligned m_axi",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_07",
+      "fault": "dangerous array partition",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_08",
+      "fault": "candidate missing header",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_09",
+      "fault": "candidate signature mismatch",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_10",
+      "fault": "CSim compile failure",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_11",
+      "fault": "CSim missing golden marker",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_12",
+      "fault": "golden numeric mismatch",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_13",
+      "fault": "CSynth exit zero with compiler error",
+      "expected_error_type": "VivadoSynthesisError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_14",
+      "fault": "CSynth report missing timing",
+      "expected_error_type": "ReportParseError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_15",
+      "fault": "stale report from another run",
+      "expected_error_type": "ToolPostconditionError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_16",
+      "fault": "Vivado binary missing",
+      "expected_error_type": "VivadoNotFoundError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_17",
+      "fault": "tool timeout",
+      "expected_error_type": "ToolTimeoutError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_18",
+      "fault": "timing failure",
+      "expected_error_type": "VivadoSynthesisError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_19",
+      "fault": "maximum repair attempts",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    },
+    {
+      "case_id": "bad_20",
+      "fault": "unsupported fake metrics",
+      "expected_error_type": "ToolPostconditionError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "pending"
+    }
+  ]
+}

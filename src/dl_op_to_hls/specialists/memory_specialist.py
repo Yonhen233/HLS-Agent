@@ -24,6 +24,10 @@ class MemorySpecialist(BaseSpecialist):
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("memory."))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        assigned_tool = str(envelope.task_summary.get("assigned_tool") or "")
+        if assigned_tool != "memory.promote_to_long_term":
+            return self._handle_atomic(envelope, assigned_tool, tool_registry, permission_gate)
+
         observations = []
         compress_args = {"run_id": envelope.run_id}
         compress_decision = self._local_react_step(
@@ -111,6 +115,73 @@ class MemorySpecialist(BaseSpecialist):
             },
             artifacts=artifacts,
             errors=[promoted["error"]] if promoted.get("error") else [],
+        )
+        return self._finalize_result(envelope, specialist_result)
+
+    def _handle_atomic(self, envelope, assigned_tool, tool_registry, permission_gate) -> SpecialistResult:
+        observations = []
+        if assigned_tool not in self.allowed_tools or not assigned_tool.startswith(("memory.", "rag.")):
+            return self._finalize_result(
+                envelope,
+                self._failed_result_from_decision(
+                    envelope,
+                    observations,
+                    {
+                        "reason_summary": "MemorySpecialist received an unsupported atomic assignment.",
+                        "action": {"error_type": "PermissionDeniedError", "tool_name": assigned_tool},
+                    },
+                ),
+            )
+        arguments = dict(envelope.scoped_state.get("todo_inputs") or {})
+        if assigned_tool.startswith("memory.retrieve_"):
+            arguments.setdefault(
+                "query",
+                " ".join(
+                    str(value)
+                    for value in (
+                        envelope.task_summary.get("op_type"),
+                        envelope.task_summary.get("name"),
+                        envelope.task_summary.get("objective"),
+                    )
+                    if value
+                ),
+            )
+            arguments.setdefault("top_k", 5)
+        elif assigned_tool in {"memory.compress_run_context", "memory.extract_memory_candidates"}:
+            arguments.setdefault("run_id", envelope.run_id)
+        decision = self._local_react_step(
+            envelope,
+            observations,
+            assigned_tool,
+            arguments,
+            force_deterministic=True,
+        )
+        if decision["decision"] == "mark_blocked":
+            return self._finalize_result(envelope, self._blocked_result_from_decision(envelope, observations, decision))
+        if decision["decision"] == "mark_failed":
+            return self._finalize_result(envelope, self._failed_result_from_decision(envelope, observations, decision))
+        action = decision.get("action") or {}
+        result = self._call_tool(
+            action.get("tool_name") or action.get("tool") or assigned_tool,
+            action.get("arguments") or arguments,
+            envelope,
+            tool_registry,
+            permission_gate,
+        )
+        observations.append({"tool": assigned_tool, "result": self._compress_result(result)})
+        error = result.get("error")
+        count = len(result.get("results", [])) if isinstance(result.get("results"), list) else None
+        summary = f"Executed scoped memory tool {assigned_tool}."
+        if count is not None:
+            summary = f"Retrieved {count} scoped memory result(s) with {assigned_tool}."
+        specialist_result = SpecialistResult(
+            specialist_name=self.name,
+            todo_id=envelope.todo_id,
+            status="success" if result.get("status") == "success" else "failed",
+            summary=summary,
+            observations=observations,
+            metrics={"results": result.get("results", [])} if count is not None else None,
+            errors=[error] if error else [],
         )
         return self._finalize_result(envelope, specialist_result)
 

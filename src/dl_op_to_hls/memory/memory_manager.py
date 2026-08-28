@@ -520,7 +520,15 @@ class MemoryManager:
                 continue
             score = _score(query, text)
             if score > 0:
-                scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
+                prefix = str(text).split(".", 1)[0]
+                memory_type = prefix if prefix in {"optimization", "parameter_experience", "verified_implementation", "semantic"} else "semantic"
+                scored.append({
+                    "id": item["id"],
+                    "memory_type": memory_type,
+                    "score": round(score, 4),
+                    "text": text[:400],
+                    "source_run_id": item.get("source_run_id"),
+                })
         scope = self._identity(identity)
         for item in self.repository.list_memory_items(
             ["optimization", "parameter_experience", "verified_implementation", "semantic"],
@@ -533,7 +541,13 @@ class MemoryManager:
                 continue
             score = _score(query, text)
             if score > 0:
-                scored.append({"id": item["id"], "score": round(score, 4), "text": text[:400], "source_run_id": item.get("source_run_id")})
+                scored.append({
+                    "id": item["id"],
+                    "memory_type": item.get("memory_type"),
+                    "score": round(score, 4),
+                    "text": text[:400],
+                    "source_run_id": item.get("source_run_id"),
+                })
         for item in self.repository.list_skills():
             text = f"{item['name']} {item['description']} {item['steps_json']}"
             if not _matches_anchor(anchors, text):

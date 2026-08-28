@@ -1,0 +1,152 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_onnx_graph_suite",
+  "hls_generation_path": "llm_candidate",
+  "adapter_role": "graph inspection and static contract extraction only",
+  "positive_cases": [
+    {
+      "case_id": "onnx_pos_01",
+      "pattern": "Gemm->Dense",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_02",
+      "pattern": "MatMul+static bias Add->Dense",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_03",
+      "pattern": "Gemm+ReLU",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_04",
+      "pattern": "Conv+ReLU",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_05",
+      "pattern": "Conv+BatchNorm fold",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_06",
+      "pattern": "Conv+MaxPool",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_07",
+      "pattern": "Conv+AveragePool",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_08",
+      "pattern": "Conv+GlobalAveragePool",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_09",
+      "pattern": "Conv+ReduceMean global pool",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_10",
+      "pattern": "static Flatten",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_11",
+      "pattern": "static Reshape",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_12",
+      "pattern": "Q/DQ metadata",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_13",
+      "pattern": "static Shape/Gather/Concat elimination",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_pos_14",
+      "pattern": "restricted NCHW->NHWC",
+      "status": "pending"
+    }
+  ],
+  "negative_cases": [
+    {
+      "case_id": "onnx_neg_01",
+      "pattern": "residual Add branch",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_02",
+      "pattern": "grouped Conv",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_03",
+      "pattern": "depthwise Conv",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_04",
+      "pattern": "dynamic Reshape",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_05",
+      "pattern": "non-static MatMul weight",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_06",
+      "pattern": "Gemm transA",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_07",
+      "pattern": "Gemm non-unit alpha/beta",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_08",
+      "pattern": "unsupported Transpose perm",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_09",
+      "pattern": "multiple model inputs",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_10",
+      "pattern": "dynamic Shape",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_11",
+      "pattern": "Loop/If",
+      "expected": "structured_rejection",
+      "status": "pending"
+    },
+    {
+      "case_id": "onnx_neg_12",
+      "pattern": "custom domain",
+      "expected": "structured_rejection",
+      "status": "pending"
+    }
+  ]
+}

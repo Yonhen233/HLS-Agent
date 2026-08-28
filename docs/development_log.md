@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-08-28 08:22:17 +08:00：Conv2D LLM Candidate 真实闭环通过，修复 Production Mock 泄漏、Memory 证据污染与 Optimization 上下文爆炸
+
+### 1. 本轮真实验收范围
+按算子 Benchmark 任务书继续采用 `llm_candidate` 主路径，未调用 hls4ml，也没有在 LLM 失败后静默切换模板。真实锚点为 `examples/conv2d_llm_candidate.json`：静态 NHWC `6x6x1 -> 4x4x2`、`3x3` kernel、stride 1、valid padding、显式权重和 bias。LLM 使用 `deepseek-v4-pro`，HLS 工具使用 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。
+
+真实 Run `conv2d_6x6x1_to2_llm_c87e2ec6_09` 最终通过独立 Golden CSim 与真实 CSynth。报告为 latency `1161` cycles、II `1161`、DSP `1`、BRAM `0`、LUT `352`、FF `132`，target `10.0 ns`、estimated `8.702 ns`，timing met，且 `completion_gate.json` 标记 `evidence_level=real`、`production_ready=true`。真实日志包含 `GOLDEN_CHECK_PASSED`，CSynth report 位于当前 run 并绑定 SHA256。
+
+### 2. 真实运行暴露的问题与修复
+1. **Candidate JSON 被 thinking 截断**：DeepSeek 首次生成达到 `8000` output token 上限，只有 reasoning、缺少完整 JSON。通用 JSON repair 无法安全补造大段 HLS C++。现对 `CandidateGenerationSchema` 禁止通用字段修补，保存脱敏 debug artifact，并返回可恢复的 `candidate_payload_incomplete` 让 runtime 重新生成；candidate 预算调整为 8000，prompt 要求紧凑源码。
+2. **Sandbox 与老工具链头文件冲突**：候选 testbench 使用 `<cstdlib>`，触发安全策略。Prompt 现明确优先 `<cstdio>/<cmath>`，禁止 OS、文件和进程 API，并增加 compact/sandbox 回归测试。
+3. **Production 静默运行 Mock**：`AppConfig.load` 曾在未设置环境变量时默认启用 Mock，即使 runtime 是 production。`_08` 因此产生 fixture 指标（45 cycles、32 DSP、3500 LUT），被证据审计识别而没有作为真实结果继续使用。现只有 demo 默认 Mock；strict/production 默认真实，并为 `run-llm`/`agent-run` 增加显式 `--mock-tools` 与 `--real-tools`。
+4. **Mock Memory 污染**：`_08` 的 mock report 曾被提升成 verified memory。MemoryPolicy 现要求 optimization/implementation/parameter/synthesis 类经验必须携带有效 `real_csynth` receipt 且 `mock_evidence=false`；verified 类型还必须有功能验证。已事务清理 `_08` 关联的 4 条 memory、1 条 procedural memory 和 69 条 RAG/embedding 记录。
+5. **首次 HLS Candidate 编译失败**：真实 CSim 报 `too many initializers for const data_t [2][3][3][1]`。Reflector 没有掩盖失败，而是取消旧 synthesis/report todo，新增 repair、reverify、resynthesis、parse todo。修复 candidate 随后通过真实 CSim/CSynth，证明 ReAct repair 链路实际生效。
+6. **经验复用类型丢失和重复**：Memory 检索结果过去未返回 `memory_type`，导致 verified parameter experience 不能进入 candidate prompt。现保留类型，并只接受同算子、真实 verified 的 implementation/parameter experience；同一 source run 的多种 memory 类型会去重，避免重复占满 top-k。
+7. **Optimization 上下文爆炸**：`_09` finalizer 曾把约 662 KB 的完整 AgentState（todos、tool results、trace 摘要等）交给 suggestion LLM，按 4 字符/token 粗估超过 165k input tokens，正确触发预算拒绝。现仅发送任务、目标器件、objective、selected path、当前参数、pipeline status 和最近 3 条错误摘要，RAG 限制 top-3。真实独立 probe 输入 `2939`、输出 `517`，合计 `3456` provider tokens，无 anomaly、无 rule fallback；相对旧完整 state 粗估输入下降至少 `98.2%`。
+8. **独立工具调用缺少 Token Trace**：optimization atomic tool 能调用 API，但未主动把 LLM client 绑定到当前 run context，导致首个 probe 没有 `LLMUsageRecorded`。现与 candidate tool 一致显式 `set_context`，第二次真实 probe 已在同一 trace 中记录 PreToolUse、LLM usage、Artifact 和 PostToolUse。
+9. **组合验证证据被互斥统计**：verified receipt 同时包含 Golden CSim 和 CSynth，但 support audit 只按顶层 `real_csynth` 分类，错误显示 Real CSim=0。现从有效、非 Mock receipt 的 `golden_csim_passed` postcondition 派生 CSim 阶段证据；一张 receipt 可以同时贡献两个阶段，但每个 run/阶段仍最多计一次。
+
+### 3. Token 与 Agent 效率
+`_09` 共 5 次 LLM 调用、31 次工具调用，总 token `32734`（input `15938`、output `16796`）。Planner 为 `3698 + 476 = 4174` tokens；相较早期同任务 `3685 + 6000 = 9685`，总量下降 `56.9%`，planner output 下降约 `92.1%`。本轮主要成本来自首次 candidate 达到 8000 token 上限，以及真实编译失败后的 repair candidate `3431 + 6526`；这些均通过 call_id/stage/anomaly 记录，不能与正常 planner 开销混淆。
+
+### 4. Benchmark 与测试
+统一算子 Benchmark 生成 120 个 Dense/MatMul/ReLU/Add/ScaleShift/Conv2D 数学与位精确 Golden Case，结果 `120/120`、Wilson 95% 下界 `0.96898`。该数字的 evidence class 明确为 `unit`，只表示参考计算可构造，不代表 120 个 HLS 实现通过。当前历史证据审计为 Real CSim `3`、Real CSynth `3`、Mock `4`；真实样本仍低于 18/10 的 release gate，因此 `interview_ready=false`。
+
+执行全量测试：`411 passed`。新增/更新覆盖 Candidate 截断策略、sandbox prompt、production real 默认、mock memory 拒绝、真实 verified memory、typed retrieval、同源经验去重、optimization state 裁剪、LLM context 绑定、复合 CSim/CSynth 证据统计、120-case benchmark 与 Wilson 小样本口径。
+
+### 5. 未完成项
+- Real CSim/CSynth Suite 尚未达到 18/10 个独立 run，LLM pass^3 15-case 稳定性实验也未完成，因此不能宣称算子系统已经达到发布级稳定性。
+- `_09` 的 II 与 latency 同为 1161，资源很低但吞吐并不理想；后续应在保持 Golden 验证和器件容量约束下，对同一 Conv2D 做 latency/throughput candidate 对照，而不是把这次资源优先结果称为性能最优。
+- 历史 token 汇总包含旧版 legacy 调用；新调用已具备 call_id/stage，后续 benchmark 应分别报告 legacy 与新遥测，避免历史异常稀释当前版本效果。
+
+---
+
+## 2026-08-27 23:54:12 +08:00：启动 LLM-first 算子 Benchmark，完成证据隔离、120 个 Golden Case、Conv2D 静态契约与 Token 异常审计
+
+### 1. 目标与执行策略
+按新增任务书把项目从 MNIST/少量算子演示升级为算子级生成、验证、优化与评测系统。本轮明确采用 `llm_candidate` 作为算子主生成路径；hls4ml 不参与主路径。Dense/MatMul/ReLU/Add 的模板仅保留为公平基线和已验证实现复用，不允许在 LLM 失败后静默降级。
+
+### 2. Evidence 分类与审计修复
+新增统一 evidence class：`unit`、`mock`、`fixture`、`real_csim`、`real_csynth`、`rtl_cosim`、`implementation`。真实证据需要位于当前 Run、时间不早于 Run、保存 SHA256，并具备 CSim Golden marker 或完整 CSynth Latency/II/Resource/Timing 字段。Fixture 和 Mock 永远不会计入 Real。
+
+首次审计还发现统计器会把同一 Run 内多个 Tool Receipt 当成多个 Mock Case，造成样本量膨胀；现改为每个 Run、每类 evidence 最多计一次。历史开发日志中的真实 Vivado 结果不会仅凭文字描述迁移为新 Real 指标，必须重新校验 Artifact 或重跑。
+
+### 3. 统一 Functional Suite
+新增统一 Case Generator 与位精确定点参考，覆盖 Dense 24、MatMul 24、ReLU 18、Add 18、ScaleShift 18、Conv2D 18，共 120 个独立 Operator/Shape/Dtype/Input Family 组合。输入族覆盖全零、全一、正负交替、固定随机、极值、溢出压力、稀疏、对称、Impulse 和 Near-boundary；位宽覆盖 `ap_fixed<8,3>`、`ap_fixed<12,4>`、`ap_fixed<16,6>`。
+
+120/120 只表示 Layer-1 数学/位精确 Golden 可构造，证据类别为 `unit`，不能写成真实 HLS 通过率。报告同时保留量化误差、mismatch、overflow 与 saturation，避免把低位宽预期量化差异隐藏掉。
+
+### 4. Conv2D LLM Candidate 与经验复用
+新增独立 `examples/conv2d_llm_candidate.json`，第一锚点为 6x6x1、3x3、Cout=2、stride=1、valid、NHWC、group=1、静态权重/Bias。生成前会拒绝动态 Shape、NCHW、Grouped/Depthwise、非法 Kernel/Stride、缺失静态权重。Prompt 要求 Testbench 使用独立嵌套循环 Golden，禁止复用被测 Kernel。
+
+Candidate 的 RAG/Memory 输入改为只接受“同算子 + verified implementation/parameter experience”。测试证明 Conv2D 可复用已验证 Conv2D 经验，Dense 或未验证 Conv2D 建议不会进入 prompt。Runtime 配置新增 `operator_primary_path: llm_candidate`、`allow_hls4ml_generation: false` 和 `reuse_verified_implementations: true`。
+
+### 5. Token 观测
+旧 trace 已记录供应商 token，但缺少 call ID、阶段和异常原因。本轮新增 call ID、stage、provider/estimated 来源、请求/响应字节、累计预算、估算偏差和异常标签。历史审计发现 76 次 LLM 调用，共 300,175 input + 150,000 output = 450,175 tokens；p50 为 4,181 tokens/call，p95 为 7,753，存在 6 次异常（4 次输出接近上限、2 次输入上下文超过 12k）。新 trace 可继续定位这些调用属于 planner、candidate、repair 还是 specialist。
+
+### 6. 测试与真实工具状态
+执行两组新增/相关回归，共 25 + 44（含 1 skipped）个测试通过。覆盖 120 Case、定点 wrap/saturation、Conv2D 结构化拒绝、Evidence 分类、跨 Run 旧报告拒绝、Wilson 小样本口径、Suite 样本数、LLM Conv2D 契约、经验过滤、Skill 与 Candidate Sandbox。
+
+生成 `runs/benchmarks/operator_release.json` 与 Markdown 报告。当前新口径 Real CSim=0、Real CSynth=0、LLM pass³ 未运行，故 `interview_ready=false`。本轮没有使用 Mock 冒充真实结果，也没有启动 hls4ml。
+
+本次 PowerShell 会话未加载 `DL_OP_TO_HLS_LLM_API_KEY`，`llm-status` 为 disabled，因此尚未消耗新的 API token，也未运行真实 LLM/Vivado Suite。下一阶段需在不写入 Git 的凭据环境中启用 DeepSeek，再先跑 Conv2D 小锚点 CSim，确认功能后低频检查 CSynth。
+
+### 7. 新增交付物
+新增 Support Matrix、Functional/Real CSim/Real CSynth/LLM pass³/公平对比/ONNX/Bad Case 七类机器可读 Suite，以及能力审计、测试方法、Benchmark、Bad Case 和 30 道面试追问文档。Release Gate 对样本不足使用 Wilson 区间和 `insufficient_data`，不会把 1/1 表述成稳定 100%。
+
+---
+
 ## 2026-06-21 18:30:41 +08:00：CIFAR-10 进入分层架构筛选，LLM HLS candidate 增加综合前契约守门并启动三组真实 GPU 训练
 ### 1. 本轮目标与判断原则
 前序真实结果形成两个不能混淆的锚点：三层 `16->32->64` 在 `fixed<10,4>` 下可放入 `xc7z020clg400-1`，但最高测试准确率为 77.14%；六层 `12->24->48` VGG-GAP 可达到 83.30%，但真实报告为 BRAM 394/280、LUT 71,276/53,200，无法部署。本轮不再直接为任意结构启动长时间综合，而是先以训练可达性、静态工作量和已测 Vivado 锚点进行候选筛选，再对少数候选执行真实 CSim/csynth。

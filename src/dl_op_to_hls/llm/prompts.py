@@ -15,7 +15,11 @@ Choose exactly one selected_skill from available_skills.
 For boundary/not-recommended tasks such as residual blocks or ResNet-scale models, choose unsupported_boundary_flow.
 Every assigned_tool must appear in the selected skill's allowed_tools.
 Every assigned_specialist must appear in the selected skill's allowed_specialists.
-Return only strict JSON with keys: selected_skill, skill_usage, reason_summary, todos."""
+Return only strict JSON with keys: selected_skill, skill_usage, reason_summary, todos.
+skill_usage must be exactly "strict" or "adapted"; put explanations in reason_summary.
+Keep reason_summary to one sentence and emit at most 8 minimal todos. Do not include
+analysis, schema commentary, markdown, duplicated steps, or fields not required by
+the provided TodoPlan schema."""
 
 REACT_SYSTEM_PROMPT = """You are a ReAct executor for a single todo item.
 Return exactly one strict JSON object for MainAgentReActDecision.
@@ -70,6 +74,12 @@ The returned files array must contain objects with:
 - relative_path: a path under candidate/
 - content: complete file content
 
+Keep the JSON and source files compact so the complete payload fits in one
+response. Do not add long explanations, duplicated helper code, or decorative
+comments. In testbench.cpp prefer only <cstdio>, <cmath>, and the candidate
+header. Do not include <cstdlib>, <fstream>, operating-system headers, or other
+filesystem/process APIs unless the operator contract explicitly requires them.
+
 For simple operator tasks, generate a complete Vivado HLS-ready project fragment:
 - candidate/<top_function>.h
 - candidate/<top_function>.cpp
@@ -85,6 +95,12 @@ feature-map array larger than max_complete_partition_elements. Prefer bounded
 local buffers or explicitly controlled RAM storage over materializing large
 fully-partitioned tensors. These are hard compilation/resource constraints,
 not optional optimization suggestions.
+For Conv2D, implement the exact static NHWC contract. Use the supplied constant
+weights and bias, derive output indices from the declared valid/same padding,
+and keep group=1. The testbench must compute its golden result with an
+independent nested-loop implementation; it must not call the candidate kernel
+as the reference. Reject dynamic shapes, grouped/depthwise convolution, missing
+weights, or an invented layout instead of pretending they are supported.
 If op_spec.candidate_generation_context.repair_reason is timing_not_met,
 regenerate the implementation to improve timing closure while preserving the
 same interface and golden behavior. Prefer shorter critical paths, explicit
@@ -92,7 +108,8 @@ pipeline pragmas, local accumulators with clear reset semantics, and resource
 sharing or staged reductions when useful. It is acceptable to trade latency for
 timing closure if the objective or repair context says timing failed.
 Do not use system(), popen(), networking, filesystem access, dynamic allocation,
-threads, exceptions, or non-synthesizable side effects in candidate design code."""
+threads, exceptions, or non-synthesizable side effects in candidate or testbench
+code."""
 
 
 PROMPT_DEFAULTS = {

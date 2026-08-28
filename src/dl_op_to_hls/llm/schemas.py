@@ -19,10 +19,42 @@ TODO_PLAN_SCHEMA: dict[str, Any] = {
     "required": ["selected_skill", "skill_usage", "todos", "reason_summary"],
     "properties": {
         "selected_skill": {"type": "string"},
-        "skill_usage": {"type": "string"},
+        "skill_usage": {"type": "string", "enum": ["strict", "adapted"]},
         "reason_summary": {"type": "string"},
-        "todos": {"type": "array"},
+        "todos": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "required": ["title", "assigned_tool", "assigned_specialist", "dependencies", "inputs"],
+                "properties": {
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "assigned_tool": {"type": ["string", "null"]},
+                    "assigned_specialist": {"type": ["string", "null"]},
+                    "dependencies": {"type": "array", "items": {"type": "string"}},
+                    "inputs": {"type": "object"},
+                },
+            },
+        },
     },
+    "examples": [
+        {
+            "selected_skill": "llm_candidate_operator_flow",
+            "skill_usage": "adapted",
+            "reason_summary": "Generate, verify, synthesize, and report one static operator candidate.",
+            "todos": [
+                {
+                    "title": "Generate candidate",
+                    "assigned_tool": "llm.generate_candidate",
+                    "assigned_specialist": "VerificationSpecialist",
+                    "dependencies": [],
+                    "inputs": {},
+                }
+            ],
+        }
+    ],
 }
 
 REACT_DECISION_SCHEMA: dict[str, Any] = {

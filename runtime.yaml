@@ -7,6 +7,10 @@ runtime:
     model: deepseek-v4-pro
   optimization:
     fallback: strict
+  generation:
+    operator_primary_path: llm_candidate
+    allow_hls4ml_generation: false
+    reuse_verified_implementations: true
   specialist:
     mode: adaptive
   rag:

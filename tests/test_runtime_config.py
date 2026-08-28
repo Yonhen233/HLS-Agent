@@ -74,6 +74,18 @@ def test_runtime_specific_mock_env_overrides_generic(tmp_path, monkeypatch):
     assert config.mock_vivado is False
 
 
+def test_production_runtime_defaults_to_real_tools(monkeypatch, tmp_path):
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_TOOLS", raising=False)
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_HLS4ML", raising=False)
+    monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
+    (tmp_path / "runtime.yaml").write_text("runtime:\n  mode: production\n", encoding="utf-8")
+
+    config = AppConfig.load(tmp_path)
+
+    assert config.mock_hls4ml is False
+    assert config.mock_vivado is False
+
+
 def test_runtime_loads_semantic_rag_and_environment_overrides(tmp_path, monkeypatch):
     (tmp_path / "runtime.yaml").write_text(
         "\n".join(

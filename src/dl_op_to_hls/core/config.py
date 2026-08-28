@@ -93,6 +93,9 @@ class AppConfig:
     specialist_llm_decider_enabled: bool = False
     specialist_llm_mode: str = "adaptive"
     rag_semantic_config: dict[str, Any] = field(default_factory=dict)
+    operator_generation_path: str = "llm_candidate"
+    allow_hls4ml_generation: bool = False
+    reuse_verified_implementations: bool = True
     mock_hls4ml: bool = True
     mock_vivado: bool = True
     hls_toolchain: str = "vivado_hls"
@@ -111,6 +114,7 @@ class AppConfig:
         optimization_section = runtime_section.get("optimization", {}) if isinstance(runtime_section.get("optimization", {}), dict) else {}
         specialist_section = runtime_section.get("specialist", {}) if isinstance(runtime_section.get("specialist", {}), dict) else {}
         rag_section = runtime_section.get("rag", {}) if isinstance(runtime_section.get("rag", {}), dict) else {}
+        generation_section = runtime_section.get("generation", {}) if isinstance(runtime_section.get("generation", {}), dict) else {}
         runtime_mode = os.environ.get("DL_OP_TO_HLS_RUNTIME_MODE", runtime_section.get("mode", "demo")).lower()
         if runtime_mode not in {"strict", "demo", "production"}:
             raise ValueError(f"Invalid DL_OP_TO_HLS runtime mode: {runtime_mode}")
@@ -148,7 +152,9 @@ class AppConfig:
         if not hls4ml_backend and hls_toolchain == "vitis_hls":
             hls4ml_backend = "Vitis"
         generic_mock_tools = os.environ.get("DL_OP_TO_HLS_MOCK_TOOLS")
-        default_mock = "1" if generic_mock_tools is None else generic_mock_tools
+        # Production and strict runs must not silently become mock runs when an
+        # environment override is absent. Mocking is opt-in outside demo mode.
+        default_mock = ("1" if runtime_mode == "demo" else "0") if generic_mock_tools is None else generic_mock_tools
         rag_semantic_config = dict(rag_section)
         rag_semantic_config.setdefault("enabled", runtime_mode in {"strict", "production"})
         rag_env = {
@@ -181,6 +187,9 @@ class AppConfig:
             specialist_llm_decider_enabled=specialist_llm_decider_enabled_value,
             specialist_llm_mode=specialist_mode,
             rag_semantic_config=rag_semantic_config,
+            operator_generation_path=str(generation_section.get("operator_primary_path", "llm_candidate")),
+            allow_hls4ml_generation=bool(generation_section.get("allow_hls4ml_generation", False)),
+            reuse_verified_implementations=bool(generation_section.get("reuse_verified_implementations", True)),
             mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", default_mock) != "0",
             mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", default_mock) != "0",
             hls_toolchain=hls_toolchain,
@@ -215,6 +224,9 @@ class AppConfig:
             "specialist_llm_decider_enabled": self.specialist_llm_decider_enabled,
             "specialist_llm_mode": self.specialist_llm_mode,
             "rag_semantic_config": self.rag_semantic_config,
+            "operator_generation_path": self.operator_generation_path,
+            "allow_hls4ml_generation": self.allow_hls4ml_generation,
+            "reuse_verified_implementations": self.reuse_verified_implementations,
             "mock_hls4ml": self.mock_hls4ml,
             "mock_vivado": self.mock_vivado,
             "hls_toolchain": self.hls_toolchain,

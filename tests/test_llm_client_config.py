@@ -107,3 +107,67 @@ def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_worksp
         assert "tp-<redacted>" in content
     else:
         raise AssertionError("Expected repair failure to raise AgentRuntimeError")
+
+
+def test_llm_json_request_policy_separates_control_and_candidate_reasoning():
+    planner = LLMClient._json_request_policy({"title": "TodoPlan"})
+    candidate = LLMClient._json_request_policy({"title": "CandidateGenerationSchema"})
+
+    assert planner == {"stage": "TodoPlan", "max_output_tokens": 1800, "thinking": "disabled"}
+    assert candidate == {
+        "stage": "CandidateGenerationSchema",
+        "max_output_tokens": 8000,
+        "thinking": "enabled",
+        "reasoning_effort": "low",
+    }
+
+
+def test_candidate_normalization_fills_only_safe_metadata_fields():
+    client = SequenceLLMClient(
+        [
+            '{"files":[{"relative_path":"candidate/conv2d_anchor.cpp","content":"void conv2d_anchor(){}"}]}'
+        ]
+    )
+    result = client.complete_json(
+        "system",
+        "user",
+        {
+            "title": "CandidateGenerationSchema",
+            "type": "object",
+            "required": ["candidate_name", "files", "assumptions", "requires_verification"],
+            "properties": {"files": {"type": "array"}},
+        },
+    )
+
+    assert result["candidate_name"] == "conv2d_anchor"
+    assert result["assumptions"] == []
+    assert result["requires_verification"] is True
+    assert result["files"][0]["content"] == "void conv2d_anchor(){}"
+
+
+def test_candidate_truncated_json_is_regenerated_not_generic_repaired():
+    client = SequenceLLMClient(
+        [
+            '{"candidate_name":"truncated","files":[{"relative_path":"candidate/truncated.cpp","content":"void',
+            '{"candidate_name":"invented_by_generic_repair","files":[]}',
+        ]
+    )
+
+    try:
+        client.complete_json(
+            "system",
+            "user",
+            {
+                "title": "CandidateGenerationSchema",
+                "type": "object",
+                "required": ["candidate_name", "files", "assumptions", "requires_verification"],
+                "properties": {"files": {"type": "array"}},
+            },
+        )
+    except AgentRuntimeError as exc:
+        assert exc.error.error_type == "LLMGenerationError"
+        assert exc.error.recoverable is True
+        assert exc.error.details["failure_kind"] == "candidate_payload_incomplete"
+        assert len(client.responses) == 1
+    else:
+        raise AssertionError("Expected truncated candidate JSON to request regeneration")

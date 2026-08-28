@@ -43,6 +43,20 @@ class ExplodingSuggestionClient:
         raise AssertionError("LLM should not be called when optimization is not applicable.")
 
 
+class CapturingSuggestionClient(JustificationSuggestionClient):
+    def __init__(self):
+        self.user_prompt = ""
+        self.bound_context = None
+
+    def set_context(self, context):
+        self.context = context
+        self.bound_context = context
+
+    def complete_json(self, **kwargs):
+        self.user_prompt = kwargs["user_prompt"]
+        return super().complete_json(**kwargs)
+
+
 def test_llm_optimizer_falls_back_to_rules():
     result = suggest_optimization(
         {
@@ -189,3 +203,31 @@ def test_llm_optimizer_skips_unsupported_missing_report_without_calling_llm():
     assert result["status"] == "skipped"
     assert result["llm_skipped"] is True
     assert "not applicable" in result["suggestions"][0]
+
+
+def test_llm_optimizer_does_not_send_full_agent_state():
+    client = CapturingSuggestionClient()
+    huge_internal = "raw-trace-content" * 10000
+    result = suggest_optimization(
+        {
+            "state": {
+                "run_id": "r1",
+                "objective": "resource",
+                "selected_path": "llm_candidate_path",
+                "task": {"task_type": "operator", "op_type": "Conv2D", "name": "conv", "optimization": {"reuse_factor": 64}},
+                "todos": [{"raw": huge_internal}],
+                "tool_results": [{"raw": huge_internal}],
+                "full_trace": huge_internal,
+            },
+            "report": {"resources": {"dsp": 1}, "interval": {"max_ii": 100}, "timing": {"met": True}},
+            "rag_context": [{"summary": "verified Conv2D history"}],
+            "objective": "resource",
+            "fallback_mode": "strict",
+        },
+        context={"llm_client": client},
+    )
+
+    assert result["status"] == "success"
+    assert "raw-trace-content" not in client.user_prompt
+    assert len(client.user_prompt) < 5000
+    assert client.bound_context is not None
