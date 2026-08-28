@@ -40,8 +40,8 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 24,
-      "real_csim_count": 0,
-      "real_csynth_count": 0,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
       "mock_case_count": 3,
       "fixture_case_count": 0,
       "evidence_runs": [
@@ -302,6 +302,181 @@
           "evidence_class": "mock",
           "tool": "vivado.parse_report",
           "receipt_id": "te_f633b36170b419cf"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_943d13d66dce644b"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_943d13d66dce644b",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_6e049b0932faac4a"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_bfca57f40e0b0820"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_8c79c3f783f3c4bf"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_8c79c3f783f3c4bf",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_b092ddba111f8ef1"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_ed0ec2d3639fadbd"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_d781f3e68addd907"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_d781f3e68addd907",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_e9f2c1056f546764"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_0c83d874d142ef89"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_93a0d46a805ebbf5"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_93a0d46a805ebbf5",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_e9f2c1056f546764"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_b41a79d438901ae7"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_dd6f44bb5881ecf4"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_dd6f44bb5881ecf4",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_e9f2c1056f546764"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_45f7260c543d307e"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_6b281f3d4035f087"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_6b281f3d4035f087",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_e9f2c1056f546764"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_43ca466f5a514734"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_03031ed972af5807"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_03031ed972af5807",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_e9f2c1056f546764"
+        },
+        {
+          "run_id": "dense_16x32_llm_0e48bdce_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_2ce642f26c44618f"
         }
       ],
       "support_status": "functional_reference_ready"
@@ -346,11 +521,87 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 24,
-      "real_csim_count": 0,
-      "real_csynth_count": 0,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
       "mock_case_count": 0,
       "fixture_case_count": 0,
-      "evidence_runs": [],
+      "evidence_runs": [
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_59add2b4f4de2b6c"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_59add2b4f4de2b6c",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_89eecbcd4fb04248"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_2757f68a3c930ee9"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_0f74ad515772fe42"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_0f74ad515772fe42",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_8b532fda33b2e044"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_0245fbd97d5e0175"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_23f4b2dbf9725caa"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_23f4b2dbf9725caa",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_87ff9306f786c19f"
+        },
+        {
+          "run_id": "matmul_16x16_llm_c67dbadf_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_ffe30c25bc9f5b4c"
+        }
+      ],
       "support_status": "functional_reference_ready"
     },
     {
@@ -381,11 +632,87 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 18,
-      "real_csim_count": 0,
-      "real_csynth_count": 0,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
       "mock_case_count": 0,
       "fixture_case_count": 0,
-      "evidence_runs": [],
+      "evidence_runs": [
+        {
+          "run_id": "relu_16_llm_4ba5f27c",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_6ac01b56c4d6cd70"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_6ac01b56c4d6cd70",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_84484f0e7fe403ef"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_320f0e1863125b5c"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_9c03a183d55ae238"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_9c03a183d55ae238",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_8df27b326cb4bc96"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_f6cb9259da8e2bba"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_14ed2241740ea100"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_14ed2241740ea100",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_d89353e31e6273a2"
+        },
+        {
+          "run_id": "relu_16_llm_4ba5f27c_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_7a932a49cc0a363b"
+        }
+      ],
       "support_status": "functional_reference_ready"
     },
     {
@@ -416,11 +743,87 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 18,
-      "real_csim_count": 0,
-      "real_csynth_count": 0,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
       "mock_case_count": 0,
       "fixture_case_count": 0,
-      "evidence_runs": [],
+      "evidence_runs": [
+        {
+          "run_id": "add_16_llm_ccd09232",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_af8bb5291a387acc"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_af8bb5291a387acc",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_f4168bb090f53fc7"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_3d2ee3a3fc69303e"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_12901cb5f5d448ba"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_12901cb5f5d448ba",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_de0678a5a7bbacd2"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_fc6d7dc8e68136ab"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_342e1a51b1f967d8"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_342e1a51b1f967d8",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_9269056e62bb429b"
+        },
+        {
+          "run_id": "add_16_llm_ccd09232_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_a76e7b23808a1b3d"
+        }
+      ],
       "support_status": "functional_reference_ready"
     },
     {
@@ -449,11 +852,87 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 18,
-      "real_csim_count": 0,
-      "real_csynth_count": 0,
+      "real_csim_count": 3,
+      "real_csynth_count": 3,
       "mock_case_count": 0,
       "fixture_case_count": 0,
-      "evidence_runs": [],
+      "evidence_runs": [
+        {
+          "run_id": "scale_shift_llm_e20315dc",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_da37f104a30ce158"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_da37f104a30ce158",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_445445239557b168"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_3220325fb8bd2965"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_e5055f09fc9ba57d"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_e5055f09fc9ba57d",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_1046506efb1b1455"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_02",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_2d7598cc14b282ba"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_03",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_3042402c2bc6bad3"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_03",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_3042402c2bc6bad3",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_01de69893a1b6810"
+        },
+        {
+          "run_id": "scale_shift_llm_e20315dc_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_34e7fa580c300916"
+        }
+      ],
       "support_status": "functional_reference_ready"
     },
     {

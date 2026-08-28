@@ -80,6 +80,87 @@ def analyze_token_usage(runs_root: str | Path) -> dict[str, Any]:
     }
 
 
+def audit_llm_pass3(runs_root: str | Path) -> dict[str, Any]:
+    """Freeze the latest three real candidate runs per operator without best-of filtering."""
+    operators = ("Dense", "MatMul", "ReLU", "Add", "ScaleShift")
+    candidates: dict[str, list[tuple[float, dict[str, Any]]]] = {name: [] for name in operators}
+    for run_dir in Path(runs_root).glob("*"):
+        state_path = run_dir / "state.json"
+        if not run_dir.is_dir() or not state_path.exists():
+            continue
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        operator = str((state.get("task") or {}).get("op_type") or "")
+        if operator not in candidates or state.get("selected_path") != "llm_candidate_path":
+            continue
+        receipts_payload = _read_json(run_dir / "tool_evidence.json") or {}
+        receipts = receipts_payload.get("receipts", []) if isinstance(receipts_payload, dict) else receipts_payload
+        has_real_csynth = any(
+            isinstance(item, dict)
+            and item.get("valid") is True
+            and not item.get("mock_evidence")
+            and item.get("evidence_class") == "real_csynth"
+            for item in (receipts if isinstance(receipts, list) else [])
+        )
+        has_real_csim = any(_receipt_has_golden_csim(item) for item in (receipts if isinstance(receipts, list) else []))
+        if not (has_real_csim and has_real_csynth):
+            continue
+        gate = _read_json(run_dir / "completion_gate.json") or {}
+        trace = _llm_usage_for_run(run_dir / "trace.jsonl")
+        active_errors = [
+            item for item in state.get("errors", [])
+            if not (isinstance(item, dict) and item.get("resolved") is True)
+        ]
+        passed = bool(
+            state.get("status") == "success"
+            and gate.get("passed") is True
+            and gate.get("production_ready") is True
+            and (state.get("verification") or {}).get("passed") is True
+            and (state.get("report") or {}).get("status") == "success"
+            and not active_errors
+        )
+        result = {
+            "run_id": state.get("run_id") or run_dir.name,
+            "operator": operator,
+            "passed": passed,
+            "status": state.get("status"),
+            "completion_gate_passed": gate.get("passed") is True,
+            "production_ready": gate.get("production_ready") is True,
+            "csim_passed": (state.get("verification") or {}).get("passed") is True,
+            "csynth_passed": (state.get("report") or {}).get("status") == "success",
+            "timing_met": ((state.get("report") or {}).get("timing") or {}).get("met"),
+            "repair_count": sum(
+                1 for item in state.get("todos", [])
+                if str(item.get("title") or "").lower().startswith("repair")
+            ),
+            "active_errors": active_errors,
+            **trace,
+        }
+        candidates[operator].append((state_path.stat().st_mtime, result))
+
+    results: list[dict[str, Any]] = []
+    by_operator: dict[str, Any] = {}
+    for operator in operators:
+        selected = [item for _, item in sorted(candidates[operator], key=lambda pair: pair[0], reverse=True)[:3]]
+        selected.reverse()
+        results.extend(selected)
+        metric = wilson_rate(sum(bool(item["passed"]) for item in selected), len(selected), minimum_usable_n=3)
+        metric["run_ids"] = [item["run_id"] for item in selected]
+        by_operator[operator] = metric
+    passed_count = sum(bool(item["passed"]) for item in results)
+    complete = len(results) == len(operators) * 3 and all(len(value["run_ids"]) == 3 for value in by_operator.values())
+    return {
+        "schema_version": "1.0",
+        "selection_policy": "latest_three_real_runs_per_operator_report_all_no_best_of",
+        "complete": complete,
+        "rate": wilson_rate(passed_count, len(results), minimum_usable_n=15),
+        "by_operator": by_operator,
+        "runs": results,
+    }
+
+
 def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
     root = Path(workspace_root).resolve()
     suite = suite_payload()
@@ -92,6 +173,7 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
         by_operator[operator] = wilson_rate(operator_passed, len(selected))
         by_operator[operator]["evidence_class"] = "unit"
     matrix = build_support_matrix(suite["cases"], root / "runs")
+    pass3 = audit_llm_pass3(root / "runs")
     evidence_counts = Counter()
     for operator in matrix["operators"]:
         evidence_counts["real_csim"] += operator["real_csim_count"]
@@ -111,12 +193,16 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
         },
         "evidence_counts": dict(evidence_counts),
         "token_usage": analyze_token_usage(root / "runs"),
+        "llm_pass3": pass3,
         "release_gates": {
             "functional_cases_at_least_90": len(results) >= 90,
             "six_operator_classes": len(matrix["operators"]) >= 6,
             "real_csim_at_least_18": evidence_counts["real_csim"] >= 18,
             "real_csynth_at_least_10": evidence_counts["real_csynth"] >= 10,
-            "llm_pass3_complete": False,
+            "llm_pass3_complete": pass3["complete"],
+            "llm_pass3_success_rate_at_least_80_percent": bool(
+                pass3["complete"] and (pass3["rate"].get("rate") or 0.0) >= 0.8
+            ),
             "false_success_rate_zero": None,
             "stale_artifact_acceptance_zero": None,
             "unsafe_candidate_acceptance_zero": None,
@@ -129,6 +215,9 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
         output = root / output
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output.parent / "operator_llm_pass3_results.json").write_text(
+        json.dumps(pass3, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     markdown = _render_release_markdown(report)
     output.with_suffix(".md").write_text(markdown, encoding="utf-8")
 
@@ -136,6 +225,9 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
     benchmarks.mkdir(parents=True, exist_ok=True)
     (benchmarks / "operator_functional_suite.json").write_text(json.dumps(suite, indent=2, ensure_ascii=False), encoding="utf-8")
     (benchmarks / "operator_support_matrix.json").write_text(json.dumps(matrix, indent=2, ensure_ascii=False), encoding="utf-8")
+    (benchmarks / "operator_llm_candidate_results.json").write_text(
+        json.dumps(pass3, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     for filename, payload in all_suite_payloads().items():
         target = benchmarks / filename
         if not target.exists():
@@ -153,6 +245,49 @@ def _percentile(values: list[int], quantile: float) -> float | None:
     return float(ordered[index])
 
 
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _receipt_has_golden_csim(receipt: Any) -> bool:
+    return bool(
+        isinstance(receipt, dict)
+        and receipt.get("valid") is True
+        and not receipt.get("mock_evidence")
+        and receipt.get("evidence_class") in {"real_csim", "real_csynth"}
+        and any(
+            isinstance(check, dict)
+            and check.get("name") == "golden_csim_passed"
+            and check.get("passed") is True
+            for check in receipt.get("checks", [])
+        )
+    )
+
+
+def _llm_usage_for_run(trace_path: Path) -> dict[str, int]:
+    calls = input_tokens = output_tokens = 0
+    if trace_path.exists():
+        for line in trace_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") != "LLMUsageRecorded":
+                continue
+            calls += 1
+            input_tokens += int(event.get("input_tokens") or 0)
+            output_tokens += int(event.get("output_tokens") or 0)
+    return {
+        "llm_calls": calls,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+    }
+
+
 def _render_release_markdown(report: dict[str, Any]) -> str:
     rate = report["functional"]["rate"]
     token = report["token_usage"]
@@ -167,6 +302,7 @@ def _render_release_markdown(report: dict[str, Any]) -> str:
         f"- Historical LLM calls observed: `{token['llm_call_count']}`",
         f"- Historical total tokens: `{token['total_tokens']}`",
         f"- Token anomalies: `{token['anomaly_count']}`",
+        f"- LLM pass^3: `{report['llm_pass3']['rate']['numerator']}/{report['llm_pass3']['rate']['denominator']}`",
         "",
         "## Release Gates",
         "",

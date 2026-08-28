@@ -1,0 +1,385 @@
+{
+  "schema_version": "1.0",
+  "selection_policy": "latest_three_real_runs_per_operator_report_all_no_best_of",
+  "complete": true,
+  "rate": {
+    "numerator": 13,
+    "denominator": 15,
+    "sample_size": 15,
+    "rate": 0.8666666666666667,
+    "wilson_95": [
+      0.6211801716767764,
+      0.9626387408969346
+    ],
+    "statistically_usable": true,
+    "status": "usable"
+  },
+  "by_operator": {
+    "Dense": {
+      "numerator": 2,
+      "denominator": 3,
+      "sample_size": 3,
+      "rate": 0.6666666666666666,
+      "wilson_95": [
+        0.2076596008020477,
+        0.9385080552796037
+      ],
+      "statistically_usable": true,
+      "status": "usable",
+      "run_ids": [
+        "dense_16x32_llm_0e48bdce",
+        "dense_16x32_llm_0e48bdce_02",
+        "dense_16x32_llm_0e48bdce_03"
+      ]
+    },
+    "MatMul": {
+      "numerator": 2,
+      "denominator": 3,
+      "sample_size": 3,
+      "rate": 0.6666666666666666,
+      "wilson_95": [
+        0.2076596008020477,
+        0.9385080552796037
+      ],
+      "statistically_usable": true,
+      "status": "usable",
+      "run_ids": [
+        "matmul_16x16_llm_c67dbadf",
+        "matmul_16x16_llm_c67dbadf_02",
+        "matmul_16x16_llm_c67dbadf_03"
+      ]
+    },
+    "ReLU": {
+      "numerator": 3,
+      "denominator": 3,
+      "sample_size": 3,
+      "rate": 1.0,
+      "wilson_95": [
+        0.4385029682449546,
+        1.0
+      ],
+      "statistically_usable": true,
+      "status": "usable",
+      "run_ids": [
+        "relu_16_llm_4ba5f27c",
+        "relu_16_llm_4ba5f27c_02",
+        "relu_16_llm_4ba5f27c_03"
+      ]
+    },
+    "Add": {
+      "numerator": 3,
+      "denominator": 3,
+      "sample_size": 3,
+      "rate": 1.0,
+      "wilson_95": [
+        0.4385029682449546,
+        1.0
+      ],
+      "statistically_usable": true,
+      "status": "usable",
+      "run_ids": [
+        "add_16_llm_ccd09232",
+        "add_16_llm_ccd09232_02",
+        "add_16_llm_ccd09232_03"
+      ]
+    },
+    "ScaleShift": {
+      "numerator": 3,
+      "denominator": 3,
+      "sample_size": 3,
+      "rate": 1.0,
+      "wilson_95": [
+        0.4385029682449546,
+        1.0
+      ],
+      "statistically_usable": true,
+      "status": "usable",
+      "run_ids": [
+        "scale_shift_llm_e20315dc",
+        "scale_shift_llm_e20315dc_02",
+        "scale_shift_llm_e20315dc_03"
+      ]
+    }
+  },
+  "runs": [
+    {
+      "run_id": "dense_16x32_llm_0e48bdce",
+      "operator": "Dense",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 1,
+      "active_errors": [],
+      "llm_calls": 7,
+      "input_tokens": 19242,
+      "output_tokens": 12141,
+      "total_tokens": 31383
+    },
+    {
+      "run_id": "dense_16x32_llm_0e48bdce_02",
+      "operator": "Dense",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 4,
+      "input_tokens": 10873,
+      "output_tokens": 10115,
+      "total_tokens": 20988
+    },
+    {
+      "run_id": "dense_16x32_llm_0e48bdce_03",
+      "operator": "Dense",
+      "passed": false,
+      "status": "partial_success",
+      "completion_gate_passed": false,
+      "production_ready": false,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 5,
+      "active_errors": [
+        {
+          "error_type": "PermissionDeniedError",
+          "message": "LLM reflection proposed an invalid todo: Unknown tool: hls_code_optimizer; Unknown specialist: HLSDeveloperSpecialist",
+          "recoverable": true,
+          "source": "llm_runtime.reflect",
+          "suggested_action": "Keep planner/reflection prompts aligned with ToolRegistry and Specialist allowlists.",
+          "details": {
+            "title": "Optimize HLS code for timing",
+            "assigned_tool": "hls_code_optimizer",
+            "assigned_specialist": "HLSDeveloperSpecialist"
+          }
+        }
+      ],
+      "llm_calls": 16,
+      "input_tokens": 61229,
+      "output_tokens": 53994,
+      "total_tokens": 115223
+    },
+    {
+      "run_id": "matmul_16x16_llm_c67dbadf",
+      "operator": "MatMul",
+      "passed": false,
+      "status": "partial_success",
+      "completion_gate_passed": false,
+      "production_ready": false,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 1,
+      "active_errors": [
+        {
+          "error_type": "VerificationFailedError",
+          "message": "Real candidate verification requires a testbench; no testbench file was found.",
+          "recoverable": true,
+          "source": "verify_candidate",
+          "suggested_action": "Provide a real candidate directory with design C++, header, testbench, and reference checks before marking it verified.",
+          "details": {
+            "candidate_dir": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\matmul_16x16_llm_c67dbadf\\candidate"
+          }
+        }
+      ],
+      "llm_calls": 6,
+      "input_tokens": 12490,
+      "output_tokens": 9978,
+      "total_tokens": 22468
+    },
+    {
+      "run_id": "matmul_16x16_llm_c67dbadf_02",
+      "operator": "MatMul",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 7928,
+      "output_tokens": 5677,
+      "total_tokens": 13605
+    },
+    {
+      "run_id": "matmul_16x16_llm_c67dbadf_03",
+      "operator": "MatMul",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 8562,
+      "output_tokens": 8806,
+      "total_tokens": 17368
+    },
+    {
+      "run_id": "relu_16_llm_4ba5f27c",
+      "operator": "ReLU",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 7942,
+      "output_tokens": 4325,
+      "total_tokens": 12267
+    },
+    {
+      "run_id": "relu_16_llm_4ba5f27c_02",
+      "operator": "ReLU",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 8560,
+      "output_tokens": 2553,
+      "total_tokens": 11113
+    },
+    {
+      "run_id": "relu_16_llm_4ba5f27c_03",
+      "operator": "ReLU",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 8588,
+      "output_tokens": 3822,
+      "total_tokens": 12410
+    },
+    {
+      "run_id": "add_16_llm_ccd09232",
+      "operator": "Add",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 6838,
+      "output_tokens": 2600,
+      "total_tokens": 9438
+    },
+    {
+      "run_id": "add_16_llm_ccd09232_02",
+      "operator": "Add",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 6510,
+      "output_tokens": 3170,
+      "total_tokens": 9680
+    },
+    {
+      "run_id": "add_16_llm_ccd09232_03",
+      "operator": "Add",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 6900,
+      "output_tokens": 2115,
+      "total_tokens": 9015
+    },
+    {
+      "run_id": "scale_shift_llm_e20315dc",
+      "operator": "ScaleShift",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 4,
+      "input_tokens": 8919,
+      "output_tokens": 6490,
+      "total_tokens": 15409
+    },
+    {
+      "run_id": "scale_shift_llm_e20315dc_02",
+      "operator": "ScaleShift",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 0,
+      "active_errors": [],
+      "llm_calls": 3,
+      "input_tokens": 7497,
+      "output_tokens": 3643,
+      "total_tokens": 11140
+    },
+    {
+      "run_id": "scale_shift_llm_e20315dc_03",
+      "operator": "ScaleShift",
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": true,
+      "repair_count": 2,
+      "active_errors": [],
+      "llm_calls": 7,
+      "input_tokens": 15033,
+      "output_tokens": 9077,
+      "total_tokens": 24110
+    }
+  ]
+}

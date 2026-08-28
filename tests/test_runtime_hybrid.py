@@ -588,3 +588,43 @@ def test_llm_candidate_verification_failure_uses_assigned_tool_not_title(temp_wo
     assert old_synth.status == "cancelled"
     assert verify.status == "completed_with_warning"
     assert state.errors == []
+
+
+def test_successful_reverification_resolves_recoverable_error_history(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = PlanExecuteReactRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "matmul_llm_candidate.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Seed"], state.task)
+    verify = runtime.todo_manager.append_item(
+        title="Verify repaired LLM candidate",
+        description="A successful retry must close the earlier recoverable failure.",
+        priority=1,
+        assigned_tool="verify_candidate.run",
+        assigned_specialist="VerificationSpecialist",
+        dependencies=[],
+        inputs={},
+    )
+    state.errors = [
+        {
+            "error_type": "VerificationFailedError",
+            "message": "No testbench file was found.",
+            "recoverable": True,
+            "source": "verify_candidate.run",
+        }
+    ]
+    state.todos = runtime.todo_manager.todo_list.items
+
+    runtime.reflect(
+        state,
+        verify,
+        {
+            "status": "completed",
+            "observation": {"status": "success", "verification": {"passed": True}},
+        },
+    )
+
+    assert state.errors[0]["resolved"] is True
+    assert state.errors[0]["resolved_by_todo_id"] == verify.id
+    assert "successful verify_candidate.run" in state.errors[0]["resolution"]
+    trace = (runtime.context["run_dir"] / "trace.jsonl").read_text(encoding="utf-8")
+    assert '"event": "ErrorResolved"' in trace

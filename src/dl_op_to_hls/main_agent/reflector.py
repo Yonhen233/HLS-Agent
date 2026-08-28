@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from ..core.errors import unresolved_errors
+
 
 def reflect_on_errors(state) -> None:
     if state.status == "interrupted":
         return
-    if state.errors and state.status not in {"partial_success", "failed"}:
+    if unresolved_errors(state.errors) and state.status not in {"partial_success", "failed"}:
         state.status = "partial_success" if state.report or state.selected_path else "failed"
 
 
@@ -36,7 +38,8 @@ def update_status_from_todos(state) -> None:
     if "failed" in statuses and state.report is None:
         state.status = "failed"
         return
-    if getattr(state, "pipeline_status", {}).get("deployment_ready_candidate") and not state.errors:
+    active_errors = unresolved_errors(state.errors)
+    if getattr(state, "pipeline_status", {}).get("deployment_ready_candidate") and not active_errors:
         unfinished = [item for item in state.todos if item.status in {"blocked", "pending", "in_progress"}]
         meaningful_cancelled = [
             item for item in state.todos if item.status == "cancelled" and not _is_superseded_cancellation(item)
@@ -62,7 +65,7 @@ def update_status_from_todos(state) -> None:
     ]
     if (
         not meaningful_skips
-        and not state.errors
+        and not active_errors
         and state.report
         and state.report.get("status") == "success"
         and state.report.get("timing", {}).get("met") is not False
@@ -71,7 +74,7 @@ def update_status_from_todos(state) -> None:
     ):
         state.status = "success"
         return
-    if meaningful_skips or "completed_with_warning" in statuses or state.errors:
+    if meaningful_skips or "completed_with_warning" in statuses or active_errors:
         state.status = "partial_success" if state.status != "failed" else state.status
         return
     if state.selected_path == "unsupported_path":

@@ -10,7 +10,9 @@ def _error_lines(errors: list[dict] | list[str]) -> str:
     normalized = []
     for item in errors:
         if isinstance(item, dict):
-            normalized.append(f"- {item.get('error_type', 'Error')}: {item.get('message', '')}")
+            lifecycle = "resolved" if item.get("resolved") is True else "active"
+            suffix = f"; {item.get('resolution')}" if item.get("resolved") and item.get("resolution") else ""
+            normalized.append(f"- [{lifecycle}] {item.get('error_type', 'Error')}: {item.get('message', '')}{suffix}")
         else:
             normalized.append(f"- {item}")
     return "\n".join(normalized)

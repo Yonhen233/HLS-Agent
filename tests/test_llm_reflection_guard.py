@@ -51,3 +51,52 @@ def test_llm_reflection_rejects_specialist_tool_mismatch(temp_workspace):
 
     assert result["status"] == "invalid"
     assert any("outside allowed_tools" in item for item in result["errors"])
+
+
+def test_contained_invalid_reflection_todo_does_not_pollute_run_errors(temp_workspace, monkeypatch):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = LLMFirstRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Seed"], state.task)
+    todo = runtime.todo_manager.append_item(
+        title="Run synthesis",
+        description="Trigger reflection after a recoverable timing observation.",
+        priority=1,
+        assigned_tool="vivado.run_csynth",
+        assigned_specialist="VivadoSpecialist",
+        dependencies=[],
+        inputs={},
+    )
+    runtime.selected_skill = "operator_llm_candidate_flow"
+    state.selected_skill = runtime.selected_skill
+    reflection = {
+        "reason_summary": "Try an optimization action.",
+        "decision": "add_todos",
+        "todo_status": "completed_with_warning",
+        "run_status": "partial_success",
+        "new_todos": [
+            {
+                "title": "Optimize HLS code",
+                "assigned_tool": "hls_code_optimizer",
+                "assigned_specialist": "HLSDeveloperSpecialist",
+            }
+        ],
+        "memory_candidates": [],
+    }
+    monkeypatch.setattr(runtime.controller.reflector, "reflect", lambda **_: reflection)
+
+    runtime.reflect(
+        state,
+        todo,
+        {
+            "status": "failed",
+            "error_type": "VivadoSynthesisError",
+            "observation": {"status": "failed", "error": {"error_type": "VivadoSynthesisError"}},
+        },
+    )
+
+    assert not any(item.get("source") == "llm_runtime.reflect" for item in state.errors)
+    rejected = [item for item in state.llm_decisions if item.get("decision") == "reject_invalid_todo"]
+    assert rejected and rejected[-1]["status"] == "contained"
+    trace = (runtime.context["run_dir"] / "trace.jsonl").read_text(encoding="utf-8")
+    assert '"event": "LLMReflectionTodoRejected"' in trace

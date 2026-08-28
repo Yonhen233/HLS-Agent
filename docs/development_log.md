@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-08-28 09:58:48 +08:00：六类算子真实证据矩阵达到 18/18，完成 LLM pass^3 并修复可恢复错误与 Guard 拒绝的状态语义
+
+### 1. 本轮目标与真实环境
+继续执行算子 Benchmark 任务书，主生成路径保持 `llm_candidate`，没有调用 hls4ml，也没有在失败时静默切换模板。外部模型严格使用 `https://api.deepseek.com` 的 `deepseek-v4-pro`；HLS 工具严格使用 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。所有计入结果的 Run 均要求独立 Golden CSim marker、当前 Run 内真实 CSynth report、有效 evidence receipt、功能验证与 completion gate，Mock/Fixture 不计入真实结果。
+
+### 2. 六类算子真实矩阵
+补跑 Dense 2 次、MatMul 1 次、ReLU 2 次、Add 2 次、ScaleShift 2 次，并复用此前已经审计的 Conv2D 3 次真实证据。统一审计结果由 Real CSim/CSynth `9/9` 提升至 `18/18`，达到任务书 Real CSim 至少 18、Real CSynth 至少 10 的门槛。按算子计数为 Dense `3/3`、MatMul `3/3`、ReLU `3/3`、Add `3/3`、ScaleShift `3/3`、Conv2D `3/3`；这里的计数表示真实阶段证据数量，不等同于最终 Run 全部成功。
+
+代表性新结果：MatMul `matmul_16x16_llm_c67dbadf_02` 完成真实 Golden CSim 与 CSynth，latency/II `8195/8195`，DSP `1`、LUT `360`、FF `152`、BRAM `0`，estimated `10.018 ns` 对 target `12 ns`，最终 `success`。补测的 `matmul_16x16_llm_c67dbadf_03` 为 latency/II `2051/2051`、DSP `16`、LUT `624`、FF `209`、BRAM `0`。ReLU/Add/ScaleShift 的两次补测也均通过真实 completion gate。
+
+### 3. LLM pass^3 稳定性与 Token
+新增机器可读 `operator_llm_pass3_results.json`，对 Dense、MatMul、ReLU、Add、ScaleShift 各固定最近 3 个真实 LLM+Vivado Run，策略为 `report_all_no_best_of`。结果为 `13/15 = 86.67%`，Wilson 95% 区间 `[0.6212, 0.9626]`：Dense `2/3`、MatMul `2/3`、ReLU `3/3`、Add `3/3`、ScaleShift `3/3`。没有删除或替换两个失败样本。
+
+15 个 Run 合计 71 次 LLM 调用，input `197111`、output `138506`、total `335617` tokens，repair Todo 合计 9 次。Dense 第三次 Run 单独消耗 `115223` tokens、5 次 repair，明显高于正常样本，根因包括多次 timing repair、候选 JSON 截断和一次无效反思动作；该异常被保留用于稳定性和成本分析，而不是用成功重跑覆盖。
+
+### 4. 真实运行暴露的 Agent 框架问题与修复
+1. **修复成功后历史错误仍阻塞门禁**：首个 MatMul Run 缺失 testbench，后续 repair/reverify 已真实通过，但原 `VerificationFailedError` 仍留在 `state.errors`，最终误判 `partial_success`。新增显式错误生命周期：可恢复错误在对应后续工具成功时标记 `resolved/resolved_at/resolved_by_todo_id/resolution`；Trace 写 `ErrorResolved`；Reflector 与 CompletionGate 只阻止 active error；Summary 同时展示 active/resolved，保留审计历史。
+2. **被 Guard 安全拒绝的 LLM 提议污染全局错误**：Dense 第三次 Run 中 LLM 提议不存在的 `hls_code_optimizer/HLSDeveloperSpecialist`。Guard 正确拒绝且未执行，但旧逻辑仍写入未解决 `PermissionDeniedError`。现将这类事件记录为 `LLMReflectionTodoRejected` 和 `llm_decisions.phase=reflect_todo_guard,status=contained`，不再冒充业务执行失败；真正越权的已执行尝试仍由 Permission Gate 报错。
+3. **错误修复链真实生效**：`scale_shift_llm_e20315dc_03` 最终 `success`，同时保留 2 条 resolved error，证明错误生命周期不是删除历史错误，而是区分已恢复与未恢复状态。
+
+### 5. Benchmark 与测试
+统一报告当前为：120/120 Python 数学/位精确 Golden Case；Real CSim `18`；Real CSynth `18`；LLM pass^3 `13/15`。新增 pass^3 审计会输出每个 Run 的 gate、CSim/CSynth、timing、repair、active errors、LLM calls 与 input/output/total tokens，并使用最新三个真实 Run 固定 cohort，不做 best-of 筛选。
+
+新增回归覆盖：成功 reverify 关闭可恢复错误、CompletionGate 忽略 resolved history、无效 reflection Todo 被 guard containment 后不污染 run error、pass^3 保留失败样本。针对性测试 `21 passed`，另两轮新增测试分别为 `2 passed` 与 `6 passed`；最终全量 pytest `415 passed`，无失败。
+
+### 6. 尚未完成
+六类算子的 unit/真实 CSim/真实 CSynth/LLM pass^3 范围已经完成，但整份任务书尚未全部完成：ONNX Graph 正反例目前仍是待执行清单，20 个 Bad Case 尚未全部形成机器可读实测结果，Dense/MatMul template-vs-LLM 公平对照也仍待执行。因此 `interview_ready=false` 是正确结果，不能因 18/18 真实工具证据而提前宣称整个任务书完成。
+
+---
+
 ## 2026-08-28 08:22:17 +08:00：Conv2D LLM Candidate 真实闭环通过，修复 Production Mock 泄漏、Memory 证据污染与 Optimization 上下文爆炸
 
 ### 1. 本轮真实验收范围

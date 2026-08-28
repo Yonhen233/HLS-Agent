@@ -564,6 +564,8 @@ class PlanExecuteReactRuntime:
     def reflect(self, state: AgentState, todo: TodoItem, observation: dict) -> AgentState:
         status = observation.get("status")
         assigned_tool = todo.assigned_tool or ""
+        if status == "completed":
+            self._resolve_errors_after_success(state, todo)
         is_hls4ml_support = todo.title == "Check hls4ml support" or assigned_tool in {
             "hls4ml.check_support",
             "hls4ml.check_hls4ml_support",
@@ -1511,6 +1513,37 @@ class PlanExecuteReactRuntime:
                 and item.get("source") == source
             )
         ]
+
+    def _resolve_errors_after_success(self, state: AgentState, todo: TodoItem) -> None:
+        from ..core.errors import mark_errors_resolved
+
+        tool_name = todo.assigned_tool or ""
+        error_types: set[str] = set()
+        if tool_name in {"verify_candidate.run", "verify.run_csim", "verify.compare_reference"}:
+            error_types = {"VerificationFailedError", "VivadoSynthesisError"}
+        elif tool_name in {"vivado.run_csim", "vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"}:
+            error_types = {"VivadoSynthesisError", "ReportMissingError", "ReportParseError"}
+        elif tool_name in {"llm.generate_candidate", "llm.generate_hls_candidate"}:
+            error_types = {"LLMGenerationError"}
+        if not error_types:
+            return
+        resolved = mark_errors_resolved(
+            state.errors,
+            error_types=error_types,
+            resolved_by_todo_id=todo.id,
+            resolution=f"Recovered by successful {tool_name} execution.",
+        )
+        for item in resolved:
+            self.context["hooks"].emit(
+                "ErrorResolved",
+                {
+                    "run_id": state.run_id,
+                    "todo_id": todo.id,
+                    "tool": tool_name,
+                    "error_type": item.get("error_type"),
+                    "original_source": item.get("source"),
+                },
+            )
 
     def _call_tool(self, state: AgentState, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return self.executor.call_and_record(state, tool_name, arguments)

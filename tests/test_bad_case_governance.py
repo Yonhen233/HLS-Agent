@@ -155,6 +155,42 @@ def test_completion_gate_blocks_required_path_errors(tmp_path):
     assert state.status == "partial_success"
 
 
+def test_completion_gate_ignores_resolved_required_path_error(tmp_path):
+    task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
+    contract = GoalContractBuilder().build(task)
+    state = AgentState(run_id="r1", task=task, status="partial_success")
+    state.selected_path = "fallback_template_path"
+    state.hls_project_dir = str(tmp_path)
+    state.report = {"status": "success", "timing": {"met": True}}
+    state.verification = {"passed": True, "mode": "golden_testbench"}
+    summary = tmp_path / "summary.md"
+    summary.write_text("summary", encoding="utf-8")
+    state.artifacts["summary"] = str(summary)
+    state.todos = [
+        _todo("todo_1", "task.validate_schema"),
+        _todo("todo_2", "fallback.generate_operator_hls"),
+        _todo("todo_3", "vivado.run_csynth"),
+    ]
+    state.errors = [
+        {
+            "error_type": "VerificationFailedError",
+            "message": "The first candidate had no testbench.",
+            "recoverable": True,
+            "source": "verify_candidate.run",
+            "resolved": True,
+            "resolved_by_todo_id": "todo_4",
+            "resolution": "The repaired candidate passed real verification.",
+        }
+    ]
+
+    result = CompletionGate().apply(state, contract, [])
+
+    assert result["passed"] is True
+    assert result["blocking_errors"] == []
+    assert "run.no_unresolved_errors" not in result["missing_required"]
+    assert state.status == "success"
+
+
 def test_progress_supervisor_detects_repeated_failure_loop():
     state = AgentState(run_id="r1", task={"task_type": "operator", "name": "dense"})
     todo = _todo("todo_1", "fallback.generate_operator_hls", status="failed")

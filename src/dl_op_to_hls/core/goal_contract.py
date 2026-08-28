@@ -394,6 +394,8 @@ class CompletionGate:
         blocking: list[Any] = []
         warnings: list[Any] = []
         for item in errors:
+            if isinstance(item, dict) and item.get("resolved") is True:
+                continue
             if not isinstance(item, dict):
                 blocking.append(item)
                 continue

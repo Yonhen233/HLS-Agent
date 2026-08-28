@@ -943,19 +943,21 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                         "errors": validation["errors"],
                     },
                 )
-                state.errors.append(
-                    build_error(
-                        "PermissionDeniedError",
-                        "LLM reflection proposed an invalid todo: " + "; ".join(validation["errors"]),
-                        recoverable=True,
-                        source="llm_runtime.reflect",
-                        suggested_action="Keep planner/reflection prompts aligned with ToolRegistry and Specialist allowlists.",
-                        details={
+                # The guard has contained this proposal before execution. Keep it in
+                # the decision audit, but do not misclassify it as an unresolved run error.
+                state.llm_decisions.append(
+                    {
+                        "phase": "reflect_todo_guard",
+                        "todo_id": todo.id,
+                        "decision": "reject_invalid_todo",
+                        "status": "contained",
+                        "proposed_todo": {
                             "title": title,
                             "assigned_tool": new_todo.get("assigned_tool"),
                             "assigned_specialist": new_todo.get("assigned_specialist"),
                         },
-                    ).to_dict()
+                        "errors": validation["errors"],
+                    }
                 )
                 continue
             self.todo_manager.append_item(
