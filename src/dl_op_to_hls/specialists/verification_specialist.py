@@ -34,6 +34,7 @@ class VerificationSpecialist(BaseSpecialist):
             "top_function": scoped.get("top_function"),
             "part": scoped.get("part"),
             "clock_period": scoped.get("clock_period"),
+            "candidate_contract": scoped.get("candidate_contract") or {},
             "tolerance": scoped.get("tolerance", 0.0),
         }
         args.update({key: value for key, value in (scoped.get("todo_inputs") or {}).items() if value is not None})

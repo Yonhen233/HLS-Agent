@@ -7,6 +7,8 @@ import pytest
 
 from dl_op_to_hls.schemas.task_schema import load_task
 from dl_op_to_hls.tools.graph_rewrite import rewrite_graph
+from dl_op_to_hls.core.errors import AgentRuntimeError
+from dl_op_to_hls.schemas.operator_schema import normalize_operator_task
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +111,37 @@ def test_graph_rewrite_suggests_gemm_decomposition():
     result = rewrite_graph({"task": {"task_type": "operator", "op_type": "Gemm"}}, {})
     assert result["status"] == "rewrite_suggested"
     assert "Gemm -> MatMul + Add" in result["rewrites"]
+
+
+def test_operator_schema_rejects_dynamic_shape():
+    with __import__("pytest").raises(AgentRuntimeError) as exc:
+        normalize_operator_task(
+            {"task_type": "operator", "op_type": "ReLU", "input_shape": ["N"], "output_shape": [16]}
+        )
+    assert exc.value.error.error_type == "UnsupportedOperatorError"
+
+
+def test_operator_schema_rejects_invalid_fixed_point_dtype():
+    with __import__("pytest").raises(AgentRuntimeError) as exc:
+        normalize_operator_task(
+            {"task_type": "operator", "op_type": "Add", "input_shape": [16], "output_shape": [16], "dtype": "float32"}
+        )
+    assert exc.value.error.error_type == "InvalidTaskError"
+
+
+def test_operator_schema_rejects_inconsistent_matmul_shapes():
+    with __import__("pytest").raises(AgentRuntimeError) as exc:
+        normalize_operator_task(
+            {
+                "task_type": "operator",
+                "op_type": "MatMul",
+                "input_shape": [4, 8],
+                "weight_shape": [7, 2],
+                "output_shape": [4, 2],
+                "dtype": "ap_fixed<12,4>",
+            }
+        )
+    assert exc.value.error.error_type == "InvalidTaskError"
 
 
 def test_graph_rewrite_suggests_static_shape_elimination():

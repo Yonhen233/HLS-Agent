@@ -1742,6 +1742,7 @@ class PlanExecuteReactRuntime:
                     "top_function": state.task.get("top_function") or state.task.get("name"),
                     "part": state.task.get("target", {}).get("part", "xc7z020clg400-1"),
                     "clock_period": state.task.get("target", {}).get("clock_period", 5),
+                    "candidate_contract": state.task.get("candidate_contract", {}),
                 },
             )
             if result.get("status") == "verified":

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,45 @@ def _candidate_failed(message: str, *, source: str = "verify_candidate", details
     )
 
 
+def validate_candidate_contract(candidate_dir: Path, contract: dict[str, Any] | None) -> dict[str, Any]:
+    contract = contract or {}
+    missing: list[str] = []
+    for raw_path in contract.get("required_files", []):
+        relative = Path(str(raw_path))
+        if relative.parts and relative.parts[0].lower() == "candidate":
+            relative = Path(*relative.parts[1:])
+        if not (candidate_dir / relative).is_file():
+            missing.append(str(raw_path))
+    if missing:
+        return _candidate_failed(
+            "Candidate contract required files are missing.",
+            details={"candidate_dir": str(candidate_dir), "missing_files": missing},
+        )
+
+    signature = str(contract.get("signature") or "").strip()
+    expected_top = str(contract.get("top_function") or "").strip()
+    if signature and not expected_top:
+        match = re.search(r"([A-Za-z_]\w*)\s*\(", signature)
+        expected_top = match.group(1) if match else ""
+    if expected_top:
+        source_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore")
+            for pattern in ("*.h", "*.hpp", "*.cpp", "*.cc")
+            for path in sorted(candidate_dir.glob(pattern))
+            if path.is_file()
+        )
+        if not re.search(rf"\b{re.escape(expected_top)}\s*\(", source_text):
+            return _candidate_failed(
+                "Candidate top-function signature does not match the task contract.",
+                details={
+                    "candidate_dir": str(candidate_dir),
+                    "expected_top_function": expected_top,
+                    "expected_signature": signature or None,
+                },
+            )
+    return {"status": "valid"}
+
+
 def _mock_verify(candidate_dir: Path, report_dir: Path, context: dict[str, Any]) -> dict[str, Any]:
     report_path = report_dir / f"{candidate_dir.name}_csynth.rpt"
     report_path.write_text(MOCK_REPORT, encoding="utf-8")
@@ -69,6 +109,10 @@ def _mock_verify(candidate_dir: Path, report_dir: Path, context: dict[str, Any])
 def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     if not candidate_dir.exists() or not candidate_dir.is_dir():
         return _candidate_failed("Candidate directory does not exist.", details={"candidate_dir": str(candidate_dir)})
+
+    contract_result = validate_candidate_contract(candidate_dir, arguments.get("candidate_contract"))
+    if contract_result.get("status") != "valid":
+        return contract_result
 
     testbench = Path(arguments["testbench_path"]) if arguments.get("testbench_path") else _find_testbench(candidate_dir)
     if testbench is None or not testbench.exists():

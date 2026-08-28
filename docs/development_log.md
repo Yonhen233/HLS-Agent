@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-08-28 10:45:14 +08:00：继续 Bad Case 生产化，补齐 Operator 输入契约、Candidate 文件/签名门禁与动态内存拒绝
+
+### 1. 背景
+六类算子真实矩阵完成后继续执行任务书剩余 Bad Case。审计发现若只在 Benchmark 中构造“预期失败”会形成虚假能力：生产 `operator_schema` 过去只做 objective 归一化，真实验证器也只检查 testbench，无法在进入昂贵 Vivado 前拒绝动态 shape、非法 dtype、缺失 contract 文件或错误 top function。
+
+### 2. 修复
+1. `operator_schema` 新增真实输入契约：`ap_fixed<W,I>` 必须满足 `W>I>0`；shape 必须为非空静态正整数；MatMul 必须满足 `[M,K] x [K,N] -> [M,N]`。动态 shape 返回 `UnsupportedOperatorError`，非法 dtype/不一致 shape 返回 `InvalidTaskError`。
+2. `verify_candidate` 新增 `validate_candidate_contract`，在 Vivado 前检查 `required_files` 与 signature/top-function；缺文件和签名不匹配均返回结构化 `VerificationFailedError`。
+3. `candidate_contract` 通过 Main Runtime、ContextEnvelope 和 VerificationSpecialist 显式传递，Specialist 仍只获得局部契约而非完整 AgentState。
+4. CandidateSandbox 新增 `dynamic_memory` 规则，拒绝 `new/malloc/calloc/realloc/free`，避免不可综合动态内存进入 CSim/CSynth。
+
+### 3. 测试与边界
+新增动态 shape、非法 dtype、MatMul shape mismatch、缺失 contract header、top function mismatch 和动态内存测试。相关 schema/demo/fallback/specialist/sandbox 测试全部通过，最终全量 pytest `421 passed`。当前这些 Bad Case 已接入生产代码，但 20-case 聚合报告、ONNX 正反例与 template-vs-LLM 公平对照仍需继续完成；不能把本阶段描述为整份任务书完成。
+
+---
+
 ## 2026-08-28 09:58:48 +08:00：六类算子真实证据矩阵达到 18/18，完成 LLM pass^3 并修复可恢复错误与 Guard 拒绝的状态语义
 
 ### 1. 本轮目标与真实环境

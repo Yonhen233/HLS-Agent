@@ -82,6 +82,47 @@ def test_verify_candidate_real_mode_requires_testbench(tmp_path, monkeypatch):
     assert "testbench" in result["error"]["message"]
 
 
+def test_verify_candidate_real_mode_rejects_missing_contract_file_before_vivado(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    candidate_dir = tmp_path / "candidate"
+    candidate_dir.mkdir()
+    (candidate_dir / "top.cpp").write_text("void top() {}\n", encoding="utf-8")
+    result = verify_candidate(
+        {
+            "candidate_dir": str(candidate_dir),
+            "report_dir": str(tmp_path / "reports"),
+            "mode": "real",
+            "candidate_contract": {"required_files": ["candidate/top.h", "candidate/top.cpp"]},
+        },
+        {},
+    )
+    assert result["status"] == "failed"
+    assert result["error"]["details"]["missing_files"] == ["candidate/top.h"]
+
+
+def test_verify_candidate_real_mode_rejects_signature_mismatch_before_vivado(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    candidate_dir = tmp_path / "candidate"
+    candidate_dir.mkdir()
+    (candidate_dir / "top.h").write_text("void wrong_top();\n", encoding="utf-8")
+    (candidate_dir / "top.cpp").write_text("void wrong_top() {}\n", encoding="utf-8")
+    (candidate_dir / "testbench.cpp").write_text("int main() { return 0; }\n", encoding="utf-8")
+    result = verify_candidate(
+        {
+            "candidate_dir": str(candidate_dir),
+            "report_dir": str(tmp_path / "reports"),
+            "mode": "real",
+            "candidate_contract": {
+                "required_files": ["candidate/top.h", "candidate/top.cpp", "candidate/testbench.cpp"],
+                "signature": "void expected_top(data_t input[4], data_t output[4])",
+            },
+        },
+        {},
+    )
+    assert result["status"] == "failed"
+    assert result["error"]["details"]["expected_top_function"] == "expected_top"
+
+
 def test_unsupported_report_generated(temp_workspace):
     task = {
         "task_type": "operator",

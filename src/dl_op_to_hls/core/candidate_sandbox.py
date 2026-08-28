@@ -27,6 +27,11 @@ class CandidateSandbox:
         CandidateSandboxRule("file_io_include", r"#\s*include\s*[<\"](cstdlib|stdlib\.h|fstream|filesystem|windows\.h|unistd\.h)[>\"]", "Host file-system/OS includes are not allowed."),
         CandidateSandboxRule("network_include", r"#\s*include\s*[<\"](winsock2\.h|sys/socket\.h|netinet/in\.h)[>\"]", "Network includes are not allowed."),
         CandidateSandboxRule("inline_asm", r"\b(__asm__|asm)\s*(volatile)?\s*\(", "Inline assembly is not allowed."),
+        CandidateSandboxRule(
+            "dynamic_memory",
+            r"\b(?:new\s+[A-Za-z_]|malloc\s*\(|calloc\s*\(|realloc\s*\(|free\s*\()",
+            "Dynamic memory allocation is not synthesizable and is not allowed in HLS candidates.",
+        ),
         CandidateSandboxRule("pragma_message", r"#\s*pragma\s+message\b", "Compiler message pragmas are not allowed in generated candidates."),
     ]
 

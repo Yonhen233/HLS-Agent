@@ -73,6 +73,20 @@ def test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point():
     assert result["violations"][0]["rule"] == "non_byte_aligned_m_axi"
 
 
+def test_candidate_sandbox_rejects_dynamic_memory():
+    payload = {
+        "files": [
+            {
+                "relative_path": "candidate/top.cpp",
+                "content": "void top(int n) { float* buffer = new float[n]; delete[] buffer; }\n",
+            }
+        ]
+    }
+    result = CandidateSandbox().scan_candidate_payload(payload)
+    assert result["status"] == "invalid"
+    assert any(item["rule"] == "dynamic_memory" for item in result["violations"])
+
+
 def test_candidate_sandbox_rejects_large_complete_mutable_activation_partition():
     payload = {
         "files": [

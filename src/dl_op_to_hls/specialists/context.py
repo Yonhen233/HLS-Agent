@@ -173,6 +173,7 @@ class ContextBuilder:
                 "top_function": task.get("top_function") or task.get("name"),
                 "part": target.get("part"),
                 "clock_period": target.get("clock_period"),
+                "candidate_contract": dict(task.get("candidate_contract") or {}),
                 "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
             }
         if specialist_name == "OptimizationSpecialist":
