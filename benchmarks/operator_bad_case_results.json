@@ -1,0 +1,716 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "operator_bad_case_results",
+  "case_count": 20,
+  "passed_count": 20,
+  "pass_rate": 1.0,
+  "false_success_rate": 0.0,
+  "stale_artifact_acceptance": 0,
+  "unsafe_candidate_acceptance": 0,
+  "unsupported_fake_metric_rate": 0,
+  "cases": [
+    {
+      "case_id": "bad_01",
+      "fault": "shape mismatch",
+      "expected_error_type": "InvalidTaskError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "task_validation",
+      "error_type": "InvalidTaskError",
+      "recoverable": false,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "error_type": "InvalidTaskError",
+        "message": "MatMul shapes must satisfy [M,K] x [K,N] -> [M,N].",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "input_shape": [
+            4,
+            8
+          ],
+          "weight_shape": [
+            7,
+            2
+          ],
+          "output_shape": [
+            4,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "bad_02",
+      "fault": "invalid dtype",
+      "expected_error_type": "InvalidTaskError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "task_validation",
+      "error_type": "InvalidTaskError",
+      "recoverable": false,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "error_type": "InvalidTaskError",
+        "message": "dtype must use ap_fixed<total_bits,integer_bits> with total_bits > integer_bits > 0.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "dtype": "float32"
+        }
+      }
+    },
+    {
+      "case_id": "bad_03",
+      "fault": "dynamic array",
+      "expected_error_type": "UnsupportedOperatorError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "task_validation",
+      "error_type": "UnsupportedOperatorError",
+      "recoverable": false,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "error_type": "UnsupportedOperatorError",
+        "message": "input_shape must be a non-empty static integer shape.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "input_shape": [
+            "N"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "bad_04",
+      "fault": "dynamic memory",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "PermissionDeniedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "status": "invalid",
+        "violations": [
+          {
+            "rule": "dynamic_memory",
+            "message": "Dynamic memory allocation is not synthesizable and is not allowed in HLS candidates.",
+            "relative_path": "candidate/top.cpp",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "bad_05",
+      "fault": "file/network/system call",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "PermissionDeniedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "status": "invalid",
+        "violations": [
+          {
+            "rule": "system_call",
+            "message": "system() is not allowed in HLS candidates.",
+            "relative_path": "candidate/top.cpp",
+            "line": 2
+          },
+          {
+            "rule": "network_include",
+            "message": "Network includes are not allowed.",
+            "relative_path": "candidate/top.cpp",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "bad_06",
+      "fault": "non-byte-aligned m_axi",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "PermissionDeniedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "status": "invalid",
+        "violations": [
+          {
+            "rule": "non_byte_aligned_m_axi",
+            "message": "m_axi is invalid for a non-byte-aligned fixed-point port in Vivado HLS 2018.3.",
+            "relative_path": "candidate/top.cpp",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "bad_07",
+      "fault": "dangerous array partition",
+      "expected_error_type": "PermissionDeniedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "PermissionDeniedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "status": "invalid",
+        "violations": [
+          {
+            "rule": "large_mutable_complete_partition",
+            "message": "Complete partition of mutable array x[1024] exceeds the candidate contract limit 256.",
+            "relative_path": "candidate/top.cpp",
+            "line": 3
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "bad_08",
+      "fault": "candidate missing header",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": null
+    },
+    {
+      "case_id": "bad_09",
+      "fault": "candidate signature mismatch",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "candidate_guard",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": null
+    },
+    {
+      "case_id": "bad_10",
+      "fault": "CSim compile failure",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "verification",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\compile_fail.log"
+    },
+    {
+      "case_id": "bad_11",
+      "fault": "CSim missing golden marker",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "verification",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\missing_marker.log"
+    },
+    {
+      "case_id": "bad_12",
+      "fault": "golden numeric mismatch",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "verification",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\numeric_mismatch.log"
+    },
+    {
+      "case_id": "bad_13",
+      "fault": "CSynth exit zero with compiler error",
+      "expected_error_type": "VivadoSynthesisError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "VivadoSynthesisError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\compiler_error.log"
+    },
+    {
+      "case_id": "bad_14",
+      "fault": "CSynth report missing timing",
+      "expected_error_type": "ReportParseError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "ReportParseError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": null
+    },
+    {
+      "case_id": "bad_15",
+      "fault": "stale report from another run",
+      "expected_error_type": "ToolPostconditionError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "ToolPostconditionError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "evidence_class": "unit",
+        "valid": false,
+        "reasons": [
+          "artifact is not inside the current run directory",
+          "missing latency/II/resource/timing report sections"
+        ],
+        "artifact_path": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\old\\stale.rpt",
+        "sha256": "a03f2386ae06b21109577020844df367857b72c2fcce384c1896fed98a89c82b"
+      }
+    },
+    {
+      "case_id": "bad_16",
+      "fault": "Vivado binary missing",
+      "expected_error_type": "VivadoNotFoundError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "VivadoNotFoundError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": null
+    },
+    {
+      "case_id": "bad_17",
+      "fault": "tool timeout",
+      "expected_error_type": "ToolTimeoutError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "ToolTimeoutError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": null
+    },
+    {
+      "case_id": "bad_18",
+      "fault": "timing failure",
+      "expected_error_type": "VivadoSynthesisError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "VivadoSynthesisError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "evaluated": true,
+        "passed": false,
+        "honest_boundary": false,
+        "previous_status": "success",
+        "recommended_status": "partial_success",
+        "stop_reason": "required_evidence_missing",
+        "false_success_prevented": true,
+        "evidence_level": "unverified",
+        "production_ready": false,
+        "mock_results_cannot_support_production_claims": false,
+        "blocking_errors": [],
+        "warnings": [],
+        "requirements": [
+          {
+            "requirement_id": "task.validated",
+            "description": "The normalized task schema was validated.",
+            "required": true,
+            "status": "satisfied",
+            "verifier": "tool_succeeded",
+            "evidence": [
+              {
+                "todo_id": "t1",
+                "tool_name": "task.validate_schema"
+              }
+            ]
+          },
+          {
+            "requirement_id": "implementation.resolved",
+            "description": "A concrete implementation path or an honest unsupported boundary was produced.",
+            "required": true,
+            "status": "satisfied",
+            "verifier": "implementation_or_boundary",
+            "evidence": [
+              "llm_candidate_path",
+              "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe"
+            ]
+          },
+          {
+            "requirement_id": "implementation.verified",
+            "description": "Generated or existing HLS behavior was checked against an executable reference.",
+            "required": true,
+            "status": "missing",
+            "verifier": "functional_verification_or_boundary",
+            "evidence": [
+              {
+                "passed": true
+              }
+            ]
+          },
+          {
+            "requirement_id": "report.produced",
+            "description": "A current-run synthesis report or unsupported report was produced.",
+            "required": true,
+            "status": "satisfied",
+            "verifier": "report_or_boundary",
+            "evidence": [
+              {
+                "status": "success",
+                "timing": {
+                  "met": false
+                }
+              }
+            ]
+          },
+          {
+            "requirement_id": "implementation.timing",
+            "description": "The implementation met the requested clock target, or the task ended at an honest unsupported boundary.",
+            "required": true,
+            "status": "missing",
+            "verifier": "timing_or_boundary",
+            "evidence": [
+              {
+                "met": false
+              }
+            ]
+          },
+          {
+            "requirement_id": "run.summarized",
+            "description": "The run has an evidence-grounded final summary.",
+            "required": true,
+            "status": "missing",
+            "verifier": "artifact_exists",
+            "evidence": []
+          },
+          {
+            "requirement_id": "run.no_unresolved_errors",
+            "description": "No unresolved execution error remains when success is claimed.",
+            "required": true,
+            "status": "satisfied",
+            "verifier": "no_unresolved_errors",
+            "evidence": {
+              "blocking": [],
+              "warnings": []
+            }
+          }
+        ],
+        "missing_required": [
+          "implementation.verified",
+          "implementation.timing",
+          "run.summarized"
+        ]
+      }
+    },
+    {
+      "case_id": "bad_19",
+      "fault": "maximum repair attempts",
+      "expected_error_type": "VerificationFailedError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "VerificationFailedError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 3,
+      "final_outcome": "rejected",
+      "artifact_evidence": [
+        "review",
+        "replan",
+        "terminate"
+      ]
+    },
+    {
+      "case_id": "bad_20",
+      "fault": "unsupported fake metrics",
+      "expected_error_type": "ToolPostconditionError",
+      "required_fields": [
+        "failure_stage",
+        "error_type",
+        "recoverable",
+        "repair_action",
+        "attempt_count",
+        "final_outcome",
+        "artifact_evidence"
+      ],
+      "status": "passed",
+      "passed": true,
+      "failure_stage": "synthesis_or_evidence",
+      "error_type": "ToolPostconditionError",
+      "recoverable": true,
+      "repair_action": "repair_or_reject",
+      "attempt_count": 1,
+      "final_outcome": "rejected",
+      "artifact_evidence": {
+        "receipt_id": "te_2dfb11e1927d5813",
+        "run_id": null,
+        "tool_name": "vivado.parse_report",
+        "args_hash": "fb2fb7e9d67c1f564c7d9bd56f7c313a23f9aa11a594142c09a7390cfb3f5ec9",
+        "output_hash": "e58b2a5b45206104f2508eb71671d7f1a78af8656953ba5739c3eee0d349980a",
+        "status": "success",
+        "valid": false,
+        "checks": [
+          {
+            "name": "source_report_exists",
+            "passed": false,
+            "detail": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\missing.rpt"
+          },
+          {
+            "name": "parsed_report_sections",
+            "passed": true,
+            "detail": [
+              "latency",
+              "resources",
+              "timing"
+            ]
+          },
+          {
+            "name": "current_run_source_report",
+            "passed": true,
+            "detail": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe"
+          }
+        ],
+        "artifacts": [],
+        "mock_evidence": false,
+        "evidence_class": "unit",
+        "evidence_assessment": {
+          "evidence_class": "unit",
+          "valid": false,
+          "reasons": [
+            "primary evidence artifact is missing"
+          ],
+          "artifact_path": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\operator_bad_case_probe\\missing.rpt",
+          "sha256": null
+        },
+        "observed_at": "2026-08-28T05:20:43+00:00"
+      }
+    }
+  ]
+}

@@ -11,6 +11,8 @@ from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
 from .benchmarks.maturity_benchmark import run_maturity_benchmark
 from .benchmarks.semantic_rag_benchmark import run_semantic_rag_benchmark
 from .benchmarks.operator_benchmark import run_operator_benchmark
+from .benchmarks.operator_fair_comparison import analyze_template_vs_llm
+from .benchmarks.operator_onnx_cases import run_operator_onnx_cases
 from .core.design_objectives import list_objective_modes
 from .core.durable_queue import DurableWorker
 from .core.observability import SLOEvaluator
@@ -122,6 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
     semantic_rag_parser.add_argument("--output", default="runs/benchmarks/semantic_rag_real_probe.json")
     operator_benchmark_parser = subparsers.add_parser("operator-benchmark")
     operator_benchmark_parser.add_argument("--output", default="runs/benchmarks/operator_release.json")
+    operator_onnx_parser = subparsers.add_parser("operator-onnx-benchmark")
+    operator_onnx_parser.add_argument("--output", default="benchmarks/operator_onnx_graph_results.json")
+    operator_fair_parser = subparsers.add_parser("operator-fair-comparison")
+    operator_fair_parser.add_argument("--manifest", default="benchmarks/operator_template_vs_llm_suite.json")
+    operator_fair_parser.add_argument("--output", default="benchmarks/operator_template_vs_llm_results.json")
 
     rag_calibrate_parser = subparsers.add_parser("rag-calibrate")
     rag_calibrate_parser.add_argument("--dataset", default="benchmarks/hls_reranker_hard_negatives.json")
@@ -452,6 +459,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "operator-benchmark":
         payload = run_operator_benchmark(Path.cwd(), args.output)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "operator-onnx-benchmark":
+        payload = run_operator_onnx_cases(Path.cwd(), args.output)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "operator-fair-comparison":
+        payload = analyze_template_vs_llm(Path.cwd(), args.manifest, args.output)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
     if args.command == "rag-calibrate":

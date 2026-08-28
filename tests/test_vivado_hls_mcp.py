@@ -287,3 +287,12 @@ def test_vivado_parse_log(sample_vivado_log_path):
     adapter = VivadoHLSAdapter(mock_mode=True)
     result = adapter.parse_log({"log_path": str(sample_vivado_log_path)})
     assert result["warnings"]
+
+
+def test_vivado_detects_host_memory_exhaustion_in_nested_autopilot_log(tmp_path):
+    nested = tmp_path / "project" / "solution1" / ".autopilot" / "db"
+    nested.mkdir(parents=True)
+    log = nested / "autopilot.flow.log"
+    log.write_text("llvm-ld: error: Cannot read archive: Not enough space\n", encoding="utf-8")
+
+    assert VivadoHLSAdapter._find_host_resource_error(tmp_path) == str(log)

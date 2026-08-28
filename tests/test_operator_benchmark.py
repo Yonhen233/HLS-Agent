@@ -1,6 +1,10 @@
 import json
+from pathlib import Path
 
 from dl_op_to_hls.benchmarks.operator_benchmark import audit_llm_pass3, run_operator_benchmark, wilson_rate
+from dl_op_to_hls.benchmarks.operator_bad_cases import run_operator_bad_cases
+from dl_op_to_hls.benchmarks.operator_onnx_cases import run_operator_onnx_cases
+from dl_op_to_hls.benchmarks.operator_fair_comparison import analyze_template_vs_llm
 from dl_op_to_hls.benchmarks.operator_support import build_support_matrix
 from dl_op_to_hls.benchmarks.operator_suite_specs import all_suite_payloads
 
@@ -18,6 +22,81 @@ def test_operator_suite_manifests_have_required_sample_sizes():
     assert len(suites["operator_real_csynth_suite.json"]["cases"]) == 10
     assert len(suites["operator_llm_candidate_suite.json"]["cases"]) == 15
     assert len(suites["operator_bad_case_suite.json"]["cases"]) == 20
+
+
+def test_operator_bad_case_suite_executes_all_production_guards(tmp_path):
+    report = run_operator_bad_cases(tmp_path, "benchmarks/operator_bad_case_results.json")
+    assert report["case_count"] == 20
+    assert report["passed_count"] == 20
+    assert report["false_success_rate"] == 0.0
+    assert report["stale_artifact_acceptance"] == 0
+    assert report["unsafe_candidate_acceptance"] == 0
+    assert report["unsupported_fake_metric_rate"] == 0
+
+
+def test_operator_onnx_suite_executes_real_positive_and_negative_graphs(tmp_path):
+    source = Path(__file__).resolve().parents[1] / "benchmarks" / "operator_onnx_graph_suite.json"
+    benchmark_dir = tmp_path / "benchmarks"
+    benchmark_dir.mkdir()
+    (benchmark_dir / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    report = run_operator_onnx_cases(tmp_path, "benchmarks/operator_onnx_graph_results.json")
+
+    assert report["case_count"] == 26
+    assert report["passed_count"] == 26
+    assert report["positive_acceptance"] == 1.0
+    assert report["negative_rejection"] == 1.0
+
+
+def test_template_vs_llm_comparison_requires_same_contract_and_real_golden_evidence(tmp_path):
+    runs = tmp_path / "runs"
+    contract_task = {
+        "op_type": "Dense", "input_shape": [16], "output_shape": [32], "dtype": "ap_fixed<16,6>",
+        "target": {"part": "xc7z020clg400-1", "clock_period": 8},
+        "optimization": {"objective": "latency", "reuse_factor": 1, "pipeline_ii": 1},
+    }
+    for run_id, path, latency in (("template_run", "fallback_template_path", 40), ("llm_run", "llm_candidate_path", 32)):
+        run = runs / run_id
+        run.mkdir(parents=True)
+        (run / "state.json").write_text(
+            json.dumps(
+                {
+                    "status": "success", "selected_path": path, "task": contract_task,
+                        "verification": {"passed": True},
+                        "report": {
+                            "status": "success",
+                            "latency": {"max_cycles": latency}, "interval": {"max_ii": 1},
+                        "resources": {"dsp": 2, "bram": 0, "lut": 100, "ff": 80},
+                        "timing": {"estimated_ns": 7.0, "met": True},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (run / "completion_gate.json").write_text(json.dumps({"production_ready": True}), encoding="utf-8")
+        (run / "tool_evidence.json").write_text(
+            json.dumps(
+                {"receipts": [{"valid": True, "mock_evidence": False, "evidence_class": "real_csynth", "checks": [{"name": "golden_csim_passed", "passed": True}]}]}
+            ),
+            encoding="utf-8",
+        )
+        testbench_dir = run / ("candidate" if path == "llm_candidate_path" else "generated")
+        testbench_dir.mkdir()
+        (testbench_dir / "testbench.cpp").write_text(
+            "(i % 5) - 2; o % 2; ((o + i) % 3) - 1; 0.001;",
+            encoding="utf-8",
+        )
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps({"cases": [{"case_id": "dense", "operator": "Dense", "objective": "latency", "template_run_id": "template_run", "llm_run_id": "llm_run"}]}),
+        encoding="utf-8",
+    )
+
+    report = analyze_template_vs_llm(tmp_path, manifest, "result.json")
+
+    assert report["complete"] is True
+    assert report["results"][0]["valid_fair_pair"] is True
+    assert report["results"][0]["llm_minus_template"]["latency_cycles"] == -8
 
 
 def test_operator_benchmark_writes_machine_readable_release(tmp_path):

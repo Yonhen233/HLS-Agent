@@ -1,0 +1,16 @@
+{
+  "task_type": "operator", "op_type": "Dense", "name": "dense_fair_resource_llm", "top_function": "dense_fair_resource_llm",
+  "input_shape": [16], "output_shape": [32], "dtype": "ap_fixed<16,6>",
+  "target": {"backend": "VivadoHLS", "part": "xc7z020clg400-1", "clock_period": 12},
+  "optimization": {"objective": "resource", "reuse_factor": 8, "pipeline_ii": 2},
+  "llm_candidate": {"required": true, "max_repair_attempts": 6, "verification_required": true},
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "dense_fair_resource_llm",
+    "required_files": ["candidate/dense_fair_resource_llm.h", "candidate/dense_fair_resource_llm.cpp", "candidate/testbench.cpp"],
+    "signature": "void dense_fair_resource_llm(data_t input[16], data_t weights[16][32], data_t bias[32], data_t output[32])",
+    "dtype": "ap_fixed<16,6>",
+    "operation": "For each output o, compute output[o] = bias[o] + sum_i input[i] * weights[i][o].",
+    "testbench": {"input_rule": "Set input[i]=((i%5)-2), bias[o]=(o%2), weights[o][i]=(((o+i)%3)-1).", "golden_rule": "Accumulate in data_t order and compare every output with tolerance 0.001.", "success_marker": "GOLDEN_CHECK_PASSED", "failure_marker": "GOLDEN_CHECK_FAILED"}
+  }
+}

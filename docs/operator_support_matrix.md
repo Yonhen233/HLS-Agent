@@ -4,8 +4,8 @@
 
 | Operator | LLM | Template | Functional cases | Real CSim | Real CSynth | Mock | Status |
 |---|---:|---:|---:|---:|---:|---:|---|
-| Dense | yes | yes | 24 | 3 | 3 | 3 | functional_reference_ready |
-| MatMul | yes | yes | 24 | 3 | 3 | 0 | functional_reference_ready |
+| Dense | yes | yes | 24 | 6 | 9 | 3 | functional_reference_ready |
+| MatMul | yes | yes | 24 | 5 | 7 | 0 | functional_reference_ready |
 | ReLU | yes | yes | 18 | 3 | 3 | 0 | functional_reference_ready |
 | Add | yes | yes | 18 | 3 | 3 | 0 | functional_reference_ready |
 | ScaleShift | yes | no | 18 | 3 | 3 | 0 | functional_reference_ready |

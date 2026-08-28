@@ -51,6 +51,7 @@ def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
                 "|Total            |       47|   64|    5999|  17899|",
                 "|Available        |      280|  220|  106400|  53200|",
                 "|Utilization (%)  |       16|   29|       5|     33|",
+                "Timing (ns): Target = 10.00, Estimated = 8.00",
             ]
         ),
         encoding="utf-8",
@@ -78,6 +79,7 @@ def test_report_parser_marks_resource_infeasible(tmp_path):
                 "|Total            |        0|      0|   38783|  68311|",
                 "|Available        |      280|    220|  106400|  53200|",
                 "|Utilization (%)  |        0|      0|      36|    128|",
+                "Timing (ns): Target = 10.00, Estimated = 8.00",
             ]
         ),
         encoding="utf-8",
@@ -89,3 +91,20 @@ def test_report_parser_marks_resource_infeasible(tmp_path):
     assert result["resource_available"]["lut"] == 53200
     assert result["resource_utilization_percent"]["lut"] == 128
     assert result["resource_feasible"] is False
+
+
+def test_report_parser_rejects_missing_timing_section(tmp_path):
+    report = tmp_path / "missing_timing_csynth.rpt"
+    report.write_text(
+        "\n".join(
+            [
+                "| 10 | 10 | 1 | 1 | none |",
+                "|Total | 0 | 1 | 10 | 20 |",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = parse_csynth_report_file(str(report))
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] == "ReportParseError"
+    assert "timing" in result["error"]["details"]["missing_sections"]

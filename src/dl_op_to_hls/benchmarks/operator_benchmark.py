@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from .operator_case_generator import evaluate_case, suite_payload
+from .operator_bad_cases import run_operator_bad_cases
+from .operator_onnx_cases import run_operator_onnx_cases
+from .operator_fair_comparison import analyze_template_vs_llm
 from .operator_support import build_support_matrix, render_support_matrix_markdown
 from .operator_suite_specs import all_suite_payloads
 
@@ -174,6 +177,13 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
         by_operator[operator]["evidence_class"] = "unit"
     matrix = build_support_matrix(suite["cases"], root / "runs")
     pass3 = audit_llm_pass3(root / "runs")
+    bad_cases = run_operator_bad_cases(root, root / "benchmarks" / "operator_bad_case_results.json")
+    onnx_cases = run_operator_onnx_cases(root, root / "benchmarks" / "operator_onnx_graph_results.json")
+    fair_comparison = analyze_template_vs_llm(
+        root,
+        root / "benchmarks" / "operator_template_vs_llm_suite.json",
+        root / "benchmarks" / "operator_template_vs_llm_results.json",
+    )
     evidence_counts = Counter()
     for operator in matrix["operators"]:
         evidence_counts["real_csim"] += operator["real_csim_count"]
@@ -194,6 +204,9 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
         "evidence_counts": dict(evidence_counts),
         "token_usage": analyze_token_usage(root / "runs"),
         "llm_pass3": pass3,
+        "bad_cases": bad_cases,
+        "onnx_cases": onnx_cases,
+        "template_vs_llm": fair_comparison,
         "release_gates": {
             "functional_cases_at_least_90": len(results) >= 90,
             "six_operator_classes": len(matrix["operators"]) >= 6,
@@ -203,9 +216,15 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
             "llm_pass3_success_rate_at_least_80_percent": bool(
                 pass3["complete"] and (pass3["rate"].get("rate") or 0.0) >= 0.8
             ),
-            "false_success_rate_zero": None,
-            "stale_artifact_acceptance_zero": None,
-            "unsafe_candidate_acceptance_zero": None,
+            "false_success_rate_zero": bad_cases["false_success_rate"] == 0.0,
+            "stale_artifact_acceptance_zero": bad_cases["stale_artifact_acceptance"] == 0,
+            "unsafe_candidate_acceptance_zero": bad_cases["unsafe_candidate_acceptance"] == 0,
+            "unsupported_fake_metric_rate_zero": bad_cases["unsupported_fake_metric_rate"] == 0,
+            "onnx_positive_acceptance_100_percent": onnx_cases["positive_acceptance"] == 1.0,
+            "onnx_negative_rejection_100_percent": onnx_cases["negative_rejection"] == 1.0,
+            "template_vs_llm_four_valid_pairs": bool(
+                fair_comparison["complete"] and fair_comparison["valid_pair_count"] == 4
+            ),
         },
     }
     report["interview_ready"] = all(value is True for value in report["release_gates"].values())
@@ -303,6 +322,9 @@ def _render_release_markdown(report: dict[str, Any]) -> str:
         f"- Historical total tokens: `{token['total_tokens']}`",
         f"- Token anomalies: `{token['anomaly_count']}`",
         f"- LLM pass^3: `{report['llm_pass3']['rate']['numerator']}/{report['llm_pass3']['rate']['denominator']}`",
+        f"- ONNX graph contracts: `{report['onnx_cases']['passed_count']}/{report['onnx_cases']['case_count']}`",
+        f"- Template vs LLM valid pairs: `{report['template_vs_llm']['valid_pair_count']}/{report['template_vs_llm']['case_count']}`",
+        f"- Template vs LLM both production-ready: `{report['template_vs_llm']['both_production_ready_count']}/{report['template_vs_llm']['case_count']}`",
         "",
         "## Release Gates",
         "",

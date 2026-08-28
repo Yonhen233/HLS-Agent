@@ -324,6 +324,30 @@ class ToolRegistry:
                 if hooks:
                     hooks.emit("ToolSchemaRejected", {"run_id": run_id, "tool": name, "stage": "output", "message": str(exc), "duration_ms": duration_ms})
                 return {"status": "error", "error": error}
+            except TimeoutError as exc:
+                duration_ms = int((time.time() - started) * 1000)
+                error = build_error(
+                    "ToolTimeoutError",
+                    str(exc),
+                    recoverable=True,
+                    source=name,
+                    suggested_action="Retry with a bounded larger timeout or simplify the tool workload.",
+                    details={"timeout_seconds": tool.timeout_seconds, "attempt": attempt},
+                ).to_dict()
+                if hooks:
+                    hooks.emit(
+                        "ToolFailed",
+                        {
+                            "run_id": run_id,
+                            "tool": name,
+                            "error_type": "ToolTimeoutError",
+                            "message": str(exc),
+                            "recoverable": True,
+                            "duration_ms": duration_ms,
+                            "attempt": attempt,
+                        },
+                    )
+                return {"status": "timeout", "error": error}
             except Exception as exc:  # pragma: no cover - defensive branch
                 duration_ms = int((time.time() - started) * 1000)
                 if attempt < attempts:

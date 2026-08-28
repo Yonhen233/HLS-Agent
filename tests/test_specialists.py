@@ -341,6 +341,7 @@ def test_verification_specialist_mock_success(temp_workspace):
     result = specialist.handle(envelope, agent.registry, agent.permission_gate)
     assert result.status == "success"
     assert result.memory_candidates
+    assert result.verification["passed"] is True
 
 
 def test_verification_specialist_propagates_target_clock_and_part(temp_workspace):
@@ -353,7 +354,12 @@ def test_verification_specialist_propagates_target_clock_and_part(temp_workspace
     class RecordingRegistry:
         def call(self, name, arguments, tool_context):
             calls.append((name, arguments))
-            return {"status": "verified", "csim": {"status": "passed"}}
+            return {
+                "status": "verified",
+                "csim": {"status": "passed", "log_path": "csim.log"},
+                "csynth": {"status": "passed", "report_path": "report.rpt"},
+                "report": {"status": "success", "latency": {"max_cycles": 10}},
+            }
 
     specialist = VerificationSpecialist(context)
     envelope = ContextBuilder().build_for_specialist(
@@ -366,6 +372,8 @@ def test_verification_specialist_propagates_target_clock_and_part(temp_workspace
     assert result.status == "success"
     assert calls[0][1]["clock_period"] == 10
     assert calls[0][1]["part"] == state.task["target"]["part"]
+    assert result.metrics["status"] == "success"
+    assert result.verification["passed"] is True
 
 
 def test_memory_specialist_retrieval_does_not_promote(temp_workspace):

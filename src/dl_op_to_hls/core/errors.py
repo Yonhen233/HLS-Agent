@@ -12,6 +12,7 @@ SUPPORTED_ERROR_TYPES = {
     "HLS4MLConversionError",
     "VivadoNotFoundError",
     "VivadoSynthesisError",
+    "HostResourceExhaustedError",
     "ReportMissingError",
     "ReportParseError",
     "PermissionDeniedError",

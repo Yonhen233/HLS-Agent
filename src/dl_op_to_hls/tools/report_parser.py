@@ -124,6 +124,23 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
         for key in resources:
             if resources[key] is None:
                 resources[key] = table_resources[key]
+    missing_sections: list[str] = []
+    if any(value is None for value in (latency_min, latency_max, ii_min, ii_max)):
+        missing_sections.append("latency_or_interval")
+    if any(value is None for value in resources.values()):
+        missing_sections.append("resources")
+    if target_ns is None or estimated_ns is None:
+        missing_sections.append("timing")
+    if missing_sections:
+        return error_result(
+            build_error(
+                "ReportParseError",
+                "Vivado HLS report is missing required synthesis sections.",
+                recoverable=True,
+                source="vivado.parse_report",
+                details={"report_path": str(path), "missing_sections": missing_sections},
+            )
+        )
     available = _extract_resources_from_row(text, "Available")
     utilization = _extract_resources_from_row(text, "Utilization (%)")
     resource_feasible = (

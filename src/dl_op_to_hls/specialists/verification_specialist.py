@@ -53,7 +53,21 @@ class VerificationSpecialist(BaseSpecialist):
         )
         status = "success" if result.get("status") == "verified" else "failed"
         errors = [result["error"]] if result.get("error") else []
-        metrics = result.get("csim") if result.get("csim") else None
+        metrics = result.get("report") if result.get("report") else None
+        verification = None
+        artifacts = []
+        if status == "success":
+            verification = {
+                "status": "verified",
+                "passed": True,
+                "mode": "golden_testbench",
+                "csim_executed": True,
+                "log_path": (result.get("csim") or {}).get("log_path"),
+                "comparison": None,
+            }
+            report_path = (result.get("csynth") or {}).get("report_path")
+            if report_path:
+                artifacts.append({"type": "vivado_report", "path": report_path})
         memory_candidates = []
         if status == "success":
             memory_candidates.append(
@@ -71,7 +85,9 @@ class VerificationSpecialist(BaseSpecialist):
             summary="Candidate passed configured verification." if status == "success" else "Candidate verification failed.",
             observations=[*observations, {"tool": "verify_candidate.run", "result": result}],
             metrics=metrics,
+            artifacts=artifacts,
             errors=errors,
             memory_candidates=memory_candidates,
+            verification=verification,
         )
         return self._finalize_result(envelope, specialist_result)

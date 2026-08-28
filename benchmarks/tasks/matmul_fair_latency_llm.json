@@ -1,0 +1,16 @@
+{
+  "task_type": "operator", "op_type": "MatMul", "name": "matmul_fair_latency_llm", "top_function": "matmul_fair_latency_llm",
+  "input_shape": [16, 16], "weight_shape": [16, 16], "output_shape": [16, 16], "dtype": "ap_fixed<12,4>",
+  "target": {"backend": "VivadoHLS", "part": "xc7z020clg400-1", "clock_period": 12},
+  "optimization": {"objective": "latency", "reuse_factor": 1, "pipeline_ii": 1},
+  "llm_candidate": {"required": true, "max_repair_attempts": 6, "verification_required": true},
+  "max_repair_attempts": 6,
+  "candidate_contract": {
+    "top_function": "matmul_fair_latency_llm",
+    "required_files": ["candidate/matmul_fair_latency_llm.h", "candidate/matmul_fair_latency_llm.cpp", "candidate/testbench.cpp"],
+    "signature": "void matmul_fair_latency_llm(data_t lhs[16][16], data_t rhs[16][16], data_t output[16][16])",
+    "dtype": "ap_fixed<12,4>",
+    "operation": "For each row r and column c, compute output[r][c] = sum_k lhs[r][k] * rhs[k][c].",
+    "testbench": {"input_rule": "Set lhs[r][k]=(((r+k)%4)-1) and rhs[k][c]=(((k+c)%3)-1).", "golden_rule": "Accumulate in data_t order and compare every output with tolerance 0.001.", "success_marker": "GOLDEN_CHECK_PASSED", "failure_marker": "GOLDEN_CHECK_FAILED"}
+  }
+}

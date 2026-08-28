@@ -1,0 +1,443 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-28T05:20:43+00:00",
+  "selection_policy": "predeclared_exact_run_ids_no_best_of",
+  "fixed_constraints": [
+    "shape",
+    "dtype",
+    "part",
+    "clock",
+    "input_data",
+    "golden_reference",
+    "vivado_version"
+  ],
+  "case_count": 4,
+  "valid_pair_count": 4,
+  "both_production_ready_count": 2,
+  "complete": true,
+  "llm_token_usage": {
+    "calls": 49,
+    "input_tokens": 138036,
+    "output_tokens": 94413,
+    "total_tokens": 232449,
+    "anomaly_calls": 18
+  },
+  "results": [
+    {
+      "case_id": "dense_latency_fair",
+      "operator": "Dense",
+      "objective": "latency",
+      "valid_fair_pair": true,
+      "both_production_ready": true,
+      "same_fixed_contract": true,
+      "template": {
+        "run_id": "dense_fair_latency_template_535d0152",
+        "exists": true,
+        "path": "fallback_template_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "Dense",
+          "input_shape": [
+            16
+          ],
+          "weight_shape": null,
+          "output_shape": [
+            32
+          ],
+          "dtype": "ap_fixed<16,6>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "latency",
+          "reuse_factor": 1,
+          "pipeline_ii": 1
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\dense_fair_latency_template_535d0152\\generated\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 259,
+        "ii": 259,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 431,
+        "ff": 204,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 0,
+        "llm_calls": 1,
+        "input_tokens": 2147,
+        "output_tokens": 423,
+        "total_tokens": 2570,
+        "token_anomaly_calls": 0
+      },
+      "llm": {
+        "run_id": "dense_fair_latency_llm_5cfe55ba_02",
+        "exists": true,
+        "path": "llm_candidate_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "Dense",
+          "input_shape": [
+            16
+          ],
+          "weight_shape": null,
+          "output_shape": [
+            32
+          ],
+          "dtype": "ap_fixed<16,6>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "latency",
+          "reuse_factor": 1,
+          "pipeline_ii": 1
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\dense_fair_latency_llm_5cfe55ba_02\\candidate\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 289,
+        "ii": 289,
+        "dsp": 32,
+        "bram": 0,
+        "lut": 1590,
+        "ff": 1601,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 1,
+        "llm_calls": 6,
+        "input_tokens": 12501,
+        "output_tokens": 10565,
+        "total_tokens": 23066,
+        "token_anomaly_calls": 2
+      },
+      "llm_minus_template": {
+        "latency_cycles": 30,
+        "ii": 30,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 1159,
+        "ff": 1397,
+        "estimated_ns": 0.0
+      }
+    },
+    {
+      "case_id": "dense_resource_fair",
+      "operator": "Dense",
+      "objective": "resource",
+      "valid_fair_pair": true,
+      "both_production_ready": true,
+      "same_fixed_contract": true,
+      "template": {
+        "run_id": "dense_fair_resource_template_c8f65e7d",
+        "exists": true,
+        "path": "fallback_template_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "Dense",
+          "input_shape": [
+            16
+          ],
+          "weight_shape": null,
+          "output_shape": [
+            32
+          ],
+          "dtype": "ap_fixed<16,6>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "resource",
+          "reuse_factor": 8,
+          "pipeline_ii": 2
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\dense_fair_resource_template_c8f65e7d\\generated\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 259,
+        "ii": 259,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 431,
+        "ff": 204,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 0,
+        "llm_calls": 1,
+        "input_tokens": 2147,
+        "output_tokens": 667,
+        "total_tokens": 2814,
+        "token_anomaly_calls": 0
+      },
+      "llm": {
+        "run_id": "dense_fair_resource_llm_04b1bac7",
+        "exists": true,
+        "path": "llm_candidate_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "Dense",
+          "input_shape": [
+            16
+          ],
+          "weight_shape": null,
+          "output_shape": [
+            32
+          ],
+          "dtype": "ap_fixed<16,6>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "resource",
+          "reuse_factor": 8,
+          "pipeline_ii": 2
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\dense_fair_resource_llm_04b1bac7\\candidate\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 1121,
+        "ii": 1121,
+        "dsp": 1,
+        "bram": 0,
+        "lut": 359,
+        "ff": 58,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 0,
+        "llm_calls": 3,
+        "input_tokens": 7914,
+        "output_tokens": 3938,
+        "total_tokens": 11852,
+        "token_anomaly_calls": 0
+      },
+      "llm_minus_template": {
+        "latency_cycles": 862,
+        "ii": 862,
+        "dsp": -15,
+        "bram": 0,
+        "lut": -72,
+        "ff": -146,
+        "estimated_ns": 0.0
+      }
+    },
+    {
+      "case_id": "matmul_latency_fair",
+      "operator": "MatMul",
+      "objective": "latency",
+      "valid_fair_pair": true,
+      "both_production_ready": false,
+      "same_fixed_contract": true,
+      "template": {
+        "run_id": "matmul_fair_latency_template_15092d11",
+        "exists": true,
+        "path": "fallback_template_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "MatMul",
+          "input_shape": [
+            16,
+            16
+          ],
+          "weight_shape": [
+            16,
+            16
+          ],
+          "output_shape": [
+            16,
+            16
+          ],
+          "dtype": "ap_fixed<12,4>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "latency",
+          "reuse_factor": 1,
+          "pipeline_ii": 1
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\matmul_fair_latency_template_15092d11\\generated\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 2051,
+        "ii": 2051,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 624,
+        "ff": 209,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 0,
+        "llm_calls": 1,
+        "input_tokens": 2125,
+        "output_tokens": 305,
+        "total_tokens": 2430,
+        "token_anomaly_calls": 0
+      },
+      "llm": {
+        "run_id": "matmul_fair_latency_llm_04adc507",
+        "exists": true,
+        "path": "unsupported_path",
+        "status": "partial_success",
+        "fixed_contract": {
+          "op_type": "MatMul",
+          "input_shape": [
+            16,
+            16
+          ],
+          "weight_shape": [
+            16,
+            16
+          ],
+          "output_shape": [
+            16,
+            16
+          ],
+          "dtype": "ap_fixed<12,4>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "latency",
+          "reuse_factor": 1,
+          "pipeline_ii": 1
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\matmul_fair_latency_llm_04adc507\\candidate\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": false,
+        "latency_cycles": 779,
+        "ii": 779,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 2612,
+        "ff": 4633,
+        "estimated_ns": 12.42,
+        "timing_met": false,
+        "repair_count": 5,
+        "llm_calls": 22,
+        "input_tokens": 63410,
+        "output_tokens": 45359,
+        "total_tokens": 108769,
+        "token_anomaly_calls": 10
+      },
+      "llm_minus_template": {
+        "latency_cycles": -1272,
+        "ii": -1272,
+        "dsp": 0,
+        "bram": 0,
+        "lut": 1988,
+        "ff": 4424,
+        "estimated_ns": 2.7859999999999996
+      }
+    },
+    {
+      "case_id": "matmul_resource_fair",
+      "operator": "MatMul",
+      "objective": "resource",
+      "valid_fair_pair": true,
+      "both_production_ready": false,
+      "same_fixed_contract": true,
+      "template": {
+        "run_id": "matmul_fair_resource_template_74f306e0",
+        "exists": true,
+        "path": "fallback_template_path",
+        "status": "success",
+        "fixed_contract": {
+          "op_type": "MatMul",
+          "input_shape": [
+            16,
+            16
+          ],
+          "weight_shape": [
+            16,
+            16
+          ],
+          "output_shape": [
+            16,
+            16
+          ],
+          "dtype": "ap_fixed<12,4>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "resource",
+          "reuse_factor": 8,
+          "pipeline_ii": 2
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\matmul_fair_resource_template_74f306e0\\generated\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": true,
+        "latency_cycles": 2051,
+        "ii": 2051,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 624,
+        "ff": 209,
+        "estimated_ns": 9.634,
+        "timing_met": true,
+        "repair_count": 0,
+        "llm_calls": 1,
+        "input_tokens": 2059,
+        "output_tokens": 485,
+        "total_tokens": 2544,
+        "token_anomaly_calls": 0
+      },
+      "llm": {
+        "run_id": "matmul_fair_resource_llm_a4daba6f",
+        "exists": true,
+        "path": "llm_candidate_path",
+        "status": "partial_success",
+        "fixed_contract": {
+          "op_type": "MatMul",
+          "input_shape": [
+            16,
+            16
+          ],
+          "weight_shape": [
+            16,
+            16
+          ],
+          "output_shape": [
+            16,
+            16
+          ],
+          "dtype": "ap_fixed<12,4>",
+          "part": "xc7z020clg400-1",
+          "clock_period": 12,
+          "objective": "resource",
+          "reuse_factor": 8,
+          "pipeline_ii": 2
+        },
+        "canonical_stimulus_matches": true,
+        "testbench_path": "runs\\matmul_fair_resource_llm_a4daba6f\\candidate\\testbench.cpp",
+        "functional_verified": true,
+        "real_report_produced": true,
+        "production_ready": false,
+        "latency_cycles": 777,
+        "ii": 777,
+        "dsp": 16,
+        "bram": 0,
+        "lut": 1890,
+        "ff": 3796,
+        "estimated_ns": 12.42,
+        "timing_met": false,
+        "repair_count": 6,
+        "llm_calls": 18,
+        "input_tokens": 54211,
+        "output_tokens": 34551,
+        "total_tokens": 88762,
+        "token_anomaly_calls": 6
+      },
+      "llm_minus_template": {
+        "latency_cycles": -1274,
+        "ii": -1274,
+        "dsp": 0,
+        "bram": 0,
+        "lut": 1266,
+        "ff": 3587,
+        "estimated_ns": 2.7859999999999996
+      }
+    }
+  ]
+}

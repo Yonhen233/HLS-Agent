@@ -1,0 +1,492 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-28T05:20:43+00:00",
+  "adapter_role": "static_onnx_contract_extraction_only_not_hls_generation",
+  "generation_path": "llm_candidate",
+  "case_count": 26,
+  "passed_count": 26,
+  "pass_rate": 1.0,
+  "positive_acceptance": 1.0,
+  "negative_rejection": 1.0,
+  "results": [
+    {
+      "case_id": "onnx_pos_01",
+      "pattern": "Gemm->Dense",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Gemm -> Dense",
+      "reason": null,
+      "rewrites": [
+        "Gemm -> Dense layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Dense"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "gemm",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_01.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_02",
+      "pattern": "MatMul+static bias Add->Dense",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Add static bias",
+      "reason": null,
+      "rewrites": [
+        "Add static bias -> folded into previous Dense/Conv2D",
+        "MatMul static weight -> Dense layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Dense"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "matmul",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_02.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_03",
+      "pattern": "Gemm+ReLU",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Gemm -> Dense",
+      "reason": null,
+      "rewrites": [
+        "Gemm -> Dense layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Dense",
+        "Activation"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "relu",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_03.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_04",
+      "pattern": "Conv+ReLU",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "NCHW Conv",
+      "reason": null,
+      "rewrites": [
+        "NCHW Conv -> channels_last Conv2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D",
+        "Activation"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "relu",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_04.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_05",
+      "pattern": "Conv+BatchNorm fold",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "BatchNormalization",
+      "reason": null,
+      "rewrites": [
+        "BatchNormalization -> folded into previous Dense/Conv2D",
+        "NCHW Conv -> channels_last Conv2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "conv",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_05.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_06",
+      "pattern": "Conv+MaxPool",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "MaxPool",
+      "reason": null,
+      "rewrites": [
+        "NCHW Conv -> channels_last Conv2D layer-list",
+        "NCHW MaxPool -> channels_last MaxPooling2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D",
+        "MaxPooling2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "pool",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_06.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_07",
+      "pattern": "Conv+AveragePool",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "AveragePool",
+      "reason": null,
+      "rewrites": [
+        "NCHW AveragePool -> channels_last AveragePooling2D layer-list",
+        "NCHW Conv -> channels_last Conv2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D",
+        "AveragePooling2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "pool",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_07.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_08",
+      "pattern": "Conv+GlobalAveragePool",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "GlobalAveragePool",
+      "reason": null,
+      "rewrites": [
+        "NCHW Conv -> channels_last Conv2D layer-list",
+        "NCHW GlobalAveragePool -> channels_last GlobalAveragePooling2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D",
+        "GlobalAveragePooling2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "gap",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_08.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_09",
+      "pattern": "Conv+ReduceMean global pool",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "ReduceMean spatial axes",
+      "reason": null,
+      "rewrites": [
+        "NCHW Conv -> channels_last Conv2D layer-list",
+        "NCHW ReduceMean spatial axes -> channels_last GlobalAveragePooling2D layer-list"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D",
+        "GlobalAveragePooling2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "reduce",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_09.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_10",
+      "pattern": "static Flatten",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Flatten -> static Reshape",
+      "reason": null,
+      "rewrites": [
+        "Flatten -> static Reshape"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Reshape"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "flatten",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_10.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_11",
+      "pattern": "static Reshape",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Reshape -> static Reshape",
+      "reason": null,
+      "rewrites": [
+        "Reshape -> static Reshape"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Reshape"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "reshape",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_11.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_12",
+      "pattern": "Q/DQ metadata",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "QuantizeLinear",
+      "reason": null,
+      "rewrites": [
+        "DequantizeLinear -> data no-op/precision metadata",
+        "Gemm -> Dense layer-list",
+        "QuantizeLinear -> data no-op/precision metadata"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Dense"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "gemm",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_12.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_13",
+      "pattern": "static Shape/Gather/Concat elimination",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Gather -> static shape helper eliminated",
+      "reason": null,
+      "rewrites": [
+        "Concat -> static shape helper eliminated",
+        "Constant -> static shape helper eliminated",
+        "Gather -> static shape helper eliminated",
+        "Reshape -> static Reshape",
+        "Shape -> static shape helper eliminated"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Reshape"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "reshape",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_13.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_pos_14",
+      "pattern": "restricted NCHW->NHWC",
+      "expected": "accepted",
+      "passed": true,
+      "accepted": true,
+      "expected_evidence": "Transpose -> layout metadata only",
+      "reason": null,
+      "rewrites": [
+        "NCHW Conv -> channels_last Conv2D layer-list",
+        "Transpose -> layout metadata only"
+      ],
+      "layer_classes": [
+        "InputLayer",
+        "Conv2D"
+      ],
+      "input_layer": "model_input",
+      "output_layer": "conv",
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_pos_14.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_01",
+      "pattern": "residual Add branch",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "Branched/residual",
+      "reason": "MatMul node branch_b consumes input from model_input, but the current sequential tail is branch_a. Branched/residual graphs need a real graph compiler.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_01.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_02",
+      "pattern": "grouped Conv",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "group=2",
+      "reason": "Conv node conv uses group=2; grouped conv is not supported.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_02.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_03",
+      "pattern": "depthwise Conv",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "group=2",
+      "reason": "Conv node conv uses group=2; grouped conv is not supported.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_03.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_04",
+      "pattern": "dynamic Reshape",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "dynamic non-batch dimension",
+      "reason": "Input input has a dynamic non-batch dimension at index 1; static HLS buffer bounds are required.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_04.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_05",
+      "pattern": "non-static MatMul weight",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "static second-input weight initializer",
+      "reason": "MatMul node 1 needs a static second-input weight initializer.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_05.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_06",
+      "pattern": "Gemm transA",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "transA",
+      "reason": "Gemm node gemm uses transA; this demo adapter only supports transA=0.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_06.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_07",
+      "pattern": "Gemm non-unit alpha/beta",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "non-unit alpha/beta",
+      "reason": "Gemm node gemm uses non-unit alpha/beta.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_07.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_08",
+      "pattern": "unsupported Transpose perm",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "unsupported perm",
+      "reason": "Transpose node 0 uses unsupported perm=[0, 2, 1].",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_08.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_09",
+      "pattern": "multiple model inputs",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "expects one model input",
+      "reason": "Layer-list ONNX adapter expects one model input, found 2.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_09.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_10",
+      "pattern": "dynamic Shape",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "dynamic non-batch dimension",
+      "reason": "Input input has a dynamic non-batch dimension at index 1; static HLS buffer bounds are required.",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_10.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_11",
+      "pattern": "Loop/If",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "Unsupported op",
+      "reason": "Unsupported op for layer-list ONNX adapter: Loop",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_11.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    },
+    {
+      "case_id": "onnx_neg_12",
+      "pattern": "custom domain",
+      "expected": "structured_rejection",
+      "passed": true,
+      "accepted": false,
+      "expected_evidence": "custom-domain nodes",
+      "reason": "Layer-list ONNX adapter only accepts standard ai.onnx operators; custom-domain nodes found: ['com.example:Relu'].",
+      "rewrites": [],
+      "layer_classes": [],
+      "input_layer": null,
+      "output_layer": null,
+      "graph_path": "runs\\operator_onnx_probe\\graphs\\onnx_neg_12.onnx",
+      "evidence_class": "real_onnx_graph_parse"
+    }
+  ]
+}

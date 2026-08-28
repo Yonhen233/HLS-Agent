@@ -6,6 +6,53 @@
 
 ---
 
+## 2026-08-28 13:16:38 +08:00：完成 20-case Bad Case、26 图 ONNX 正反例与 Dense/MatMul Template-vs-LLM 真实公平对照
+
+### 1. 本轮范围与真实环境
+继续完成算子 Benchmark 任务书剩余部分。LLM 候选固定使用 `https://api.deepseek.com` 的 `deepseek-v4-pro`，未降级模型；HLS 固定使用 `D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat`。ONNX 评测只使用 adapter 做静态图契约提取，HLS 主生成路径仍为 LLM Candidate，没有调用 hls4ml 生成代码。Mock、Fixture、历史最好样本均不能进入本轮真实公平结果。
+
+### 2. 20-case 生产组件故障注入
+把原 pending 清单改造成直接调用生产组件的 20-case runner，覆盖非法 shape/dtype、MatMul 维度冲突、CandidateSandbox 动态内存/system/m_axi/过度 partition、candidate 缺文件/签名、CSim 编译失败/marker 缺失/数值 mismatch、Vivado 编译错误、report 缺 timing、stale evidence、Vivado 缺失、ToolRegistry timeout、timing completion gate、repair budget 和 fake metrics。最终 `20/20`，false-success rate、stale artifact acceptance、unsafe candidate acceptance、unsupported fake metric rate 均为 `0`。
+
+`ToolRegistry` 新增显式 `ToolTimeoutError`；report parser 现在必须同时存在 Latency/II、Resources 和 Timing，缺 section 返回 `ReportParseError`，不再把残缺报告当成功。
+
+### 3. ONNX 真实正反例
+新增可执行 ONNX suite，实际落盘并解析 26 个 `.onnx` 图。14 个正例覆盖 Gemm、MatMul+Add、Activation、Conv、BatchNorm fold、Max/Average/Global Pool、ReduceMean、Flatten、Reshape、Q/DQ、Shape/Gather/Concat 和受限 layout transpose；12 个反例覆盖 residual branch、group/depthwise Conv、dynamic shape/reshape、非静态 MatMul 权重、非法 Gemm 属性、非法 transpose、多输入、Loop 和 custom domain。结果为正例 `14/14`、反例 `12/12`、总计 `26/26`。
+
+真实边界审计发现 adapter 会把动态非 batch 维度默认成 1，且未检查 custom domain。现仅允许动态 batch 固定为 1，任何非 batch 动态维度都拒绝；只允许标准 `ai.onnx` domain。新增 CLI `operator-onnx-benchmark`，机器报告为 `benchmarks/operator_onnx_graph_results.json`。
+
+### 4. Template-vs-LLM 公平实验
+预先冻结 Dense/MatMul × latency/resource 四组任务，每对固定 shape、dtype、part、clock、canonical 输入公式、golden 累加顺序和 Vivado 版本，仅改变生成路径。最终 exact cohort 为 8 个真实 Run，4/4 具有相同 contract、canonical testbench、真实 Golden CSim 和真实 CSynth；2/4 双方同时 production-ready。没有用重跑成功替换 MatMul timing 失败样本。
+
+| Case | Template latency/II | LLM latency/II | Template DSP/LUT/FF | LLM DSP/LUT/FF | LLM Timing |
+|---|---:|---:|---:|---:|---|
+| Dense latency | 259/259 | 289/289 | 16/431/204 | 32/1590/1601 | met |
+| Dense resource | 259/259 | 1121/1121 | 16/431/204 | 1/359/58 | met |
+| MatMul latency | 2051/2051 | 779/779 | 16/624/209 | 16/2612/4633 | failed |
+| MatMul resource | 2051/2051 | 777/777 | 16/624/209 | 16/1890/3796 | failed |
+
+结果表明 LLM 并非全面优于模板：Dense latency 基线更优；Dense resource 的 LLM 把 DSP `16→1`、LUT `431→359`、FF `204→58`，代价是 latency/II 增至 1121；MatMul LLM 将 latency/II 降低约 62%，但资源增加且未闭合 12 ns timing。模板两种 objective 产生相同 HLS 指标，也暴露当前模板缺少真正目标感知优化。
+
+四个正式 LLM Run 共 49 次调用，input `138036`、output `94413`、total `232449` tokens，18 次调用带 anomaly。Dense latency/resource 分别为 `23066`/`11852` tokens；MatMul latency/resource 因 5/6 次 timing repair 分别达到 `108769`/`88762` tokens。该成本被保留在报告，说明 bounded repair 仍需加入“连续同类 timing 无改善”早停，而不是把 repair 次数放大等同于能力提升。
+
+### 5. 真实运行暴露的框架问题与修复
+1. 首次 Dense 基线两次在 CSim 通过后由 Vivado `llvm-ld` 报 `Not enough space`。D 盘仍有约 93 GB，根因是当时可用物理/虚拟内存约 1.5/4.4 GB；关闭无关程序后恢复至约 4.5/8.0 GB，相同代码随即 CSynth 成功。新增 `HostResourceExhaustedError`，递归读取 `autopilot.flow.log`，避免误判为 HLS 源码错误并触发 LLM repair。
+2. Dense latency 首次 candidate JSON 截断后 repair 成功并真实通过验证，但原 Vivado Todo 已在 repair 前 blocked，VerificationSpecialist 又只返回 CSim metrics，真实 report 未合并进 State。修复 LLM DAG 为 `candidate -> verify -> synthesis`；repair 后可重新激活“缺 HLS project”阻塞 Todo；VerificationSpecialist 现在返回 report、verification 和 report artifact。
+3. `verify_candidate.run` 已执行真实 Golden CSim + CSynth，旧流程仍重复跑 Vivado。现验证成功后把当前 report 合并到 AgentState，并取消冗余 create/synth/parse Todo。修复后的 `dense_fair_latency_llm_5cfe55ba_02` 经 1 次 generation repair 后最终 `success`，重复综合 Todo 明确标记 cancelled。
+4. 公平报告区分 `valid_fair_pair` 与 `both_production_ready`。MatMul timing failure 是真实、可比较的负样本，但不能计作 deployment-ready。
+
+### 6. 最终聚合与测试
+统一 `operator_release.json` 当前为：Layer-1 Golden `120/120`、真实 CSim `23`、真实 CSynth `28`、LLM pass³ `13/15`、Bad Case `20/20`、ONNX `26/26`、公平对照 `4/4`。所有 release gate 为 true，`interview_ready=true`；该状态表示任务书定义的证据门槛完成，不表示支持任意 ONNX 或已经完成上板部署。
+
+最终全量 pytest 进度为 426 个测试点全部到达 `[100%]`，进程退出码 `0`。唯一 warning 是当前工作区 `.pytest_cache` 无写权限，不影响测试结果。新增 CLI：`operator-onnx-benchmark` 与 `operator-fair-comparison`。
+
+### 7. 仍需改进
+- MatMul 两个 LLM candidate 功能正确但 timing failed，不能称为 production-ready；后续应基于 critical-path 结构化差异设置 repair early-stop，而不是继续重复高 token 生成。
+- ONNX adapter 是受限静态 contract extractor，不是完整 ONNX compiler；branch/group/dynamic/custom-domain 会诚实拒绝。
+- 当前公平实验每个 case 只有一个 exact pair，适合消融和问题发现，不足以推断总体胜率；若要做统计结论，应固定更多 shape/dtype seed 并报告置信区间。
+
+---
+
 ## 2026-08-28 10:45:14 +08:00：继续 Bad Case 生产化，补齐 Operator 输入契约、Candidate 文件/签名门禁与动态内存拒绝
 
 ### 1. 背景

@@ -8,25 +8,41 @@
       "case_id": "dense_latency_fair",
       "operator": "Dense",
       "objective": "latency",
-      "status": "pending_real_run"
+      "template_task": "benchmarks/tasks/dense_fair_latency_template.json",
+      "llm_task": "benchmarks/tasks/dense_fair_latency_llm.json",
+      "template_run_id": "dense_fair_latency_template_535d0152",
+      "llm_run_id": "dense_fair_latency_llm_5cfe55ba_02",
+      "status": "completed_real_run"
     },
     {
       "case_id": "dense_resource_fair",
       "operator": "Dense",
       "objective": "resource",
-      "status": "pending_real_run"
+      "template_task": "benchmarks/tasks/dense_fair_resource_template.json",
+      "llm_task": "benchmarks/tasks/dense_fair_resource_llm.json",
+      "template_run_id": "dense_fair_resource_template_c8f65e7d",
+      "llm_run_id": "dense_fair_resource_llm_04b1bac7",
+      "status": "completed_real_run"
     },
     {
       "case_id": "matmul_latency_fair",
       "operator": "MatMul",
       "objective": "latency",
-      "status": "pending_real_run"
+      "template_task": "benchmarks/tasks/matmul_fair_latency_template.json",
+      "llm_task": "benchmarks/tasks/matmul_fair_latency_llm.json",
+      "template_run_id": "matmul_fair_latency_template_15092d11",
+      "llm_run_id": "matmul_fair_latency_llm_04adc507",
+      "status": "completed_real_run"
     },
     {
       "case_id": "matmul_resource_fair",
       "operator": "MatMul",
       "objective": "resource",
-      "status": "pending_real_run"
+      "template_task": "benchmarks/tasks/matmul_fair_resource_template.json",
+      "llm_task": "benchmarks/tasks/matmul_fair_resource_llm.json",
+      "template_run_id": "matmul_fair_resource_template_74f306e0",
+      "llm_run_id": "matmul_fair_resource_llm_a4daba6f",
+      "status": "completed_real_run"
     }
   ],
   "fixed_constraints": [

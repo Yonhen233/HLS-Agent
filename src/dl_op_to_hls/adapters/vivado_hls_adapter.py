@@ -598,6 +598,19 @@ class VivadoHLSAdapter:
         synthesis = result.get("synthesis", {})
         real_report = bridge.locate_report(result.get("project_dir") or work_dir, top_function=top_function)
         log_path = synthesis.get("log_path")
+        if synthesis.get("status") != "success":
+            resource_error = self._find_host_resource_error(work_dir)
+            if resource_error:
+                return error_result(
+                    build_error(
+                        "HostResourceExhaustedError",
+                        "Vivado HLS failed because the host could not allocate enough memory for its linker.",
+                        recoverable=True,
+                        source="vivado.run_csynth",
+                        suggested_action="Free physical/page-file memory and rerun the same synthesis; do not repair valid HLS code.",
+                        details={"log_path": resource_error, "toolchain": self.hls_toolchain},
+                    )
+                )
         log_errors: list[str] = []
         if log_path and Path(log_path).exists():
             verification = parse_csim_verification(log_path, work_dir=work_dir)
@@ -621,6 +634,18 @@ class VivadoHLSAdapter:
             "toolchain": self.hls_toolchain,
             "verification": parse_csim_verification(log_path, work_dir=work_dir) if log_path else {"status": "not_run", "passed": None, "mode": "none"},
         }
+
+    @staticmethod
+    def _find_host_resource_error(work_dir: Path) -> str | None:
+        markers = ("not enough space", "cannot allocate memory", "out of memory")
+        for path in work_dir.glob("**/autopilot.flow.log"):
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore").lower()
+            except OSError:
+                continue
+            if any(marker in text for marker in markers):
+                return str(path)
+        return None
 
     def parse_report(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return parse_csynth_report_file(arguments["report_path"])

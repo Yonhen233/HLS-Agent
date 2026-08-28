@@ -25,3 +25,15 @@ Dense、MatMul、ReLU、Add、ScaleShift 各重复 3 次。完整报告每次生
 比率同时报告分子、分母、样本量、证据类别和 Wilson 95% 区间。少于 20 个样本时，即使结果为 1/1，也显示 `insufficient_data`。Mock、Fixture、Unit、Real 不计算混合成功率。
 
 资源比较使用相同 Shape、Dtype、输入、Clock、Part、Vivado 版本和目标。Latency 同时报告 cycles 与 `cycles × clock`，吞吐使用 II 与 Clock，DSE 输出 Pareto Front，不用一个任意加权分数掩盖权衡。
+
+## ONNX 与失败边界
+
+ONNX 套件实际生成并解析 14 个正例和 12 个反例 `.onnx` 图。正例要求命中具体静态 rewrite；反例要求返回匹配的结构化拒绝原因。该层只验证静态图契约提取，不把 ONNX parser 接受误写成 HLS 生成成功，也不使用 hls4ml 生成候选。
+
+20 个 Bad Case 直接触发生产 schema、CandidateSandbox、candidate contract、CSim marker、report parser、stale evidence、工具 timeout、CompletionGate 和 repair budget。报告单独计算 false-success、stale artifact、unsafe candidate 和 fake metric 接受率，目标均为 0。
+
+## Template 与 LLM 公平对照
+
+Dense/MatMul 分别固定 latency/resource 两种 objective。每一对固定 shape、dtype、part、clock、输入生成公式、golden 累加顺序和 Vivado 2018.3，只允许 HLS 生成路径变化。cohort 在结果生成前声明，报告固定 exact Run ID，不允许用历史最好样本替换失败样本。
+
+`valid_fair_pair` 表示双方具有相同契约、canonical testbench、真实 Golden CSim 和真实 CSynth；`both_production_ready` 进一步要求双方 timing 和 CompletionGate 均通过。这样 timing 失败仍是有效的公平负样本，但不会被描述为可部署成功。

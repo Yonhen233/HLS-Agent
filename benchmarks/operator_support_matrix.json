@@ -40,8 +40,8 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 24,
-      "real_csim_count": 3,
-      "real_csynth_count": 3,
+      "real_csim_count": 6,
+      "real_csynth_count": 9,
       "mock_case_count": 3,
       "fixture_case_count": 0,
       "evidence_runs": [
@@ -477,6 +477,93 @@
           "evidence_class": "real_csynth",
           "tool": "vivado.parse_report",
           "receipt_id": "te_2ce642f26c44618f"
+        },
+        {
+          "run_id": "dense_fair_latency_llm_5cfe55ba",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_962f2a95d2e29b1b"
+        },
+        {
+          "run_id": "dense_fair_latency_llm_5cfe55ba",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_962f2a95d2e29b1b",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_fair_latency_llm_5cfe55ba_02",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_d284ad5a94912809"
+        },
+        {
+          "run_id": "dense_fair_latency_llm_5cfe55ba_02",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_d284ad5a94912809",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_fair_latency_template_535d0152",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_59b84ce73742f9d0"
+        },
+        {
+          "run_id": "dense_fair_latency_template_535d0152",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_23a90b4ddd893133"
+        },
+        {
+          "run_id": "dense_fair_latency_template_8524ff85_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_7718bf0f371fbaa7"
+        },
+        {
+          "run_id": "dense_fair_latency_template_8524ff85_03",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_a5162ffc62555c49"
+        },
+        {
+          "run_id": "dense_fair_resource_llm_04b1bac7",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_ec789907cf0de19a"
+        },
+        {
+          "run_id": "dense_fair_resource_llm_04b1bac7",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_ec789907cf0de19a",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "dense_fair_resource_llm_04b1bac7",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_fe443a4d62179c47"
+        },
+        {
+          "run_id": "dense_fair_resource_llm_04b1bac7",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_b23cebbb79e75733"
+        },
+        {
+          "run_id": "dense_fair_resource_template_c8f65e7d",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_ebf724253f5c22b0"
+        },
+        {
+          "run_id": "dense_fair_resource_template_c8f65e7d",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_891d4b580aca2535"
         }
       ],
       "support_status": "functional_reference_ready"
@@ -521,8 +608,8 @@
         "ap_fixed<8,3>"
       ],
       "functional_case_count": 24,
-      "real_csim_count": 3,
-      "real_csynth_count": 3,
+      "real_csim_count": 5,
+      "real_csynth_count": 7,
       "mock_case_count": 0,
       "fixture_case_count": 0,
       "evidence_runs": [
@@ -600,6 +687,155 @@
           "evidence_class": "real_csynth",
           "tool": "vivado.parse_report",
           "receipt_id": "te_ffe30c25bc9f5b4c"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_cf85df8cb67d4952"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_cf85df8cb67d4952",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_193b686b5bb8f66a"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_50acdd1eba05258f"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_a83424977a79fd59"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_a83424977a79fd59",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_193b686b5bb8f66a"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_50acdd1eba05258f"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_a83424977a79fd59"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_a83424977a79fd59",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_193b686b5bb8f66a"
+        },
+        {
+          "run_id": "matmul_fair_latency_llm_04adc507",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_50acdd1eba05258f"
+        },
+        {
+          "run_id": "matmul_fair_latency_template_15092d11",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_b02291378d8abd13"
+        },
+        {
+          "run_id": "matmul_fair_latency_template_15092d11",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_da469fa86d296c6b"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_98379869b4755707"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_98379869b4755707",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_a2b3fd55bf7307da"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_cfe8a88e631cc78b"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_26a92a72fa6b582b"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csim",
+          "tool": "verify_candidate.run",
+          "receipt_id": "te_26a92a72fa6b582b",
+          "derived_from_check": "golden_csim_passed"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_a2b3fd55bf7307da"
+        },
+        {
+          "run_id": "matmul_fair_resource_llm_a4daba6f",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_70e67fcd975db82f"
+        },
+        {
+          "run_id": "matmul_fair_resource_template_74f306e0",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.run_csynth",
+          "receipt_id": "te_6c10ec997ee04d6a"
+        },
+        {
+          "run_id": "matmul_fair_resource_template_74f306e0",
+          "evidence_class": "real_csynth",
+          "tool": "vivado.parse_report",
+          "receipt_id": "te_f6ae3665084d3fec"
         }
       ],
       "support_status": "functional_reference_ready"

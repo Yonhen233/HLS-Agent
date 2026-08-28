@@ -260,6 +260,34 @@ class HLS4MLAdapter:
         from onnx import numpy_helper  # type: ignore
         import numpy as np  # type: ignore
 
+        initializer_names = {item.name for item in model.graph.initializer}
+        custom_domain_nodes = [
+            f"{node.domain}:{node.op_type}"
+            for node in model.graph.node
+            if str(node.domain or "") not in {"", "ai.onnx"}
+        ]
+        if custom_domain_nodes:
+            raise ValueError(
+                "Layer-list ONNX adapter only accepts standard ai.onnx operators; "
+                f"custom-domain nodes found: {custom_domain_nodes}."
+            )
+        for graph_input in model.graph.input:
+            if graph_input.name in initializer_names:
+                continue
+            tensor_type = graph_input.type.tensor_type
+            if not tensor_type.HasField("shape"):
+                raise ValueError(f"Input shape for {graph_input.name} is missing or dynamic.")
+            for index, dimension in enumerate(tensor_type.shape.dim):
+                # A symbolic batch is safely fixed to one for HLS conversion. Every
+                # data dimension must be concrete because buffers are compile-time.
+                if index == 0:
+                    continue
+                if not dimension.HasField("dim_value") or int(dimension.dim_value) <= 0:
+                    raise ValueError(
+                        f"Input {graph_input.name} has a dynamic non-batch dimension at index {index}; "
+                        "static HLS buffer bounds are required."
+                    )
+
         model = self._infer_onnx_shapes(model)
         initializers = {item.name: numpy_helper.to_array(item) for item in model.graph.initializer}
         shapes = self._tensor_shapes(model)

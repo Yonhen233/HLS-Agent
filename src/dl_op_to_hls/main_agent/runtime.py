@@ -519,6 +519,20 @@ class PlanExecuteReactRuntime:
             observation["error_type"] = result.errors[0].get("error_type")
             if observation["error_type"] == "VerificationFailedError":
                 observation["status"] = "completed_with_warning"
+        if (
+            result.specialist_name == "VerificationSpecialist"
+            and result.status == "success"
+            and isinstance(result.metrics, dict)
+            and result.metrics.get("status") == "success"
+        ):
+            # verify_candidate.run already performs real golden CSim and CSynth.
+            # Re-running the same project through Vivado adds cost and can race a
+            # repaired candidate, so downstream synthesis/report todos are redundant.
+            self._cancel_pending_tools(
+                {"vivado.create_project", "vivado.create_vivado_project", "vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"},
+                "Candidate verification already produced a current-run real CSynth report.",
+            )
+            self._switch_finalization_to_terminal(state, todo.id)
         if result.specialist_name == "OptimizationSpecialist" and result.metrics:
             state.suggestions = result.metrics.get("suggestions", state.suggestions)
             suggestions_path = self._first_artifact_path(result, "suggestions")
@@ -2014,7 +2028,11 @@ class PlanExecuteReactRuntime:
     def _replace_dependencies(self, todo_id: str, dependency_ids: list[str]) -> None:
         item = self.todo_manager._find(todo_id)
         item.dependencies = list(dict.fromkeys(dep for dep in dependency_ids if dep != todo_id))
-        if item.status == "blocked" and (item.error or {}).get("message") == "Dependencies are not completed yet.":
+        blocked_message = str((item.error or {}).get("message") or "")
+        if item.status == "blocked" and (
+            blocked_message == "Dependencies are not completed yet."
+            or "requires an HLS project directory" in blocked_message
+        ):
             item.status = "pending"
             item.error = None
         self.todo_manager.save(self.todo_manager.todo_list.run_id, self.todo_manager.todo_list)

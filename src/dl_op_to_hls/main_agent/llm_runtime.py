@@ -600,6 +600,8 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         support = first_by_tool("hls4ml.check_support", "hls4ml.check_hls4ml_support")
         graph = first_by_tool("graph_rewrite.rewrite")
         fallback = first_by_tool("fallback.generate_operator_hls")
+        candidate = first_by_tool("llm.generate_candidate", "llm.generate_hls_candidate")
+        verify = first_by_tool("verify_candidate.run", "verify.run_csim")
         config = first_by_tool("hls4ml.generate_config", "hls4ml.generate_hls4ml_config")
         convert = first_by_tool("hls4ml.convert", "hls4ml.convert_with_hls4ml")
         prepare_existing = first_by_tool("task.prepare_existing_project")
@@ -615,11 +617,13 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         require(support, inspect or validate)
         require(graph, support)
         require(fallback, graph or support)
+        require(candidate, validate)
+        require(verify, candidate)
         require(config, support)
         require(convert, config)
         require(prepare_existing, validate)
 
-        implementation_source = convert or fallback or prepare_existing
+        implementation_source = verify or candidate or convert or fallback or prepare_existing
         require(vivado_create, implementation_source)
         require(vivado_synth, vivado_create or implementation_source)
         require(parse, vivado_synth)

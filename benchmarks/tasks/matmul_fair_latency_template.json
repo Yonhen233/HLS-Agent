@@ -1,0 +1,6 @@
+{
+  "task_type": "operator", "op_type": "MatMul", "name": "matmul_fair_latency_template", "top_function": "matmul_fair_latency_template",
+  "input_shape": [16, 16], "weight_shape": [16, 16], "output_shape": [16, 16], "dtype": "ap_fixed<12,4>",
+  "target": {"backend": "VivadoHLS", "part": "xc7z020clg400-1", "clock_period": 12},
+  "optimization": {"objective": "latency", "reuse_factor": 1, "pipeline_ii": 1}
+}

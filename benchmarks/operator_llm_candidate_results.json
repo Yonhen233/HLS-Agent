@@ -27,9 +27,9 @@
       "statistically_usable": true,
       "status": "usable",
       "run_ids": [
-        "dense_16x32_llm_0e48bdce",
-        "dense_16x32_llm_0e48bdce_02",
-        "dense_16x32_llm_0e48bdce_03"
+        "dense_fair_latency_llm_5cfe55ba",
+        "dense_fair_resource_llm_04b1bac7",
+        "dense_fair_latency_llm_5cfe55ba_02"
       ]
     },
     "MatMul": {
@@ -44,9 +44,9 @@
       "statistically_usable": true,
       "status": "usable",
       "run_ids": [
-        "matmul_16x16_llm_c67dbadf",
         "matmul_16x16_llm_c67dbadf_02",
-        "matmul_16x16_llm_c67dbadf_03"
+        "matmul_16x16_llm_c67dbadf_03",
+        "matmul_fair_resource_llm_a4daba6f"
       ]
     },
     "ReLU": {
@@ -103,24 +103,36 @@
   },
   "runs": [
     {
-      "run_id": "dense_16x32_llm_0e48bdce",
+      "run_id": "dense_fair_latency_llm_5cfe55ba",
       "operator": "Dense",
-      "passed": true,
-      "status": "success",
-      "completion_gate_passed": true,
-      "production_ready": true,
-      "csim_passed": true,
-      "csynth_passed": true,
-      "timing_met": true,
+      "passed": false,
+      "status": "partial_success",
+      "completion_gate_passed": false,
+      "production_ready": false,
+      "csim_passed": false,
+      "csynth_passed": false,
+      "timing_met": null,
       "repair_count": 1,
-      "active_errors": [],
+      "active_errors": [
+        {
+          "error_type": "HLS4MLConversionError",
+          "message": "Vivado synthesis requires an HLS project directory, but none is available.",
+          "recoverable": true,
+          "source": "vivado.create_project",
+          "suggested_action": "Recover the hls4ml/fallback/candidate generation path before delegating to VivadoSpecialist.",
+          "details": {
+            "todo_id": "todo_005",
+            "specialist": "VivadoSpecialist"
+          }
+        }
+      ],
       "llm_calls": 7,
-      "input_tokens": 19242,
-      "output_tokens": 12141,
-      "total_tokens": 31383
+      "input_tokens": 14018,
+      "output_tokens": 10734,
+      "total_tokens": 24752
     },
     {
-      "run_id": "dense_16x32_llm_0e48bdce_02",
+      "run_id": "dense_fair_resource_llm_04b1bac7",
       "operator": "Dense",
       "passed": true,
       "status": "success",
@@ -131,68 +143,27 @@
       "timing_met": true,
       "repair_count": 0,
       "active_errors": [],
-      "llm_calls": 4,
-      "input_tokens": 10873,
-      "output_tokens": 10115,
-      "total_tokens": 20988
+      "llm_calls": 3,
+      "input_tokens": 7914,
+      "output_tokens": 3938,
+      "total_tokens": 11852
     },
     {
-      "run_id": "dense_16x32_llm_0e48bdce_03",
+      "run_id": "dense_fair_latency_llm_5cfe55ba_02",
       "operator": "Dense",
-      "passed": false,
-      "status": "partial_success",
-      "completion_gate_passed": false,
-      "production_ready": false,
-      "csim_passed": true,
-      "csynth_passed": true,
-      "timing_met": true,
-      "repair_count": 5,
-      "active_errors": [
-        {
-          "error_type": "PermissionDeniedError",
-          "message": "LLM reflection proposed an invalid todo: Unknown tool: hls_code_optimizer; Unknown specialist: HLSDeveloperSpecialist",
-          "recoverable": true,
-          "source": "llm_runtime.reflect",
-          "suggested_action": "Keep planner/reflection prompts aligned with ToolRegistry and Specialist allowlists.",
-          "details": {
-            "title": "Optimize HLS code for timing",
-            "assigned_tool": "hls_code_optimizer",
-            "assigned_specialist": "HLSDeveloperSpecialist"
-          }
-        }
-      ],
-      "llm_calls": 16,
-      "input_tokens": 61229,
-      "output_tokens": 53994,
-      "total_tokens": 115223
-    },
-    {
-      "run_id": "matmul_16x16_llm_c67dbadf",
-      "operator": "MatMul",
-      "passed": false,
-      "status": "partial_success",
-      "completion_gate_passed": false,
-      "production_ready": false,
+      "passed": true,
+      "status": "success",
+      "completion_gate_passed": true,
+      "production_ready": true,
       "csim_passed": true,
       "csynth_passed": true,
       "timing_met": true,
       "repair_count": 1,
-      "active_errors": [
-        {
-          "error_type": "VerificationFailedError",
-          "message": "Real candidate verification requires a testbench; no testbench file was found.",
-          "recoverable": true,
-          "source": "verify_candidate",
-          "suggested_action": "Provide a real candidate directory with design C++, header, testbench, and reference checks before marking it verified.",
-          "details": {
-            "candidate_dir": "D:\\hls_agent\\standalone_work\\dl-op-to-hls-agent\\runs\\matmul_16x16_llm_c67dbadf\\candidate"
-          }
-        }
-      ],
+      "active_errors": [],
       "llm_calls": 6,
-      "input_tokens": 12490,
-      "output_tokens": 9978,
-      "total_tokens": 22468
+      "input_tokens": 12501,
+      "output_tokens": 10565,
+      "total_tokens": 23066
     },
     {
       "run_id": "matmul_16x16_llm_c67dbadf_02",
@@ -227,6 +198,51 @@
       "input_tokens": 8562,
       "output_tokens": 8806,
       "total_tokens": 17368
+    },
+    {
+      "run_id": "matmul_fair_resource_llm_a4daba6f",
+      "operator": "MatMul",
+      "passed": false,
+      "status": "partial_success",
+      "completion_gate_passed": false,
+      "production_ready": false,
+      "csim_passed": true,
+      "csynth_passed": true,
+      "timing_met": false,
+      "repair_count": 6,
+      "active_errors": [
+        {
+          "error_type": "AgentStagnationError",
+          "message": "Agent execution stopped by progress supervisor: repeated_failure_loop.",
+          "recoverable": true,
+          "source": "runtime.progress_supervisor",
+          "suggested_action": "Replan from the latest checkpoint with a different tool or narrower goal.",
+          "details": {
+            "step": 15,
+            "todo_id": "todo_022",
+            "tool_name": "verify_candidate.run",
+            "requirement_ids": [
+              "implementation.verified"
+            ],
+            "state_hash": "b2b8601c1dc71edd583a9dc5ac910126915711e56ffb2bf48040baedd98eaffc",
+            "same_state_count": 0,
+            "failure_signature": "b9b08ebc54258f199e0bc930955ba2a3691706b404a5b8b87fed36816e209c51",
+            "repeated_failures": 3,
+            "open_requirements": [
+              "implementation.timing",
+              "run.summarized"
+            ],
+            "drift_review": false,
+            "consecutive_drift": 0,
+            "decision": "terminate",
+            "reason": "repeated_failure_loop"
+          }
+        }
+      ],
+      "llm_calls": 18,
+      "input_tokens": 54211,
+      "output_tokens": 34551,
+      "total_tokens": 88762
     },
     {
       "run_id": "relu_16_llm_4ba5f27c",
