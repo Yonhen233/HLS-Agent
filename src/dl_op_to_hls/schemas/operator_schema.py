@@ -78,3 +78,27 @@ def _validate_operator_contract(task: dict) -> None:
                     details={"input_shape": lhs, "weight_shape": rhs, "output_shape": output},
                 )
             )
+
+    if task.get("op_type") == "Conv2D":
+        group = task.get("group", task.get("groups", 1)) or 1
+        if not isinstance(group, int) or isinstance(group, bool):
+            raise AgentRuntimeError(
+                build_error(
+                    "InvalidTaskError",
+                    "Conv2D group must be a positive static integer.",
+                    recoverable=False,
+                    source="schemas.operator_schema",
+                    details={"group": group},
+                )
+            )
+        if group != 1:
+            raise AgentRuntimeError(
+                build_error(
+                    "UnsupportedOperatorError",
+                    "Grouped/depthwise Conv2D is outside the current verified LLM candidate contract.",
+                    recoverable=False,
+                    source="schemas.operator_schema",
+                    suggested_action="Use group=1 or add a verified grouped-convolution implementation and golden testbench.",
+                    details={"group": group},
+                )
+            )

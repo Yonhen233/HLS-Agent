@@ -1,0 +1,277 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "real_llm_planning",
+  "selection_policy": "fixed_prompts_no_best_of",
+  "model": "deepseek-v4-pro",
+  "rate": {
+    "numerator": 1,
+    "denominator": 10,
+    "rate": 0.1,
+    "wilson_95": [
+      0.0179,
+      0.4042
+    ],
+    "statistically_usable": false
+  },
+  "runtime_s": 72.052,
+  "llm_calls": 21,
+  "total_tokens": 8668,
+  "tokens_per_pass": 8668.0,
+  "results": [
+    {
+      "case_id": "open_dense_latency",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 7.077,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 675,
+        "output_tokens": 333,
+        "total_tokens": 1008
+      }
+    },
+    {
+      "case_id": "open_matmul_resource",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "AttributeError",
+        "message": "'str' object has no attribute 'get'",
+        "recoverable": false
+      },
+      "runtime_s": 5.305,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 175,
+        "output_tokens": 217,
+        "total_tokens": 392
+      }
+    },
+    {
+      "case_id": "open_relu_boundary",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 5.0,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 509,
+        "output_tokens": 197,
+        "total_tokens": 706
+      }
+    },
+    {
+      "case_id": "open_add_balanced",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 6.232,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 478,
+        "output_tokens": 157,
+        "total_tokens": 635
+      }
+    },
+    {
+      "case_id": "open_scale_shift_unknown",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "AttributeError",
+        "message": "'str' object has no attribute 'get'",
+        "recoverable": false
+      },
+      "runtime_s": 5.892,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 169,
+        "output_tokens": 209,
+        "total_tokens": 378
+      }
+    },
+    {
+      "case_id": "open_conv2d_valid",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 12.432,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 1401,
+        "output_tokens": 1029,
+        "total_tokens": 2430
+      }
+    },
+    {
+      "case_id": "open_existing_project",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 4.659,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 495,
+        "output_tokens": 173,
+        "total_tokens": 668
+      }
+    },
+    {
+      "case_id": "open_onnx_model",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 7.643,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 526,
+        "output_tokens": 185,
+        "total_tokens": 711
+      }
+    },
+    {
+      "case_id": "open_dynamic_shape_reject",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "AttributeError",
+        "message": "'str' object has no attribute 'get'",
+        "recoverable": false
+      },
+      "runtime_s": 8.721,
+      "llm_usage": {
+        "calls": 3,
+        "input_tokens": 593,
+        "output_tokens": 181,
+        "total_tokens": 774
+      }
+    },
+    {
+      "case_id": "open_grouped_conv_reject",
+      "passed": true,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "InvalidTaskError",
+        "message": "task_type must be one of model, operator, or hls_project.",
+        "recoverable": false,
+        "source": "schemas.task_schema",
+        "suggested_action": "Check the example JSON files and provide a supported task_type.",
+        "details": {
+          "task_type": null
+        }
+      },
+      "runtime_s": 7.212,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 651,
+        "output_tokens": 315,
+        "total_tokens": 966
+      }
+    }
+  ]
+}

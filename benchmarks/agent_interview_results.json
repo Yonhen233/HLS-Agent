@@ -1,0 +1,1449 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-28T16:10:33+00:00",
+  "benchmark_name": "agent_interview_evidence_v1",
+  "interview_ready": true,
+  "cohort": {
+    "selection_policy": "operator_release_exact_runs_plus_latest_non_candidate_path_per_class",
+    "run_ids": [
+      "add_16_llm_ccd09232",
+      "add_16_llm_ccd09232_02",
+      "add_16_llm_ccd09232_03",
+      "dense_fair_latency_llm_5cfe55ba",
+      "dense_fair_latency_llm_5cfe55ba_02",
+      "dense_fair_latency_template_535d0152",
+      "dense_fair_resource_llm_04b1bac7",
+      "dense_fair_resource_template_c8f65e7d",
+      "existing_dense_project_20fa63c7_07",
+      "matmul_16x16_llm_c67dbadf_02",
+      "matmul_16x16_llm_c67dbadf_03",
+      "matmul_fair_latency_llm_04adc507",
+      "matmul_fair_latency_template_15092d11",
+      "matmul_fair_resource_llm_a4daba6f",
+      "matmul_fair_resource_template_74f306e0",
+      "mnist_recognition_mlp_592ff534_09",
+      "relu_16_llm_4ba5f27c",
+      "relu_16_llm_4ba5f27c_02",
+      "relu_16_llm_4ba5f27c_03",
+      "scale_shift_llm_e20315dc",
+      "scale_shift_llm_e20315dc_02",
+      "scale_shift_llm_e20315dc_03"
+    ]
+  },
+  "historical_real_run_metrics": {
+    "run_count": 22,
+    "status_counts": {
+      "success": 19,
+      "partial_success": 3
+    },
+    "selected_path_counts": {
+      "llm_candidate_path": 15,
+      "fallback_template_path": 4,
+      "existing_hls_project_path": 1,
+      "unsupported_path": 1,
+      "hls4ml_path": 1
+    },
+    "selected_path_valid_rate": 1.0,
+    "toolchain_selection_accuracy": 0.8636,
+    "toolchain_correct_runs": [
+      "add_16_llm_ccd09232",
+      "add_16_llm_ccd09232_02",
+      "add_16_llm_ccd09232_03",
+      "dense_fair_latency_template_535d0152",
+      "dense_fair_resource_llm_04b1bac7",
+      "dense_fair_resource_template_c8f65e7d",
+      "existing_dense_project_20fa63c7_07",
+      "matmul_16x16_llm_c67dbadf_02",
+      "matmul_16x16_llm_c67dbadf_03",
+      "matmul_fair_latency_template_15092d11",
+      "matmul_fair_resource_llm_a4daba6f",
+      "matmul_fair_resource_template_74f306e0",
+      "mnist_recognition_mlp_592ff534_09",
+      "relu_16_llm_4ba5f27c",
+      "relu_16_llm_4ba5f27c_02",
+      "relu_16_llm_4ba5f27c_03",
+      "scale_shift_llm_e20315dc",
+      "scale_shift_llm_e20315dc_02",
+      "scale_shift_llm_e20315dc_03"
+    ],
+    "task_success_rate_by_category": {
+      "existing_project": 1.0,
+      "fallback_template_path": 1.0,
+      "llm_candidate_path": 0.8667,
+      "model_hls4ml": 1.0,
+      "unsupported_path": 1.0
+    },
+    "runtime_s": {
+      "min": 44.0,
+      "median": 167.5,
+      "p50": 167.5,
+      "p95": 1258.4,
+      "max": 1476.0
+    },
+    "llm_decision_count_total": 36,
+    "tool_call_count_total": 667,
+    "llm_call_count_total": 86,
+    "specialist_event_count_total": 468,
+    "avg_tool_calls_per_run": 30.3182,
+    "avg_llm_calls_per_run": 3.9091,
+    "avg_estimated_tokens_per_run": 50662.6364,
+    "avg_recorded_tokens_per_run": 19342.1364,
+    "task_success_rate": 0.9091,
+    "false_success_rate": 0.0,
+    "false_success_runs": [],
+    "confidence_95": {
+      "task_success_rate": {
+        "n": 22,
+        "estimate": 0.9091,
+        "low": 0.7218,
+        "high": 0.9747,
+        "statistically_usable": true
+      },
+      "toolchain_selection_accuracy": {
+        "n": 22,
+        "estimate": 0.8636,
+        "low": 0.6666,
+        "high": 0.9525,
+        "statistically_usable": true
+      },
+      "unsupported_honesty_rate": {
+        "n": 1,
+        "estimate": 0.0,
+        "low": 0.0,
+        "high": 0.7935,
+        "statistically_usable": false
+      },
+      "repair_success_rate": {
+        "n": 5,
+        "estimate": 1.0,
+        "low": 0.5655,
+        "high": 1.0,
+        "statistically_usable": false
+      },
+      "rag_evidence_hit_rate": {
+        "n": 22,
+        "estimate": 1.0,
+        "low": 0.8513,
+        "high": 1.0,
+        "statistically_usable": true
+      },
+      "rag_pollution_rate": {
+        "n": 22,
+        "estimate": 0.0,
+        "low": 0.0,
+        "high": 0.1487,
+        "statistically_usable": true
+      }
+    },
+    "tokens_per_success": 55728.9,
+    "artifact_completeness_avg": 1.0,
+    "trace_completeness_avg": 1.0,
+    "agent_runtime": {
+      "session_run_rate": 0.8182,
+      "checkpoint_count_total": 185,
+      "delegation_completion_rate": 1.0,
+      "tool_schema_rejection_count_total": 0,
+      "tool_cache_hit_count_total": 0,
+      "duplicate_tool_call_count_total": 19,
+      "budget_exceeded_count_total": 0
+    },
+    "report_success_runs": [
+      "add_16_llm_ccd09232",
+      "add_16_llm_ccd09232_02",
+      "add_16_llm_ccd09232_03",
+      "dense_fair_latency_llm_5cfe55ba_02",
+      "dense_fair_latency_template_535d0152",
+      "dense_fair_resource_llm_04b1bac7",
+      "dense_fair_resource_template_c8f65e7d",
+      "existing_dense_project_20fa63c7_07",
+      "matmul_16x16_llm_c67dbadf_02",
+      "matmul_16x16_llm_c67dbadf_03",
+      "matmul_fair_latency_llm_04adc507",
+      "matmul_fair_latency_template_15092d11",
+      "matmul_fair_resource_llm_a4daba6f",
+      "matmul_fair_resource_template_74f306e0",
+      "mnist_recognition_mlp_592ff534_09",
+      "relu_16_llm_4ba5f27c",
+      "relu_16_llm_4ba5f27c_02",
+      "relu_16_llm_4ba5f27c_03",
+      "scale_shift_llm_e20315dc",
+      "scale_shift_llm_e20315dc_02",
+      "scale_shift_llm_e20315dc_03"
+    ],
+    "vivado_metric_runs": [
+      "add_16_llm_ccd09232",
+      "add_16_llm_ccd09232_02",
+      "add_16_llm_ccd09232_03",
+      "dense_fair_latency_llm_5cfe55ba_02",
+      "dense_fair_latency_template_535d0152",
+      "dense_fair_resource_llm_04b1bac7",
+      "dense_fair_resource_template_c8f65e7d",
+      "existing_dense_project_20fa63c7_07",
+      "matmul_16x16_llm_c67dbadf_02",
+      "matmul_16x16_llm_c67dbadf_03",
+      "matmul_fair_latency_llm_04adc507",
+      "matmul_fair_latency_template_15092d11",
+      "matmul_fair_resource_llm_a4daba6f",
+      "matmul_fair_resource_template_74f306e0",
+      "mnist_recognition_mlp_592ff534_09",
+      "relu_16_llm_4ba5f27c",
+      "relu_16_llm_4ba5f27c_02",
+      "relu_16_llm_4ba5f27c_03",
+      "scale_shift_llm_e20315dc",
+      "scale_shift_llm_e20315dc_02",
+      "scale_shift_llm_e20315dc_03"
+    ],
+    "rag_evidence_hit_runs": [
+      "add_16_llm_ccd09232",
+      "add_16_llm_ccd09232_02",
+      "add_16_llm_ccd09232_03",
+      "dense_fair_latency_llm_5cfe55ba",
+      "dense_fair_latency_llm_5cfe55ba_02",
+      "dense_fair_latency_template_535d0152",
+      "dense_fair_resource_llm_04b1bac7",
+      "dense_fair_resource_template_c8f65e7d",
+      "existing_dense_project_20fa63c7_07",
+      "matmul_16x16_llm_c67dbadf_02",
+      "matmul_16x16_llm_c67dbadf_03",
+      "matmul_fair_latency_llm_04adc507",
+      "matmul_fair_latency_template_15092d11",
+      "matmul_fair_resource_llm_a4daba6f",
+      "matmul_fair_resource_template_74f306e0",
+      "mnist_recognition_mlp_592ff534_09",
+      "relu_16_llm_4ba5f27c",
+      "relu_16_llm_4ba5f27c_02",
+      "relu_16_llm_4ba5f27c_03",
+      "scale_shift_llm_e20315dc",
+      "scale_shift_llm_e20315dc_02",
+      "scale_shift_llm_e20315dc_03"
+    ],
+    "rag_evidence_hit_rate": 1.0,
+    "rag_pollution_runs": [],
+    "rag_pollution_rate": 0.0,
+    "semantic_rag": {
+      "retrieval_count_total": 0,
+      "embedding_retrieval_rate": 0.0,
+      "cross_encoder_rerank_rate": 0.0,
+      "lexical_fallback_rate": 0.0
+    },
+    "unsupported_status_errors": [],
+    "unsupported_metric_suggestion_errors": [],
+    "unsupported_honest_runs": [],
+    "unsupported_honesty_rate": 0.0,
+    "repair_success_runs": [
+      "dense_fair_latency_llm_5cfe55ba",
+      "dense_fair_latency_llm_5cfe55ba_02",
+      "matmul_fair_latency_llm_04adc507",
+      "matmul_fair_resource_llm_a4daba6f",
+      "scale_shift_llm_e20315dc_03"
+    ],
+    "repair_success_rate": 1.0,
+    "unsupported_semantics_pass_rate": 1.0,
+    "llm_harness": {
+      "applicable_run_count": 22,
+      "plan_acceptance_rate": 1.0,
+      "plan_reject_count_total": 0,
+      "json_repair_count_total": 3,
+      "json_repair_success_rate": 1.0,
+      "guard_rejection_runs": [],
+      "guard_rejection_run_rate": 0.0,
+      "llm_call_failed_runs": [
+        "dense_fair_latency_llm_5cfe55ba",
+        "dense_fair_latency_llm_5cfe55ba_02",
+        "matmul_fair_latency_llm_04adc507",
+        "matmul_fair_resource_llm_a4daba6f"
+      ],
+      "candidate_generation_runs": [
+        "add_16_llm_ccd09232",
+        "add_16_llm_ccd09232_02",
+        "add_16_llm_ccd09232_03",
+        "dense_fair_latency_llm_5cfe55ba",
+        "dense_fair_latency_llm_5cfe55ba_02",
+        "dense_fair_resource_llm_04b1bac7",
+        "matmul_16x16_llm_c67dbadf_02",
+        "matmul_16x16_llm_c67dbadf_03",
+        "matmul_fair_latency_llm_04adc507",
+        "matmul_fair_resource_llm_a4daba6f",
+        "relu_16_llm_4ba5f27c",
+        "relu_16_llm_4ba5f27c_02",
+        "relu_16_llm_4ba5f27c_03",
+        "scale_shift_llm_e20315dc",
+        "scale_shift_llm_e20315dc_02",
+        "scale_shift_llm_e20315dc_03"
+      ],
+      "candidate_generation_event_count_total": 25,
+      "candidate_repair_todo_count_total": 17
+    },
+    "agent_maturity": {
+      "core_score_avg": 0.8864,
+      "context_pack_count_total": 18,
+      "context_budget_compliance_rate": 1.0,
+      "workspace_tool_call_count_total": 0,
+      "cross_session_memory_call_count_total": 22,
+      "permission_denial_count_total": 0,
+      "approval_request_count_total": 0,
+      "mcp_tool_call_count_total": 0
+    },
+    "bad_case_governance": {
+      "completion_gate_pass_rate": 0.85,
+      "false_success_prevented_count": 0,
+      "production_ready_rate": 0.85,
+      "plan_coverage_rate": 1.0,
+      "tool_evidence_receipt_count_total": 603,
+      "tool_evidence_valid_rate": 1.0,
+      "tool_postcondition_failure_count_total": 0,
+      "rag_rejected_count_total": 79,
+      "progress_replan_event_count_total": 1,
+      "progress_terminate_event_count_total": 1
+    }
+  },
+  "open_task_generalization": {
+    "schema_version": "1.0",
+    "evidence_class": "real_llm_planning",
+    "selection_policy": "fixed_prompts_no_best_of",
+    "model": "deepseek-v4-pro",
+    "rate": {
+      "numerator": 10,
+      "denominator": 10,
+      "rate": 1.0,
+      "wilson_95": [
+        0.7225,
+        1.0
+      ],
+      "statistically_usable": false
+    },
+    "runtime_s": 547.8,
+    "llm_calls": 18,
+    "total_tokens": 40023,
+    "tokens_per_pass": 4002.3,
+    "results": [
+      {
+        "case_id": "open_dense_latency",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "dense_12x20_240eead4_03",
+        "error": null,
+        "runtime_s": 66.983,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 3917,
+          "output_tokens": 812,
+          "total_tokens": 4729
+        }
+      },
+      {
+        "case_id": "open_matmul_resource",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "matmul_6x10x4_cdcc3e36",
+        "error": null,
+        "runtime_s": 67.336,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 3938,
+          "output_tokens": 860,
+          "total_tokens": 4798
+        }
+      },
+      {
+        "case_id": "open_relu_boundary",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "relu_len128_be90a999_03",
+        "error": null,
+        "runtime_s": 67.009,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 3898,
+          "output_tokens": 808,
+          "total_tokens": 4706
+        }
+      },
+      {
+        "case_id": "open_add_balanced",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "vector_add_64_7f843cae",
+        "error": null,
+        "runtime_s": 66.996,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 3898,
+          "output_tokens": 779,
+          "total_tokens": 4677
+        }
+      },
+      {
+        "case_id": "open_scale_shift_unknown",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "scaleshift_len32_3c85ff92",
+        "error": null,
+        "runtime_s": 68.36,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 3934,
+          "output_tokens": 879,
+          "total_tokens": 4813
+        }
+      },
+      {
+        "case_id": "open_conv2d_valid",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "llm_candidate_verification_flow",
+        "todo_count": 7,
+        "run_id": "conv2d_nhwc_6x6x1_3x3_2ch_8c0add44",
+        "error": null,
+        "runtime_s": 68.105,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 4012,
+          "output_tokens": 1059,
+          "total_tokens": 5071
+        }
+      },
+      {
+        "case_id": "open_existing_project",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "existing_hls_project_flow",
+        "todo_count": 6,
+        "run_id": "dense_16x32_7f16bdd3",
+        "error": null,
+        "runtime_s": 65.458,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 4085,
+          "output_tokens": 744,
+          "total_tokens": 4829
+        }
+      },
+      {
+        "case_id": "open_onnx_model",
+        "passed": true,
+        "outcome": "planned",
+        "task_correct": true,
+        "skill_correct": true,
+        "selected_skill": "hls4ml_model_flow",
+        "todo_count": 10,
+        "run_id": "mnist_mlp_82385132_02",
+        "error": null,
+        "runtime_s": 67.564,
+        "llm_usage": {
+          "calls": 2,
+          "input_tokens": 4096,
+          "output_tokens": 923,
+          "total_tokens": 5019
+        }
+      },
+      {
+        "case_id": "open_dynamic_shape_reject",
+        "passed": true,
+        "outcome": "structured_rejection",
+        "task_correct": null,
+        "skill_correct": null,
+        "selected_skill": null,
+        "todo_count": 0,
+        "run_id": null,
+        "error": {
+          "error_type": "UnsupportedOperatorError",
+          "message": "input_shape must be a non-empty static integer shape.",
+          "recoverable": false,
+          "source": "schemas.operator_schema",
+          "suggested_action": null,
+          "details": {
+            "input_shape": [
+              "N"
+            ]
+          }
+        },
+        "runtime_s": 2.888,
+        "llm_usage": {
+          "calls": 1,
+          "input_tokens": 433,
+          "output_tokens": 185,
+          "total_tokens": 618
+        }
+      },
+      {
+        "case_id": "open_grouped_conv_reject",
+        "passed": true,
+        "outcome": "structured_rejection",
+        "task_correct": null,
+        "skill_correct": null,
+        "selected_skill": null,
+        "todo_count": 0,
+        "run_id": null,
+        "error": {
+          "error_type": "UnsupportedOperatorError",
+          "message": "Grouped/depthwise Conv2D is outside the current verified LLM candidate contract.",
+          "recoverable": false,
+          "source": "schemas.operator_schema",
+          "suggested_action": "Use group=1 or add a verified grouped-convolution implementation and golden testbench.",
+          "details": {
+            "group": 2
+          }
+        },
+        "runtime_s": 5.492,
+        "llm_usage": {
+          "calls": 1,
+          "input_tokens": 439,
+          "output_tokens": 324,
+          "total_tokens": 763
+        }
+      }
+    ]
+  },
+  "framework_improvement": {
+    "evidence_class": "same_fixed_suite_before_after",
+    "before_contract_fix": {
+      "numerator": 1,
+      "denominator": 10,
+      "rate": 0.1,
+      "wilson_95": [
+        0.0179,
+        0.4042
+      ],
+      "statistically_usable": false
+    },
+    "after_schema_before_session_fix": {
+      "numerator": 2,
+      "denominator": 10,
+      "rate": 0.2,
+      "wilson_95": [
+        0.0567,
+        0.5098
+      ],
+      "statistically_usable": false
+    },
+    "final": {
+      "numerator": 10,
+      "denominator": 10,
+      "rate": 1.0,
+      "wilson_95": [
+        0.7225,
+        1.0
+      ],
+      "statistically_usable": false
+    },
+    "absolute_percentage_point_gain": 90.0,
+    "stages": [
+      "Recursive nested schema validation and a strongly typed task-interpreter contract.",
+      "Independent benchmark session creation instead of an unregistered session id.",
+      "ONNX source alias canonicalization and pre-plan grouped-Conv capability rejection."
+    ],
+    "caveat": "The before/after uses the same fixed 10-case suite and measures regression repair, not population-level generalization."
+  },
+  "ablations": {
+    "rag": {
+      "schema_version": "1.0",
+      "evidence_class": "controlled_fixed_corpus",
+      "corpus_size": 12,
+      "query_count": 9,
+      "no_memory": {
+        "case_count": 9,
+        "macro_precision_at_k": 0.0,
+        "macro_recall_at_k": 0.0,
+        "macro_hit_at_k": 0.0,
+        "macro_mrr": 0.0,
+        "macro_ndcg_at_k": 0.0,
+        "macro_relevant_term_coverage_at_k": null,
+        "macro_pollution_at_k": 0.0,
+        "abstention_accuracy": null,
+        "embedding_recall_usage_rate": 0.0,
+        "cross_encoder_rerank_usage_rate": 0.0,
+        "semantic_score_avg": null,
+        "cross_encoder_score_avg": null,
+        "rerank_mean_position_gain": null,
+        "cases": [
+          {
+            "query": "Dense resource reuse factor DSP",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "MatMul critical path timing repair",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "Conv2D feature map partition line buffer",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "VivadoNotFoundError recoverable",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "ReportMissingError stale fixture provenance",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "ResNet residual branch unsupported boundary",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "LLM candidate sandbox golden CSim CSynth",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "verified memory promotion gate",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          },
+          {
+            "query": "ToolTimeoutError idempotent retry",
+            "top_k": 3,
+            "result_count": 0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "hit_at_k": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": []
+          }
+        ]
+      },
+      "naive_lexical": {
+        "case_count": 9,
+        "macro_precision_at_k": 0.3333,
+        "macro_recall_at_k": 1.0,
+        "macro_hit_at_k": 1.0,
+        "macro_mrr": 1.0,
+        "macro_ndcg_at_k": 1.0,
+        "macro_relevant_term_coverage_at_k": null,
+        "macro_pollution_at_k": 0.1852,
+        "abstention_accuracy": null,
+        "embedding_recall_usage_rate": 0.0,
+        "cross_encoder_rerank_usage_rate": 0.0,
+        "semantic_score_avg": null,
+        "cross_encoder_score_avg": null,
+        "rerank_mean_position_gain": null,
+        "cases": [
+          {
+            "query": "Dense resource reuse factor DSP",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.3333,
+            "covered_terms": [],
+            "polluted_source_ids": [
+              "hard_negative:dense"
+            ],
+            "top_source_ids": [
+              "verified:dense_resource",
+              "hard_negative:dense",
+              "hard_negative:residual"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "MatMul critical path timing repair",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.3333,
+            "covered_terms": [],
+            "polluted_source_ids": [
+              "hard_negative:residual"
+            ],
+            "top_source_ids": [
+              "verified:matmul_timing",
+              "hard_negative:dense",
+              "hard_negative:residual"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "Conv2D feature map partition line buffer",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "verified:conv2d_partition",
+              "verified:dense_resource",
+              "verified:matmul_timing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "VivadoNotFoundError recoverable",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.3333,
+            "covered_terms": [],
+            "polluted_source_ids": [
+              "hard_negative:vivado"
+            ],
+            "top_source_ids": [
+              "failure:vivado_missing",
+              "failure:tool_timeout",
+              "hard_negative:vivado"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "ReportMissingError stale fixture provenance",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.3333,
+            "covered_terms": [],
+            "polluted_source_ids": [
+              "verified:dense_resource"
+            ],
+            "top_source_ids": [
+              "failure:report_missing",
+              "verified:dense_resource",
+              "verified:matmul_timing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "ResNet residual branch unsupported boundary",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.3333,
+            "covered_terms": [],
+            "polluted_source_ids": [
+              "hard_negative:residual"
+            ],
+            "top_source_ids": [
+              "boundary:residual",
+              "hard_negative:residual",
+              "verified:dense_resource"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "LLM candidate sandbox golden CSim CSynth",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "skill:candidate_verification",
+              "verified:dense_resource",
+              "verified:matmul_timing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "verified memory promotion gate",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "skill:memory_promotion",
+              "skill:candidate_verification",
+              "verified:dense_resource"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          },
+          {
+            "query": "ToolTimeoutError idempotent retry",
+            "top_k": 3,
+            "result_count": 3,
+            "precision_at_k": 0.3333,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "failure:tool_timeout",
+              "verified:dense_resource",
+              "verified:matmul_timing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "unknown",
+              "unknown",
+              "unknown"
+            ]
+          }
+        ]
+      },
+      "production_retriever": {
+        "case_count": 9,
+        "macro_precision_at_k": 0.8889,
+        "macro_recall_at_k": 1.0,
+        "macro_hit_at_k": 1.0,
+        "macro_mrr": 1.0,
+        "macro_ndcg_at_k": 1.0,
+        "macro_relevant_term_coverage_at_k": null,
+        "macro_pollution_at_k": 0.0,
+        "abstention_accuracy": null,
+        "embedding_recall_usage_rate": 0.0,
+        "cross_encoder_rerank_usage_rate": 0.0,
+        "semantic_score_avg": null,
+        "cross_encoder_score_avg": null,
+        "rerank_mean_position_gain": null,
+        "cases": [
+          {
+            "query": "Dense resource reuse factor DSP",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "verified:dense_resource"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "MatMul critical path timing repair",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "verified:matmul_timing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "Conv2D feature map partition line buffer",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "verified:conv2d_partition"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "VivadoNotFoundError recoverable",
+            "top_k": 3,
+            "result_count": 2,
+            "precision_at_k": 0.5,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "failure:vivado_missing",
+              "failure:tool_timeout"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical",
+              "lexical"
+            ]
+          },
+          {
+            "query": "ReportMissingError stale fixture provenance",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "failure:report_missing"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "ResNet residual branch unsupported boundary",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "boundary:residual"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "LLM candidate sandbox golden CSim CSynth",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "skill:candidate_verification"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          },
+          {
+            "query": "verified memory promotion gate",
+            "top_k": 3,
+            "result_count": 2,
+            "precision_at_k": 0.5,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "skill:memory_promotion",
+              "skill:candidate_verification"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical",
+              "lexical"
+            ]
+          },
+          {
+            "query": "ToolTimeoutError idempotent retry",
+            "top_k": 3,
+            "result_count": 1,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "hit_at_k": 1.0,
+            "mrr": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_term_coverage_at_k": null,
+            "pollution_at_k": 0.0,
+            "covered_terms": [],
+            "polluted_source_ids": [],
+            "top_source_ids": [
+              "failure:tool_timeout"
+            ],
+            "expect_abstain": false,
+            "abstention_correct": null,
+            "embedding_recall_usage_rate": 0.0,
+            "cross_encoder_rerank_usage_rate": 0.0,
+            "semantic_score_avg": null,
+            "cross_encoder_score_avg": null,
+            "rerank_mean_position_gain": null,
+            "retrieval_modes": [
+              "lexical"
+            ]
+          }
+        ]
+      },
+      "observed_delta_vs_naive": {
+        "mrr": 0.0,
+        "ndcg_at_k": 0.0,
+        "pollution_at_k": -0.1852
+      }
+    },
+    "guard": {
+      "evidence_class": "safe_counterfactual_no_unsafe_execution",
+      "case_count": 6,
+      "guard_enabled": {
+        "unsafe_candidate_acceptance": 0,
+        "unsafe_candidate_acceptance_rate": 0.0
+      },
+      "schema_only_ablation": {
+        "unsafe_candidate_acceptance": 6,
+        "unsafe_candidate_acceptance_rate": 1.0,
+        "note": "Counterfactual assumes syntactically valid candidate payloads pass when semantic sandbox and contract guards are removed."
+      },
+      "prevented_unsafe_acceptances": 6
+    },
+    "context_and_specialists": {
+      "evidence_class": "posthoc_current_run_artifacts",
+      "specialist_result_count": 117,
+      "full_state_exposure_baseline_bytes_p50": 375984.0,
+      "specialist_result_bytes_p50": 7978.0,
+      "main_agent_context_reduction_p50": 0.9784,
+      "main_agent_context_reduction_p95": 0.993,
+      "raw_artifact_read_count": 35,
+      "raw_to_summary_reduction_p50": 0.8672
+    }
+  },
+  "recovery_and_idempotency": {
+    "evidence_class": "controlled_production_components",
+    "rate": {
+      "numerator": 5,
+      "denominator": 5,
+      "rate": 1.0,
+      "wilson_95": [
+        0.5655,
+        1.0
+      ],
+      "statistically_usable": false
+    },
+    "probes": [
+      {
+        "name": "queue_enqueue_dedup",
+        "passed": true
+      },
+      {
+        "name": "exactly_once_commit_replay",
+        "passed": true
+      },
+      {
+        "name": "checkpoint_round_trip",
+        "passed": true
+      },
+      {
+        "name": "idempotent_tool_cache",
+        "passed": true
+      },
+      {
+        "name": "bounded_idempotent_retry",
+        "passed": true
+      }
+    ]
+  },
+  "release_gates": {
+    "frozen_historical_cohort_present": true,
+    "historical_false_success_zero": true,
+    "trace_completeness_at_least_95_percent": true,
+    "artifact_completeness_at_least_95_percent": true,
+    "real_llm_open_planning_at_least_80_percent": true,
+    "rag_mrr_at_least_80_percent": true,
+    "rag_pollution_at_most_10_percent": true,
+    "unsafe_candidate_acceptance_zero": true,
+    "recovery_idempotency_all_pass": true,
+    "context_isolation_measured": true
+  },
+  "limitations": [
+    "Open-task generalization evaluates real LLM interpretation and guarded planning, not HLS execution.",
+    "Guard ablation is a safe counterfactual and never executes unsafe candidates.",
+    "Context ablation is posthoc over frozen current-run artifacts.",
+    "Samples below 20 are reported with Wilson intervals and are not claimed as population-level stability."
+  ]
+}

@@ -4,13 +4,57 @@ from typing import Any
 
 
 TASK_INTERPRETATION_SCHEMA: dict[str, Any] = {
+    "title": "TaskInterpretationSchema",
     "type": "object",
-    "required": ["task", "assumptions"],
+    "required": ["task", "assumptions", "reason_summary"],
     "properties": {
-        "task": {"type": "object"},
-        "assumptions": {"type": "array"},
+        "task": {
+            "type": "object",
+            "required": ["task_type", "name", "target", "objective"],
+            "properties": {
+                "task_type": {"type": "string", "enum": ["model", "operator", "hls_project"]},
+                "name": {"type": "string"},
+                "op_type": {"type": "string"},
+                "model_path": {"type": "string"},
+                "frontend": {"type": "string"},
+                "hls_project_dir": {"type": "string"},
+                "top_function": {"type": "string"},
+                "input_shape": {"type": "array"},
+                "weight_shape": {"type": "array"},
+                "output_shape": {"type": "array"},
+                "dtype": {"type": "string"},
+                "group": {"type": "integer"},
+                "target": {
+                    "type": "object",
+                    "required": ["backend", "part", "clock_period"],
+                    "properties": {
+                        "backend": {"type": "string"},
+                        "part": {"type": "string"},
+                        "clock_period": {"type": "number"},
+                    },
+                },
+                "objective": {"type": "string", "enum": ["standard", "latency", "throughput", "resource", "balanced", "performance"]},
+            },
+        },
+        "assumptions": {"type": "array", "items": {"type": "string"}},
         "reason_summary": {"type": "string"},
     },
+    "examples": [
+        {
+            "task": {
+                "task_type": "operator",
+                "name": "dense_12x20",
+                "op_type": "Dense",
+                "input_shape": [12],
+                "output_shape": [20],
+                "dtype": "ap_fixed<12,4>",
+                "target": {"backend": "VivadoHLS", "part": "xc7z020clg400-1", "clock_period": 10},
+                "objective": "latency",
+            },
+            "assumptions": ["Shapes are static at synthesis time."],
+            "reason_summary": "Normalized a static Dense deployment request.",
+        }
+    ],
 }
 
 TODO_PLAN_SCHEMA: dict[str, Any] = {
@@ -199,7 +243,34 @@ CANDIDATE_GENERATION_SCHEMA: dict[str, Any] = {
 
 
 def validate_required(payload: dict[str, Any], schema: dict[str, Any]) -> None:
-    required = schema.get("required", [])
-    for key in required:
-        if key not in payload:
-            raise ValueError(f"Missing required key: {key}")
+    """Validate the JSON-schema subset used by Agent control-plane contracts."""
+
+    def validate(value: Any, node: dict[str, Any], path: str) -> None:
+        expected = node.get("type")
+        allowed_types = expected if isinstance(expected, list) else [expected] if expected else []
+        type_checks = {
+            "object": lambda item: isinstance(item, dict),
+            "array": lambda item: isinstance(item, list),
+            "string": lambda item: isinstance(item, str),
+            "number": lambda item: isinstance(item, (int, float)) and not isinstance(item, bool),
+            "integer": lambda item: isinstance(item, int) and not isinstance(item, bool),
+            "boolean": lambda item: isinstance(item, bool),
+            "null": lambda item: item is None,
+        }
+        if allowed_types and not any(type_checks[item](value) for item in allowed_types if item in type_checks):
+            raise ValueError(f"Invalid type at {path}: expected {allowed_types}, got {type(value).__name__}")
+        if "enum" in node and value not in node["enum"]:
+            raise ValueError(f"Invalid enum at {path}: {value!r} not in {node['enum']}")
+        if isinstance(value, dict):
+            for key in node.get("required", []):
+                if key not in value:
+                    raise ValueError(f"Missing required key: {path}.{key}")
+            properties = node.get("properties", {})
+            for key, child in properties.items():
+                if key in value:
+                    validate(value[key], child, f"{path}.{key}")
+        if isinstance(value, list) and isinstance(node.get("items"), dict):
+            for index, item in enumerate(value):
+                validate(item, node["items"], f"{path}[{index}]")
+
+    validate(payload, schema, "$")

@@ -660,6 +660,11 @@ class LLMClient:
 
         if "todos" in properties and not isinstance(normalized.get("todos"), list):
             normalized["todos"] = []
+        if isinstance(normalized.get("todos"), list):
+            normalized["todos"] = [
+                ({**item, "assigned_specialist": item.get("assigned_specialist")} if isinstance(item, dict) else item)
+                for item in normalized["todos"]
+            ]
         if "new_todos" in properties and not isinstance(normalized.get("new_todos"), list):
             normalized["new_todos"] = []
         if "memory_candidates" in properties and not isinstance(normalized.get("memory_candidates"), list):
@@ -740,7 +745,7 @@ class FakeLLMClient(LLMClient):
                     source="fake_llm.complete_json",
                 )
             )
-        payload = self._json_responses.pop(0)
+        payload = self._normalize_payload(self._json_responses.pop(0), schema)
         validate_required(payload, schema)
         emit_llm_event(
             self.context,

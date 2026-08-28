@@ -30,9 +30,12 @@ $env:PYTHONPATH = "src"
 python -m dl_op_to_hls.cli operator-benchmark --output runs\benchmarks\operator_release.json
 python -m dl_op_to_hls.cli operator-onnx-benchmark --output benchmarks\operator_onnx_graph_results.json
 python -m dl_op_to_hls.cli operator-fair-comparison --output benchmarks\operator_template_vs_llm_results.json
+python -m dl_op_to_hls.cli agent-interview-benchmark --output runs\benchmarks\agent_interview_release.json
 ```
 
 统一报告包含 120 个独立 Layer-1 Golden Case、真实 CSim/CSynth 证据、LLM pass³、20 个生产组件 Bad Case、26 个真实 ONNX 图契约和 4 组 Dense/MatMul template-vs-LLM 公平对照。ONNX 适配器在该评测中只负责静态图契约提取，HLS 生成仍走 LLM Candidate；公平对照使用预声明 exact Run ID，不做 best-of 筛选。
+
+面向 Agent 岗位的统一 Benchmark 额外汇总冻结真实 Run、真实 LLM 开放任务规划、RAG hard-negative、Guard 消融、Specialist 上下文隔离以及恢复/幂等探针。指标定义、结果和严格口径见 [Agent 面试量化 Benchmark](docs/agent_interview_benchmark.md)。添加 `--run-open-llm` 才会调用已配置的真实模型；默认只复算本地证据和受控组件实验。
 
 关键文档：`docs/operator_support_audit.md`、`docs/operator_testing_methodology.md`、`docs/operator_interview_guide.md`。
 

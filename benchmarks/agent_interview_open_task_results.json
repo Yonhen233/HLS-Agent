@@ -1,0 +1,222 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "real_llm_planning",
+  "selection_policy": "fixed_prompts_no_best_of",
+  "model": "deepseek-v4-pro",
+  "rate": {
+    "numerator": 10,
+    "denominator": 10,
+    "rate": 1.0,
+    "wilson_95": [
+      0.7225,
+      1.0
+    ],
+    "statistically_usable": false
+  },
+  "runtime_s": 547.8,
+  "llm_calls": 18,
+  "total_tokens": 40023,
+  "tokens_per_pass": 4002.3,
+  "results": [
+    {
+      "case_id": "open_dense_latency",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "dense_12x20_240eead4_03",
+      "error": null,
+      "runtime_s": 66.983,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 3917,
+        "output_tokens": 812,
+        "total_tokens": 4729
+      }
+    },
+    {
+      "case_id": "open_matmul_resource",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "matmul_6x10x4_cdcc3e36",
+      "error": null,
+      "runtime_s": 67.336,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 3938,
+        "output_tokens": 860,
+        "total_tokens": 4798
+      }
+    },
+    {
+      "case_id": "open_relu_boundary",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "relu_len128_be90a999_03",
+      "error": null,
+      "runtime_s": 67.009,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 3898,
+        "output_tokens": 808,
+        "total_tokens": 4706
+      }
+    },
+    {
+      "case_id": "open_add_balanced",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "vector_add_64_7f843cae",
+      "error": null,
+      "runtime_s": 66.996,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 3898,
+        "output_tokens": 779,
+        "total_tokens": 4677
+      }
+    },
+    {
+      "case_id": "open_scale_shift_unknown",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "scaleshift_len32_3c85ff92",
+      "error": null,
+      "runtime_s": 68.36,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 3934,
+        "output_tokens": 879,
+        "total_tokens": 4813
+      }
+    },
+    {
+      "case_id": "open_conv2d_valid",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "llm_candidate_verification_flow",
+      "todo_count": 7,
+      "run_id": "conv2d_nhwc_6x6x1_3x3_2ch_8c0add44",
+      "error": null,
+      "runtime_s": 68.105,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 4012,
+        "output_tokens": 1059,
+        "total_tokens": 5071
+      }
+    },
+    {
+      "case_id": "open_existing_project",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "existing_hls_project_flow",
+      "todo_count": 6,
+      "run_id": "dense_16x32_7f16bdd3",
+      "error": null,
+      "runtime_s": 65.458,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 4085,
+        "output_tokens": 744,
+        "total_tokens": 4829
+      }
+    },
+    {
+      "case_id": "open_onnx_model",
+      "passed": true,
+      "outcome": "planned",
+      "task_correct": true,
+      "skill_correct": true,
+      "selected_skill": "hls4ml_model_flow",
+      "todo_count": 10,
+      "run_id": "mnist_mlp_82385132_02",
+      "error": null,
+      "runtime_s": 67.564,
+      "llm_usage": {
+        "calls": 2,
+        "input_tokens": 4096,
+        "output_tokens": 923,
+        "total_tokens": 5019
+      }
+    },
+    {
+      "case_id": "open_dynamic_shape_reject",
+      "passed": true,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "UnsupportedOperatorError",
+        "message": "input_shape must be a non-empty static integer shape.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "input_shape": [
+            "N"
+          ]
+        }
+      },
+      "runtime_s": 2.888,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 433,
+        "output_tokens": 185,
+        "total_tokens": 618
+      }
+    },
+    {
+      "case_id": "open_grouped_conv_reject",
+      "passed": true,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "UnsupportedOperatorError",
+        "message": "Grouped/depthwise Conv2D is outside the current verified LLM candidate contract.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": "Use group=1 or add a verified grouped-convolution implementation and golden testbench.",
+        "details": {
+          "group": 2
+        }
+      },
+      "runtime_s": 5.492,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 439,
+        "output_tokens": 324,
+        "total_tokens": 763
+      }
+    }
+  ]
+}

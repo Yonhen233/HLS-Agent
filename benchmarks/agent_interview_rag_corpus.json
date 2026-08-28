@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "documents": [
+    {"source_id": "verified:dense_resource", "text": "Verified Dense resource experiment: increasing reuse factor reduced DSP while increasing latency.", "metadata": {"op_type": "Dense", "source_type": "parameter_experience"}},
+    {"source_id": "verified:matmul_timing", "text": "Verified MatMul timing repair: shorten the accumulation critical path and add staged pipelining before changing clock.", "metadata": {"op_type": "MatMul", "source_type": "parameter_experience"}},
+    {"source_id": "verified:conv2d_partition", "text": "Verified Conv2D resource rule: avoid complete partition of large mutable feature maps; use bounded line buffers.", "metadata": {"op_type": "Conv2D", "source_type": "parameter_experience"}},
+    {"source_id": "failure:vivado_missing", "text": "VivadoNotFoundError is recoverable. Preserve generated artifacts and run synthesis on a host with Vivado HLS.", "metadata": {"source_type": "failure"}},
+    {"source_id": "failure:report_missing", "text": "ReportMissingError requires checking synthesis logs and current-run report provenance; never reuse a fixture report.", "metadata": {"source_type": "failure"}},
+    {"source_id": "boundary:residual", "text": "Residual elementwise branches are outside the restricted static ONNX adapter and require an unsupported boundary report.", "metadata": {"op_type": "Residual", "source_type": "unsupported_report"}},
+    {"source_id": "skill:candidate_verification", "text": "LLM candidate verification playbook: sandbox, independent golden CSim, real CSynth, report parsing, then memory promotion.", "metadata": {"source_type": "procedural_memory"}},
+    {"source_id": "skill:memory_promotion", "text": "Promote verified implementation memory only after functional verification and synthesis evidence pass their gates.", "metadata": {"source_type": "procedural_memory"}},
+    {"source_id": "failure:tool_timeout", "text": "ToolTimeoutError is recoverable only for idempotent bounded retries; non-idempotent tools must not be replayed blindly.", "metadata": {"source_type": "failure"}},
+    {"source_id": "hard_negative:dense", "text": "MatMul resource optimization mentions Dense and reuse factor only as unrelated examples; this record is not Dense evidence.", "metadata": {"op_type": "MatMul", "source_type": "summary"}},
+    {"source_id": "hard_negative:residual", "text": "Dense and MatMul reuse factor can reduce DSP; this optimization note does not apply to a ResNet residual boundary.", "metadata": {"op_type": "Dense", "source_type": "summary"}},
+    {"source_id": "hard_negative:vivado", "text": "A generic timing warning from Vitis is not evidence for VivadoNotFoundError recovery.", "metadata": {"source_type": "summary"}}
+  ],
+  "queries": [
+    {"query": "Dense resource reuse factor DSP", "domain": "parameter", "top_k": 3, "relevant_source_ids": ["verified:dense_resource"], "irrelevant_terms": ["not dense evidence"]},
+    {"query": "MatMul critical path timing repair", "domain": "parameter", "top_k": 3, "relevant_source_ids": ["verified:matmul_timing"], "irrelevant_terms": ["residual boundary"]},
+    {"query": "Conv2D feature map partition line buffer", "domain": "parameter", "top_k": 3, "relevant_source_ids": ["verified:conv2d_partition"], "irrelevant_terms": ["matmul resource"]},
+    {"query": "VivadoNotFoundError recoverable", "domain": "failure", "top_k": 3, "relevant_source_ids": ["failure:vivado_missing"], "irrelevant_terms": ["generic timing warning"]},
+    {"query": "ReportMissingError stale fixture provenance", "domain": "failure", "top_k": 3, "relevant_source_ids": ["failure:report_missing"], "irrelevant_terms": ["reuse factor"]},
+    {"query": "ResNet residual branch unsupported boundary", "domain": "failure", "top_k": 3, "relevant_source_ids": ["boundary:residual"], "irrelevant_terms": ["dense and matmul reuse"]},
+    {"query": "LLM candidate sandbox golden CSim CSynth", "domain": "optimization", "top_k": 3, "relevant_source_ids": ["skill:candidate_verification"], "irrelevant_terms": ["resnet residual"]},
+    {"query": "verified memory promotion gate", "domain": "optimization", "top_k": 3, "relevant_source_ids": ["skill:memory_promotion"], "irrelevant_terms": ["fixture report"]},
+    {"query": "ToolTimeoutError idempotent retry", "domain": "failure", "top_k": 3, "relevant_source_ids": ["failure:tool_timeout"], "irrelevant_terms": ["conv2d feature map"]}
+  ]
+}

@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .benchmarks.agent_quality_benchmark import main as benchmark_main
+from .benchmarks.agent_interview_benchmark import run_interview_benchmark
 from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
 from .benchmarks.maturity_benchmark import run_maturity_benchmark
 from .benchmarks.semantic_rag_benchmark import run_semantic_rag_benchmark
@@ -129,6 +130,19 @@ def build_parser() -> argparse.ArgumentParser:
     operator_fair_parser = subparsers.add_parser("operator-fair-comparison")
     operator_fair_parser.add_argument("--manifest", default="benchmarks/operator_template_vs_llm_suite.json")
     operator_fair_parser.add_argument("--output", default="benchmarks/operator_template_vs_llm_results.json")
+    agent_interview_parser = subparsers.add_parser(
+        "agent-interview-benchmark",
+        help="Run the unified Agent engineering benchmark and ablations.",
+    )
+    agent_interview_parser.add_argument(
+        "--output",
+        default="runs/benchmarks/agent_interview_release.json",
+    )
+    agent_interview_parser.add_argument(
+        "--run-open-llm",
+        action="store_true",
+        help="Call the configured real LLM once for every fixed open-task case.",
+    )
 
     rag_calibrate_parser = subparsers.add_parser("rag-calibrate")
     rag_calibrate_parser.add_argument("--dataset", default="benchmarks/hls_reranker_hard_negatives.json")
@@ -467,6 +481,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "operator-fair-comparison":
         payload = analyze_template_vs_llm(Path.cwd(), args.manifest, args.output)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "agent-interview-benchmark":
+        payload = run_interview_benchmark(Path.cwd(), args.output, run_open_llm=args.run_open_llm)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
     if args.command == "rag-calibrate":

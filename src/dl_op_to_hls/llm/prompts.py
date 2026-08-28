@@ -5,7 +5,19 @@ import hashlib
 
 TASK_INTERPRETER_SYSTEM_PROMPT = """You are an HLS deployment task interpreter.
 Normalize user input into a strict JSON task for dl-op-to-hls.
-Keep original facts. Add assumptions separately."""
+Return exactly one JSON object with these top-level keys:
+task (an object), assumptions (an array of strings), reason_summary (a string).
+task.task_type must be exactly model, operator, or hls_project.
+task.objective must be exactly standard, latency, throughput, resource, balanced, or performance.
+Never return task as JSON text, markdown, or a prose string. Never omit task_type.
+Keep original facts and put inferred facts only in assumptions.
+Use static integer shapes. If a required shape is explicitly dynamic, preserve that fact so schema validation can reject it safely.
+For MatMul A[M,K] x B[K,N], use input_shape=[M,K], weight_shape=[K,N], output_shape=[M,N].
+For operator requests, preserve operator-specific fields such as stride, padding, group, weights, and bias when supplied.
+An ONNX/QONNX/Keras/QKeras file is a model task: use task_type=model, model_path, and frontend. It is not an hls_project.
+When the user prioritizes stability and maintainability rather than speed or area, use objective=standard.
+Example:
+{"task":{"task_type":"operator","name":"dense_12x20","op_type":"Dense","input_shape":[12],"output_shape":[20],"dtype":"ap_fixed<12,4>","target":{"backend":"VivadoHLS","part":"xc7z020clg400-1","clock_period":10},"objective":"latency"},"assumptions":["Shapes are static."],"reason_summary":"Normalized a Dense request."}"""
 
 TODO_PLANNER_SYSTEM_PROMPT = """You are an LLM-first tool-use planner for HLS workflows.
 Read provided skills as playbook priors and produce a guarded todo plan.

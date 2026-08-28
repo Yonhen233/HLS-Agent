@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "agent_interview_open_task_planning",
+  "evidence_class": "real_llm_planning",
+  "selection_policy": "fixed_prompts_no_best_of",
+  "cases": [
+    {
+      "id": "open_dense_latency",
+      "prompt": "请把一个 12 输入、20 输出的全连接算子部署到 xc7z020，定点类型 ap_fixed<12,4>，时钟 10ns，优先降低延迟。生成的实现必须经过 testbench、CSim 和综合验证。",
+      "expected_task_type": "operator",
+      "expected_op_type": "Dense",
+      "expected_objective": "latency",
+      "allowed_skills": ["llm_candidate_verification_flow", "latency_optimization_flow"]
+    },
+    {
+      "id": "open_matmul_resource",
+      "prompt": "需要实现静态矩阵乘法 A[6][10] 乘 B[10][4]，输出 C[6][4]。使用 ap_fixed<16,6>，器件 xc7z020，12ns 时钟，资源占用优先，并要求验证候选代码。",
+      "expected_task_type": "operator",
+      "expected_op_type": "MatMul",
+      "expected_objective": "resource",
+      "allowed_skills": ["llm_candidate_verification_flow", "resource_optimization_flow"]
+    },
+    {
+      "id": "open_relu_boundary",
+      "prompt": "生成长度 128 的 ReLU HLS 算子，输入输出都是 ap_fixed<8,3>，需要覆盖负数、零和接近上界的数据，目标是 latency。",
+      "expected_task_type": "operator",
+      "expected_op_type": "ReLU",
+      "expected_objective": "latency",
+      "allowed_skills": ["llm_candidate_verification_flow", "latency_optimization_flow"]
+    },
+    {
+      "id": "open_add_balanced",
+      "prompt": "把两个长度 64 的定点向量逐元素相加，数据类型 ap_fixed<12,4>，目标器件 xc7z020，时钟 10ns，希望资源和延迟均衡，且不能跳过数值验证。",
+      "expected_task_type": "operator",
+      "expected_op_type": "Add",
+      "expected_objective": "balanced",
+      "allowed_skills": ["llm_candidate_verification_flow", "resource_optimization_flow", "latency_optimization_flow"]
+    },
+    {
+      "id": "open_scale_shift_unknown",
+      "prompt": "实现没有现成模板的 ScaleShift：长度 32，y[i]=x[i]*scale[i]+bias[i]，ap_fixed<12,4>，10ns，资源优先。必须走候选生成和验证，不能伪造综合指标。",
+      "expected_task_type": "operator",
+      "expected_op_type": "ScaleShift",
+      "expected_objective": "resource",
+      "allowed_skills": ["llm_candidate_verification_flow", "resource_optimization_flow"]
+    },
+    {
+      "id": "open_conv2d_valid",
+      "prompt": "部署一个静态 NHWC Conv2D：输入 6x6x1，3x3 卷积核，2 个输出通道，stride=1，valid padding，group=1，ap_fixed<12,4>，目标 xc7z020、时钟 12ns。请规划 LLM candidate 的安全验证链。",
+      "expected_task_type": "operator",
+      "expected_op_type": "Conv2D",
+      "expected_objective": "latency",
+      "allowed_skills": ["llm_candidate_verification_flow", "latency_optimization_flow"]
+    },
+    {
+      "id": "open_existing_project",
+      "prompt": "已有 HLS 工程 examples/hls_projects/dense，顶层函数 dense_16x32。请在 xc7z020、10ns 下重新综合并解析报告，重点检查资源，不要重新生成算子代码。",
+      "expected_task_type": "hls_project",
+      "expected_objective": "resource",
+      "allowed_skills": ["existing_hls_project_flow", "resource_optimization_flow", "vivado_synthesis_flow"]
+    },
+    {
+      "id": "open_onnx_model",
+      "prompt": "分析并转换 models/mnist_mlp.onnx 这个静态 ONNX 小模型，后端 Vivado，器件 xc7z020clg400-1，时钟 10ns，优先稳定和可维护性；遇到不支持节点必须诚实报告。",
+      "expected_task_type": "model",
+      "expected_objective": "standard",
+      "allowed_skills": ["hls4ml_model_flow", "unsupported_boundary_flow"]
+    },
+    {
+      "id": "open_dynamic_shape_reject",
+      "prompt": "请为输入长度运行时才知道的 Dense 算子生成 HLS，输出长度 16，输入维度记作 N，使用 ap_fixed<12,4>。如果静态 HLS 无法安全支持应直接拒绝。",
+      "expected_outcome": "structured_rejection",
+      "allowed_error_types": ["UnsupportedOperatorError", "InvalidTaskError"]
+    },
+    {
+      "id": "open_grouped_conv_reject",
+      "prompt": "实现 NHWC grouped Conv2D，输入 8x8x4，3x3 kernel，输出通道 8，group=2，ap_fixed<12,4>。当前系统若不支持 grouped convolution，必须在综合前终止并说明边界。",
+      "expected_outcome": "structured_rejection_or_unsupported_plan",
+      "expected_task_type": "operator",
+      "expected_op_type": "Conv2D",
+      "allowed_skills": ["unsupported_boundary_flow", "llm_candidate_verification_flow"],
+      "allowed_error_types": ["UnsupportedOperatorError", "InvalidTaskError"]
+    }
+  ]
+}

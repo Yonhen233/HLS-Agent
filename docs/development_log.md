@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-08-29 00:10:33 +08:00：完成 Agent 面试统一 Benchmark、真实开放任务评测与 RAG/Guard/恢复消融
+
+### 1. 本轮目标与证据分层
+从 Agent 面试而非单纯 HLS 实验角度补齐统一量化评测。新增 `agent-interview-benchmark` CLI、固定 10 题自然语言开放任务、12 文档/9 查询 RAG hard-negative 语料、Guard 安全反事实、Specialist 上下文对照和恢复/幂等探针。报告严格区分三类证据：22 个冻结真实 HLS Run、真实 `deepseek-v4-pro` API 规划、受控生产组件实验；没有把 mock 指标混入真实结果。
+
+### 2. 真实 LLM 评测暴露的问题
+第一次固定题集仅 `1/10`，21 次 API 调用共 8668 tokens。根因不是任务本身不可理解，而是 `validate_required` 只检查顶层 required key，未检查嵌套类型和 enum，导致模型返回的字符串 `task` 或缺失 `task_type` 被错误放行；`TASK_INTERPRETATION_SCHEMA` 也缺少 title、字段枚举和强示例。修复为递归校验 object/array/string/number/integer/boolean/null、required、enum 与 items，并强化 Task Interpreter 的 MatMul、模型文件和 objective 契约。
+
+第二次结果 `2/10`，10 次调用共 5553 tokens。多数任务解释已经正确，但 Benchmark 自己向 Runtime 注入了未在 SessionManager 创建的固定 session id，8 个任务被 `Unknown session` 阻断；拒绝判定还会在未声明错误类型时接受任意异常，存在假阳性风险。修复为每题创建独立 session，禁止跨轮上下文污染，并将预期拒绝限定为 `UnsupportedOperatorError`/`InvalidTaskError` 白名单。
+
+第三次达到 `8/10`，暴露两个真实语义边界：ONNX 文件被解释为 existing HLS project；`group=2` 的 Conv2D 未在规划前拒绝。新增通用模型 source alias 规范化，将 `source.format/path` 转为 `frontend/model_path`；当稳定性和可维护性为目标时规范为 `standard`。生产 operator schema 现在在候选生成前拒绝 grouped/depthwise Conv2D。针对性真实复测 `2/2` 后，再运行完整固定题集，最终 `10/10`。
+
+### 3. 最终量化结果
+- 固定开放题集：`10/10`，95% Wilson 区间 `72.25%-100%`；18 次 LLM 调用、40023 tokens、547.8 秒、每个通过样例 4002.3 tokens。相同题集从 `1/10` 到 `10/10`，框架修复绝对提升 90 个百分点，但这是回归修复，不代表总体泛化。
+- 冻结真实运行：22 个 Run，task success `90.91%`，toolchain/path selection accuracy `86.36%`，false-success `0%`，Trace/Artifact completeness 均为 `100%`。运行时间 p50/p95 为 `167.5/1258.4` 秒，tokens per success 为 `55728.9`。
+- RAG：关闭检索时 Recall/MRR 为 0；naive lexical 的 Precision@K `33.33%`、pollution@K `18.52%`；生产分域检索的 Precision@K `88.89%`、Recall@K/MRR/nDCG@K 均为 `1.0`、pollution@K `0%`。MRR 没有提升，改进主要是减少尾部污染，避免把 MatMul/Dense 经验带入 residual/failure 查询。
+- Guard：6 个危险或违反 contract 的候选，生产 Guard unsafe acceptance `0/6`；schema-only 安全反事实为 `6/6`。危险代码未执行。
+- Context isolation：117 个 SpecialistResult 对照中，返回结果相对完整 AgentState 的字节数中位缩减 `97.84%`；35 个带 context_usage 的调用中，原始 artifact 到摘要中位缩减 `86.72%`。
+- Recovery/Idempotency：Queue 去重、exactly-once commit replay、checkpoint round-trip、幂等工具缓存、有界重试共 `5/5`；样本较小，Wilson 下界仅 `56.55%`，不能宣称大规模并发稳定性。
+
+### 4. 实现与测试
+新增机器报告 `benchmarks/agent_interview_results.json`、最终/中间/修复前开放任务证据、中文文档 `docs/agent_interview_benchmark.md` 和 10 个相关测试点。真实 API key 仅通过环境变量注入，未写入 Trace、报告或仓库。Windows 受控探针首次还暴露 SQLite WAL 连接未及时释放导致临时目录无法删除，已在探针结束时显式 checkpoint/close 并触发回收。
+
+最终使用包含 ONNX 1.21.0 与 FAISS 1.15.0 的项目 Python 执行全量回归，437 tests collected，进度到 `[100%]` 且退出码 `0`。首次误用系统 `pytest.exe` 时出现 3 个 `onnx/faiss` 依赖缺失失败；另有 1 个 FakeLLM 测试因 Fake 客户端未复用真实 payload normalize 路径而失败。现 FakeLLM 与真实客户端都先补齐 nullable `assigned_specialist` 再做递归校验，相关 35 个测试和随后全量回归均通过。
+
+### 5. 尚未解决与严格口径
+开放题只有 10 个且修复过程看过同一题集，存在回归集过拟合风险；下一阶段应新增隐藏题集、多 seed 和不同模型交叉测试。RAG 固定语料仅 12 文档，MRR=1.0 主要说明首位查询较容易，不能作为大规模知识库结论。恢复探针尚未覆盖真实进程 kill、并发 worker 争抢和长时间 lease 过期。开放任务评测只测解释与 Planner，不替代 CSim/CSynth；真实 HLS 能力仍以冻结 Run 和 Operator Benchmark 为准。
+
+---
+
 ## 2026-08-28 13:16:38 +08:00：完成 20-case Bad Case、26 图 ONNX 正反例与 Dense/MatMul Template-vs-LLM 真实公平对照
 
 ### 1. 本轮范围与真实环境

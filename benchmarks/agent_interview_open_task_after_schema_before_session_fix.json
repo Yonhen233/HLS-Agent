@@ -1,0 +1,263 @@
+{
+  "schema_version": "1.0",
+  "evidence_class": "real_llm_planning",
+  "selection_policy": "fixed_prompts_no_best_of",
+  "model": "deepseek-v4-pro",
+  "rate": {
+    "numerator": 2,
+    "denominator": 10,
+    "rate": 0.2,
+    "wilson_95": [
+      0.0567,
+      0.5098
+    ],
+    "statistically_usable": false
+  },
+  "runtime_s": 37.447,
+  "llm_calls": 10,
+  "total_tokens": 5553,
+  "tokens_per_pass": 2776.5,
+  "results": [
+    {
+      "case_id": "open_dense_latency",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_dense_latency'",
+        "recoverable": false
+      },
+      "runtime_s": 2.711,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 327,
+        "output_tokens": 171,
+        "total_tokens": 498
+      }
+    },
+    {
+      "case_id": "open_matmul_resource",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "UnsupportedOperatorError",
+        "message": "input_shape must be a non-empty static integer shape.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "input_shape": [
+            [
+              6,
+              10
+            ],
+            [
+              10,
+              4
+            ]
+          ]
+        }
+      },
+      "runtime_s": 2.556,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 329,
+        "output_tokens": 196,
+        "total_tokens": 525
+      }
+    },
+    {
+      "case_id": "open_relu_boundary",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_relu_boundary'",
+        "recoverable": false
+      },
+      "runtime_s": 2.975,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 312,
+        "output_tokens": 211,
+        "total_tokens": 523
+      }
+    },
+    {
+      "case_id": "open_add_balanced",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_add_balanced'",
+        "recoverable": false
+      },
+      "runtime_s": 2.97,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 319,
+        "output_tokens": 189,
+        "total_tokens": 508
+      }
+    },
+    {
+      "case_id": "open_scale_shift_unknown",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_scale_shift_unknown'",
+        "recoverable": false
+      },
+      "runtime_s": 4.191,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 325,
+        "output_tokens": 242,
+        "total_tokens": 567
+      }
+    },
+    {
+      "case_id": "open_conv2d_valid",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_conv2d_valid'",
+        "recoverable": false
+      },
+      "runtime_s": 5.696,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 345,
+        "output_tokens": 358,
+        "total_tokens": 703
+      }
+    },
+    {
+      "case_id": "open_existing_project",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_existing_project'",
+        "recoverable": false
+      },
+      "runtime_s": 3.596,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 320,
+        "output_tokens": 235,
+        "total_tokens": 555
+      }
+    },
+    {
+      "case_id": "open_onnx_model",
+      "passed": false,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_onnx_model'",
+        "recoverable": false
+      },
+      "runtime_s": 4.522,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 328,
+        "output_tokens": 259,
+        "total_tokens": 587
+      }
+    },
+    {
+      "case_id": "open_dynamic_shape_reject",
+      "passed": true,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "UnsupportedOperatorError",
+        "message": "input_shape must be a non-empty static integer shape.",
+        "recoverable": false,
+        "source": "schemas.operator_schema",
+        "suggested_action": null,
+        "details": {
+          "input_shape": [
+            "N"
+          ]
+        }
+      },
+      "runtime_s": 3.046,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 320,
+        "output_tokens": 187,
+        "total_tokens": 507
+      }
+    },
+    {
+      "case_id": "open_grouped_conv_reject",
+      "passed": true,
+      "outcome": "structured_rejection",
+      "task_correct": null,
+      "skill_correct": null,
+      "selected_skill": null,
+      "todo_count": 0,
+      "run_id": null,
+      "error": {
+        "error_type": "KeyError",
+        "message": "'Unknown session: interview_open_grouped_conv_reject'",
+        "recoverable": false
+      },
+      "runtime_s": 3.875,
+      "llm_usage": {
+        "calls": 1,
+        "input_tokens": 326,
+        "output_tokens": 254,
+        "total_tokens": 580
+      }
+    }
+  ]
+}
