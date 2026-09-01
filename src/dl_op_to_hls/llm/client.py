@@ -315,6 +315,7 @@ class LLMClient:
         )
         payload: dict[str, Any] | None = None
         max_retries = 3
+        request_started = time.perf_counter()
         for attempt in range(max_retries + 1):
             self._pre_request_throttle(request_bytes)
             try:
@@ -401,6 +402,17 @@ class LLMClient:
                         )
                     ) from exc
             token_source = "provider" if usage else "estimated"
+            cache_hit_tokens = int(
+                usage.get("prompt_cache_hit_tokens")
+                or usage.get("cache_read_input_tokens")
+                or (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+                or 0
+            )
+            cache_miss_tokens = int(
+                usage.get("prompt_cache_miss_tokens")
+                or usage.get("cache_creation_input_tokens")
+                or max(0, input_tokens - cache_hit_tokens)
+            )
             token_anomalies: list[str] = []
             if output_tokens >= int(effective_max_tokens * 0.95):
                 token_anomalies.append("output_near_limit")
@@ -423,6 +435,11 @@ class LLMClient:
                     "model": self.active_model(),
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "total_tokens": int(usage.get("total_tokens") or input_tokens + output_tokens),
+                    "cache_hit_tokens": cache_hit_tokens,
+                    "cache_miss_tokens": cache_miss_tokens,
+                    "provider_usage": usage,
+                    "latency_ms": round((time.perf_counter() - request_started) * 1000, 3),
                     "token_source": token_source,
                     "estimated_input_tokens": estimated_input_tokens,
                     "request_bytes": request_bytes,

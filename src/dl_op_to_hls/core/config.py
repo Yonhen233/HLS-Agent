@@ -107,6 +107,8 @@ class AppConfig:
     @classmethod
     def load(cls, workspace_root: str | Path | None = None) -> "AppConfig":
         root = Path(workspace_root or os.getcwd()).resolve()
+        runs_root = Path(os.environ.get("DL_OP_TO_HLS_RUNS_ROOT", root / "runs")).resolve()
+        db_path = Path(os.environ.get("DL_OP_TO_HLS_DB_PATH", runs_root / "metadata.db")).resolve()
         runtime_config_path = root / "runtime.yaml"
         runtime_config = _simple_yaml_load(runtime_config_path.read_text(encoding="utf-8")) if runtime_config_path.exists() else {}
         runtime_section = runtime_config.get("runtime", {}) if isinstance(runtime_config.get("runtime", {}), dict) else {}
@@ -176,9 +178,9 @@ class AppConfig:
                 rag_semantic_config[key] = value
         return cls(
             workspace_root=root,
-            runs_root=root / "runs",
+            runs_root=runs_root,
             docs_root=root / "docs",
-            db_path=root / "runs" / "metadata.db",
+            db_path=db_path,
             permissions_path=root / "permissions.yaml",
             runtime_config_path=runtime_config_path,
             runtime_mode=runtime_mode,
@@ -189,7 +191,12 @@ class AppConfig:
             rag_semantic_config=rag_semantic_config,
             operator_generation_path=str(generation_section.get("operator_primary_path", "llm_candidate")),
             allow_hls4ml_generation=bool(generation_section.get("allow_hls4ml_generation", False)),
-            reuse_verified_implementations=bool(generation_section.get("reuse_verified_implementations", True)),
+            reuse_verified_implementations=(
+                os.environ.get("DL_OP_TO_HLS_REUSE_VERIFIED_IMPLEMENTATIONS", "1" if generation_section.get("reuse_verified_implementations", True) else "0")
+                .strip()
+                .lower()
+                in {"1", "true", "yes", "on"}
+            ),
             mock_hls4ml=os.environ.get("DL_OP_TO_HLS_MOCK_HLS4ML", default_mock) != "0",
             mock_vivado=os.environ.get("DL_OP_TO_HLS_MOCK_VIVADO", default_mock) != "0",
             hls_toolchain=hls_toolchain,

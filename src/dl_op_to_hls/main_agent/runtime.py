@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from ..core.context import ContextCompressor
+from ..core.context_modes import ContextModeConfig
 from ..core.errors import AgentRuntimeError, build_error
 from ..core.goal_contract import CompletionGate, GoalContractBuilder, PlanCoverageValidator
 from ..core.progress import ProgressSupervisor
@@ -49,6 +51,7 @@ class PlanExecuteReactRuntime:
         self.todo_manager: TodoManager | None = None
         self.compressor: ContextCompressor | None = None
         self.context_builder = ContextBuilder()
+        self.context_modes = ContextModeConfig.from_env()
         self.specialist_router = None
         self.goal_contract_builder = GoalContractBuilder()
         self.plan_coverage_validator = PlanCoverageValidator()
@@ -100,6 +103,7 @@ class PlanExecuteReactRuntime:
         task = _normalize_task(raw_task)
         run_id = self.agent.make_run_id(task)
         self.context = self.agent.create_run_context(run_id, self.session_id)
+        self._record_context_modes()
         self.executor = AgentExecutor(self.agent.registry, self.context)
         self.todo_manager = TodoManager(self.context["run_dir"], hooks=self.context["hooks"], artifact_manager=self.context["artifact_manager"])
         self.compressor = ContextCompressor(hooks=self.context["hooks"], run_id=run_id)
@@ -125,6 +129,12 @@ class PlanExecuteReactRuntime:
             },
         )
         return state
+
+    def _record_context_modes(self) -> None:
+        payload = self.context_modes.to_dict()
+        self.context["context_modes"] = payload
+        self.context["artifact_manager"].write_json("context_modes.json", payload, "context_modes")
+        self.context["hooks"].emit("ContextModesSelected", {"run_id": self.context["run_id"], **payload})
 
     def _initialize_governance(self, state: AgentState) -> None:
         if not state.goal_contract:
@@ -361,7 +371,10 @@ class PlanExecuteReactRuntime:
         if specialist.name == "MemorySpecialist":
             state_path = self._write_memory_ready_state_snapshot(state)
             state.artifacts["state"] = str(state_path)
+        context_started = time.perf_counter()
         envelope = self.context_builder.build_for_specialist(state=state, todo=todo, specialist_name=specialist.name)
+        envelope.constraints["context_build_ms"] = round((time.perf_counter() - context_started) * 1000, 3)
+        self._write_context_telemetry(todo.id, specialist.name, "input_envelope", envelope.to_dict())
         hooks.emit(
             "ContextEnvelopeCreated",
             {
@@ -421,7 +434,11 @@ class PlanExecuteReactRuntime:
                     **result.context_usage,
                 },
             )
+        merge_started = time.perf_counter()
         state = self.executor.merge_specialist_result(state, todo, result)
+        result.context_usage["result_merge_ms"] = round((time.perf_counter() - merge_started) * 1000, 3)
+        self._write_context_telemetry(todo.id, specialist.name, "raw_specialist_result", result.to_dict())
+        self._write_context_telemetry(todo.id, specialist.name, "delivered_result", todo.specialist_result or {})
         if message_bus is not None and delegation_message is not None:
             message_bus.publish(
                 message_type="delegation_result",
@@ -444,6 +461,14 @@ class PlanExecuteReactRuntime:
         )
         return self._apply_specialist_observation(state, todo, result)
 
+    def _write_context_telemetry(self, todo_id: str, specialist_name: str, kind: str, payload: dict[str, Any]) -> None:
+        safe_specialist = specialist_name.replace("Specialist", "").lower() or "specialist"
+        self.context["artifact_manager"].write_json(
+            f"context_telemetry/{todo_id}_{safe_specialist}_{kind}.json",
+            payload,
+            "context_telemetry",
+        )
+
     def _apply_specialist_observation(self, state: AgentState, todo: TodoItem, result) -> dict[str, Any]:
         observation = {
             "status": self._todo_status_from_specialist(result.status),
@@ -461,6 +486,8 @@ class PlanExecuteReactRuntime:
             "specialist_status": result.status,
             "specialist_name": result.specialist_name,
         }
+        if self.context_modes.result_context_mode == "raw":
+            observation["observation"]["raw_result"] = todo.specialist_result
         if result.specialist_name == "HLS4MLSpecialist":
             support_observation = next(
                 (

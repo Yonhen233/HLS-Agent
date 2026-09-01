@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "suite_name": "context_ablation_real_hls_v1",
+  "description": "Frozen replayable tasks for paired full/raw, scoped/raw, and scoped/compressed evaluation.",
+  "cases": [
+    {"case_id": "dense_llm", "task": "examples/dense_llm_candidate.json", "coverage": ["Dense", "llm_candidate", "rag_success"]},
+    {"case_id": "matmul_llm", "task": "examples/matmul_llm_candidate.json", "coverage": ["MatMul", "llm_candidate", "resource"]},
+    {"case_id": "relu_llm", "task": "examples/relu_llm_candidate.json", "coverage": ["ReLU", "llm_candidate"]},
+    {"case_id": "add_llm", "task": "examples/add_llm_candidate.json", "coverage": ["Add", "llm_candidate"]},
+    {"case_id": "scale_shift_llm", "task": "examples/scale_shift_llm_candidate.json", "coverage": ["ScaleShift", "llm_candidate", "repair"]},
+    {"case_id": "conv2d_static_llm", "task": "examples/conv2d_llm_candidate.json", "coverage": ["Conv2D", "static_shape", "long_code"]},
+    {"case_id": "existing_hls", "task": "examples/existing_hls_project.json", "coverage": ["existing_hls_project", "long_log"]},
+    {"case_id": "onnx_mlp", "task": "examples/mlp_onnx_example.json", "coverage": ["ONNX", "restricted_adapter"]},
+    {"case_id": "unsupported_custom", "task": "benchmarks/tasks/custom_unsupported_operator.json", "coverage": ["unsupported", "correct_rejection"]},
+    {"case_id": "verification_repair", "task": "benchmarks/tasks/scale_shift_llm_force_verify_fail.json", "coverage": ["verification_failure", "repair", "false_success_guard"]},
+    {"case_id": "timing_pressure", "task": "benchmarks/tasks/dense_fair_latency_llm.json", "coverage": ["timing", "optimization"]},
+    {"case_id": "resnet_boundary", "task": "examples/resnet18_boundary.json", "coverage": ["unsupported_model", "rag_failure_avoidance", "boundary"]}
+  ]
+}

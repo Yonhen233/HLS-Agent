@@ -9,6 +9,7 @@ from pathlib import Path
 from .benchmarks.agent_quality_benchmark import main as benchmark_main
 from .benchmarks.agent_interview_benchmark import run_interview_benchmark
 from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
+from .benchmarks.context_ablation import run_benchmark as run_context_ablation_benchmark
 from .benchmarks.maturity_benchmark import run_maturity_benchmark
 from .benchmarks.semantic_rag_benchmark import run_semantic_rag_benchmark
 from .benchmarks.operator_benchmark import run_operator_benchmark
@@ -143,6 +144,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Call the configured real LLM once for every fixed open-task case.",
     )
+
+    context_ablation_parser = subparsers.add_parser(
+        "context-ablation-benchmark",
+        help="Run paired real-HLS context input/result ablations.",
+    )
+    context_ablation_parser.add_argument("--workspace", default=".")
+    context_ablation_parser.add_argument("--tokenizer-path", required=True)
+    context_ablation_parser.add_argument("--suite", default="benchmarks/context_ablation_suite.json")
+    context_ablation_parser.add_argument("--output-dir")
+    context_ablation_parser.add_argument("--smoke", action="store_true")
+    context_ablation_parser.add_argument("--manifest-only", action="store_true")
 
     rag_calibrate_parser = subparsers.add_parser("rag-calibrate")
     rag_calibrate_parser.add_argument("--dataset", default="benchmarks/hls_reranker_hard_negatives.json")
@@ -487,6 +499,10 @@ def main(argv: list[str] | None = None) -> int:
         payload = run_interview_benchmark(Path.cwd(), args.output, run_open_llm=args.run_open_llm)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+    if args.command == "context-ablation-benchmark":
+        payload = run_context_ablation_benchmark(args)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0 if payload.get("status") in {"complete", "manifest_created"} else 2
     if args.command == "rag-calibrate":
         agent = _build_agent()
         calibrator = HLSRerankerCalibrator(agent.rag_memory.semantic_engine)

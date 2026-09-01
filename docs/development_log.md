@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-09-01 14:45:00 +08:00：新增真实上下文压缩 A/B/C 配对 Benchmark，并完成正式实验前两轮缺陷审计
+
+### 1. 本轮目标与实现
+按照上下文压缩评测任务书新增独立 `context-ablation-benchmark`。上下文拆为 `input_context_mode=full|scoped` 与 `result_context_mode=raw|compressed`，生产默认仍为 `scoped+compressed`。新增 12-case 冻结 manifest，覆盖 Dense/MatMul/ReLU/Add/ScaleShift/Conv2D、existing HLS、受限 ONNX、repair、timing、unsupported、RAG 成功/失败和 false-success guard。每个 case/mode 使用独立 runs root 和同源 SQLite snapshot，关闭 mock、模板静默回退和历史 verified implementation 复用。
+
+新增真实载荷遥测：每次 Specialist 调用保存 input envelope、raw SpecialistResult 与 delivered result；raw 模式只读取文本产物，二进制仍保留引用。DeepSeek API trace 现在记录 provider `prompt/completion/total`、cache hit/miss 和调用耗时。Benchmark 使用 `deepseek-ai/DeepSeek-V4-Pro` 官方 tokenizer，已下载到项目外 `D:\model_assets\deepseek-v4-pro-tokenizer`，加载失败硬终止，不退化为字符估算。统计实现 paired discordant counts、exact McNemar、配对中位数差和 bootstrap 95% CI。
+
+### 2. 第一次无效冒烟暴露的问题
+第一次 `2 tasks x A/B/C` 在 Dense A 组约 346 秒后得到 partial success。根因是 A 组实现把 Specialist 的局部契约整体替换成 `agent_state`，VerificationSpecialist 因顶层缺少 `candidate_dir/part/clock/top_function` 被 blocked。这不是“完整上下文更差”的有效结论，而是消融实现破坏了接口契约。修复为 A 组保留原 scoped 必需字段并额外附加完整 AgentState，权限白名单不变；按任务书要求停止该实验，不将结果纳入正式报告。
+
+### 3. 第二次无效冒烟与真实诊断
+修复字段契约后重新运行。Dense A/B/C 均走真实 `deepseek-v4-pro + Vivado HLS 2018.3`，未复用旧报告：A failed，B/C partial success，三组都没有获得完整验证证据。A/B/C 墙钟约 `1017/961/483` 秒，API total tokens 约 `118592/80582/39384`，离线 Specialist 输入约 `565971/7539/5944` tokens。该结果显示裁剪显著减载，但因为三组都未完成，不能声称“效果不降”。真实失败包括候选 testbench 对 `ap_fixed / double` 的重载歧义、多轮 repair 和 DeepSeek thinking 用尽 4096 completion tokens 后触发 finalization retry。
+
+MatMul B 真实运行约 `2997` 秒、`111650` API tokens 后仍为 partial success；多次候选修复及 Vivado 长综合是主要成本。随后发现更严格的可复现性缺陷：代码尚未提交，manifest 记录旧 HEAD `8be897a`，不能满足“同一 Git Commit”。因此第二次 smoke 也被中止并明确标记为开发诊断，不作为正式 A/B/C 数据。Benchmark 新增 tracked worktree clean gate；正式实验必须在本轮提交后从空目录重新开始。
+
+### 4. 测试与未完成项
+新增 8 个测试覆盖生产默认 C、full 不静默截断、scoped 隔离、raw/compressed 差异、tokenizer 硬失败/真实 encoder 和 paired 统计。Windows 默认 pytest temp 目录存在历史沙箱所有权冲突，使用项目内 `--basetemp` 后测试正常；一次组合 Specialist 测试进程长时间未退出，已停止该测试进程并用全量回归重新验收。
+
+首次全量误用了绑定系统 Python 的 `pytest.exe`，导致 ONNX/FAISS 三个依赖假失败，并出现一个 approval 状态失败；改用项目当前解释器的 `python -m pytest` 后，445 tests collected，完整进度到 `[100%]` 且退出码 `0`。这再次说明 Windows 多 Python 环境必须固定“解释器 + `-m pytest`”，不能只记录 pytest 命令名。
+
+正式 `2x3` smoke 与 `12x3` paired run 尚未完成，原因不是隐藏失败，而是先修复评测程序本身的字段契约和 Git commit 可追溯性。提交后必须全部从头运行，不能复用上述无效 run，也不能在初始正式 A/B/C 报告前修改压缩算法。
+
+---
+
 ## 2026-08-29 00:10:33 +08:00：完成 Agent 面试统一 Benchmark、真实开放任务评测与 RAG/Guard/恢复消融
 
 ### 1. 本轮目标与证据分层

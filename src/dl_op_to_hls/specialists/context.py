@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from ..core.context_modes import ContextModeConfig
 from ..core.token_budget import TokenBudgetManager
 
 
@@ -67,6 +68,7 @@ class ContextEnvelope:
     constraints: dict[str, Any]
     allowed_tools: list[str]
     max_context_tokens: int
+    input_context_mode: str = "scoped"
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -74,8 +76,13 @@ class ContextEnvelope:
 
 
 class ContextBuilder:
-    def __init__(self, token_budget_manager: TokenBudgetManager | None = None):
+    def __init__(
+        self,
+        token_budget_manager: TokenBudgetManager | None = None,
+        mode_config: ContextModeConfig | None = None,
+    ):
         self.token_budget_manager = token_budget_manager or TokenBudgetManager()
+        self.mode_config = mode_config or ContextModeConfig.from_env()
 
     def build_for_specialist(self, state, todo, specialist_name: str) -> ContextEnvelope:
         max_context_tokens = int(todo.context_scope.get("max_context_tokens", 3000) if todo.context_scope else 3000)
@@ -92,8 +99,16 @@ class ContextBuilder:
             "assigned_specialist": getattr(todo, "assigned_specialist", None),
             "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
         }
-        scoped_state = self._scoped_state(state, todo, specialist_name)
-        artifact_refs = self._artifact_refs(state, specialist_name)
+        scoped_state = (
+            self._full_state(state, todo, specialist_name)
+            if self.mode_config.input_context_mode == "full"
+            else self._scoped_state(state, todo, specialist_name)
+        )
+        artifact_refs = (
+            self._all_artifact_refs(state)
+            if self.mode_config.input_context_mode == "full"
+            else self._artifact_refs(state, specialist_name)
+        )
         memory_refs = [
             {
                 "source": item.get("source_run_id") or item.get("source") or item.get("id"),
@@ -116,12 +131,38 @@ class ContextBuilder:
             },
             allowed_tools=SPECIALIST_ALLOWED_TOOLS.get(specialist_name, []),
             max_context_tokens=max_context_tokens,
+            input_context_mode=self.mode_config.input_context_mode,
             notes=[
                 "Artifact refs are paths and metadata only; raw logs, reports, code, and trace content stay outside the envelope."
             ],
         )
-        self.token_budget_manager.enforce_envelope_budget(envelope)
+        if self.mode_config.input_context_mode == "scoped":
+            self.token_budget_manager.enforce_envelope_budget(envelope)
+        else:
+            envelope.constraints["token_budget"] = {
+                "estimated_input_tokens_before": self.token_budget_manager.estimate_tokens(envelope.to_dict()),
+                "estimated_input_tokens": self.token_budget_manager.estimate_tokens(envelope.to_dict()),
+                "max_context_tokens": max_context_tokens,
+                "truncated": False,
+                "truncation_steps": [],
+                "overflow_policy": "record_without_truncation",
+            }
         return envelope
+
+    def _full_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
+        payload = state.to_dict() if hasattr(state, "to_dict") else asdict(state)
+        return {
+            **self._scoped_state(state, todo, specialist_name),
+            "agent_state": payload,
+            "current_todo": todo.to_dict() if hasattr(todo, "to_dict") else asdict(todo),
+        }
+
+    def _all_artifact_refs(self, state) -> list[dict[str, Any]]:
+        return [
+            {"type": artifact_type, "path": str(path)}
+            for artifact_type, path in state.artifacts.items()
+            if path
+        ]
 
     def _scoped_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
         task = state.task
