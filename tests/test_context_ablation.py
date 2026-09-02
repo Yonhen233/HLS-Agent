@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from dl_op_to_hls.benchmarks.context_ablation import DeepSeekV4Tokenizer, paired_comparison
+from dl_op_to_hls.benchmarks.context_ablation_aggregate import aggregate_sources, extended_aggregate
 from dl_op_to_hls.core.context_modes import ContextModeConfig
 from dl_op_to_hls.main_agent.executor import AgentExecutor
 from dl_op_to_hls.main_agent.state import AgentState
@@ -150,3 +151,77 @@ def test_paired_comparison_uses_case_pairs() -> None:
     assert result["n_pairs"] == 2
     assert result["binary"]["task_completed"]["discordant_left_only"] == 1
     assert result["continuous"]["api_prompt_tokens"]["paired_median_difference"]["median"] == -55.0
+
+
+def _aggregate_record(case: str, mode: str, completed: bool, tokens: int, run_dir: Path) -> dict:
+    return {
+        "case_id": case,
+        "mode": mode,
+        "status": "success" if completed else "partial_success",
+        "selected_path": "llm_candidate_path",
+        "task_completed": completed,
+        "golden_csim_passed": completed,
+        "real_csynth_completed": completed,
+        "tool_selection_correct": True,
+        "tool_parameter_correct": True,
+        "critical_constraint_retention": {"rate": 1.0},
+        "evidence_complete": completed,
+        "false_success": False,
+        "correct_rejection": False,
+        "repair_final_success": completed,
+        "wall_runtime_s": float(tokens),
+        "tool_calls": 2,
+        "tool_failures": 0,
+        "tool_retries": 0,
+        "invalid_duplicate_calls": 0,
+        "llm_format_errors": 0,
+        "replans": 0,
+        "early_termination": 0,
+        "api_usage": {
+            "prompt_tokens": tokens,
+            "completion_tokens": 5,
+            "total_tokens": tokens + 5,
+            "cache_hit_tokens": 0,
+            "cache_miss_tokens": tokens,
+        },
+        "offline_tokens": {"specialist_input_tokens": tokens, "delivered_result_tokens": tokens // 2},
+        "timing": {"llm_ms": 1000, "tool_ms": 2000, "vivado_ms": 1000},
+        "context_overflow": False,
+        "run_id": f"{case}_{mode}",
+        "run_dir": str(run_dir),
+    }
+
+
+def test_extended_aggregate_reports_p50_p95_and_totals(tmp_path: Path) -> None:
+    records = [
+        _aggregate_record("one", "A", True, 100, tmp_path / "one_a"),
+        _aggregate_record("two", "A", False, 200, tmp_path / "two_a"),
+    ]
+    aggregate = extended_aggregate(records)["A"]
+    assert aggregate["task_completion_rate"] == 0.5
+    assert aggregate["api_prompt_tokens"]["p50"] == 150
+    assert aggregate["api_prompt_tokens"]["p95"] == pytest.approx(195)
+    assert aggregate["totals"]["api_total_tokens"] == 310
+    assert aggregate["binary_counts_and_ci95"]["task_completion"]["successes"] == 1
+    assert aggregate["binary_counts_and_ci95"]["task_completion"]["wilson_ci95"][0] < 0.5
+
+
+def test_aggregate_sources_preserves_repeated_trials(tmp_path: Path) -> None:
+    sources = []
+    for trial in range(3):
+        source = tmp_path / f"trial_{trial}"
+        source.mkdir()
+        records = []
+        for mode, tokens in (("A", 100), ("B", 70), ("C", 40)):
+            run_dir = source / f"run_{mode}"
+            run_dir.mkdir()
+            (run_dir / "trace.jsonl").write_text("", encoding="utf-8")
+            records.append(_aggregate_record("one", mode, True, tokens + trial, run_dir))
+        (source / "context_ablation_results.json").write_text(json.dumps({"runs": records}), encoding="utf-8")
+        (source / "environment.json").write_text(json.dumps({"git_commit": "abc", "model": "deepseek-v4-pro"}), encoding="utf-8")
+        (source / "tokenizer_metadata.json").write_text(json.dumps({"aggregate_sha256": "tok"}), encoding="utf-8")
+        sources.append(source)
+    result = aggregate_sources(sources)
+    assert result["run_count"] == 9
+    assert result["paired_comparisons"][2]["n_pairs"] == 3
+    assert result["combined_aggregate"]["C"]["n"] == 3

@@ -40,6 +40,19 @@ python -m dl_op_to_hls.cli context-ablation-benchmark `
 
 冒烟通过后去掉 `--smoke` 执行 12 个任务、36 个首次配对运行。运行顺序按 ABC/BCA/CAB 轮换。结果目录不会覆盖历史 Benchmark。
 
+对首轮结果不一致、发生 LLM 格式错误或触发 repair/replan 的任务，每组再独立运行两次。完成后使用聚合入口合并首轮与复测：
+
+```powershell
+python -m dl_op_to_hls.cli context-ablation-aggregate `
+  --source-dir "runs/benchmarks/<initial>" `
+  --source-dir "runs/benchmarks/<repeat1>" `
+  --source-dir "runs/benchmarks/<repeat2>" `
+  --output-dir "runs/benchmarks/<combined>" `
+  --summary-output "benchmarks/context_ablation_final_results.json"
+```
+
+聚合器按 `case + trial + mode` 配对，避免重复运行被字典覆盖；同时报告首次运行、重复 cohort、全部运行、P50/P95、配对 bootstrap 95% 区间和首次 Trace 分歧。
+
 ## 输出
 
 每次实验输出 manifest、environment、tokenizer metadata、raw runs、trace 副本、机器结果、Markdown 报告和简历结论。二分类使用配对 discordant counts 与 exact McNemar；Token/耗时使用配对中位数差和 bootstrap 95% CI。小样本必须按低统计功效解释。

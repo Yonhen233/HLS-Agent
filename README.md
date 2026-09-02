@@ -387,6 +387,8 @@ For LLM Agent harness evaluation, run `benchmarks\llm_agent_harness_suite.json`.
 
 See `docs/benchmark_metrics.md` for metric definitions and interview-ready interpretation.
 
+上下文管理另有一组严格的 A/B/C 实验：`full+raw`、`scoped+raw`、`scoped+compressed`。90 次真实 DeepSeek-V4-Pro + Vivado HLS 运行的设计、Token、配对置信区间、负面结果和可用于简历的严格口径见 [上下文压缩真实消融评测](docs/context_ablation_final_report.md)。该实验确认了 Token 减载，但由于三组 Golden CSim/CSynth 均为 0，明确不宣称“压缩保持了成功执行效果”。
+
 The production-oriented Harness extensions, including durable workers, exactly-once state commit, release canaries, FAISS HNSW, hard-negative reranker calibration, OpenTelemetry/SLO, credential leases, container policy, and feedback quarantine, are documented in `docs/production_llm_agent_harness.md`.
 
 Bad Case governance is exercised separately from happy-path success metrics. It covers incomplete-plan repair, false-success prevention, RAG abstention/injection/contradiction handling, repeated-failure loop detection, semantic tool postconditions, and evidence receipts:

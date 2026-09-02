@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-09-02 15:18:40 +08:00：完成 90 次真实上下文压缩 A/B/C 消融、两轮稳定性复测与严格负面结论
+
+### 1. 实验执行与环境
+在提交 `95da930e7cc2d96cd5930813da8d8b9a24f0378c` 上完成 12 任务 × A/B/C 的 36 次首轮配对，并对结果不一致、LLM 格式错误或触发 repair/replan 的 9 个任务再运行两轮，共 90 次真实运行。模型固定为 `deepseek-v4-pro`，使用 DeepSeek V4 官方 tokenizer（SHA-256 `e142ea64d553dae57a1fa86af4ff2c6cfe76ae2259904e1f14d18b9a71656acb`）和 Vivado HLS 2018.3；每次使用独立绝对 runs root 与同源 SQLite snapshot，关闭 mock、fixture、历史 verified implementation 复用和模板静默替代。90 次运行记录 746 次真实 LLM 调用及 `4,516,939` API tokens。
+
+### 2. 首轮与复测指标
+首轮 12 任务中 A/B/C 完成率均为 `25%`，false-success 均为 `0%`，Golden CSim 与真实 CSynth 均为 `0%`。API total token P50 为 `65,187.5 / 55,552.0 / 37,388.5`，离线 Specialist 输入 P50 为 `275,082 / 5,844 / 5,901.5`，墙钟 P50 为 `376.1 / 366.1 / 408.7` 秒。两轮 9 任务复测 cohort 中三组完成率均为 `5.6%`，功能验证率仍为 0。
+
+合并后每组 30 次，A/B/C 完成率均为 `13.3%`，95% Wilson CI 均为 `[5.3%, 29.7%]`；API total token P50 为 `66,236.5 / 59,388.0 / 36,677.5`，P95 为 `115,818.9 / 105,600.3 / 88,646.4`。C 相比 A 的 API token P50 下降 `44.6%`，配对差中位数 `-26,842`、bootstrap 95% CI `[-40,837.5, -13,990]`；离线 Specialist 输入下降 `97.9%`，交付结果下降 `69.3%`。墙钟 P50 从 `388.7` 秒变为 `408.7` 秒，配对差 95% CI `[-34.29, 57.57]` 跨 0，因此没有稳定加速证据。
+
+### 3. 真实问题与归因
+7 个 trial 出现模式间状态差异，覆盖 Dense、MatMul、Add、ScaleShift、Conv2D 和 unsupported custom operator。聚合器读取每个真实 `trace.jsonl`，定位首次差异到 LLM finalization、reflection decision、格式错误或路径选择。A 组的超长上下文与部分失败相关，但只能报告相关性，不能写成“注意力分散导致失败”的因果结论。
+
+更关键的负面结果是所有模式的 LLM Candidate 都没有获得本轮 Golden CSim/真实 CSynth 成功证据。说明上下文压缩已明显降低成本，但 Candidate testbench、数值验证与综合修复链路才是当前瓶颈，不能用相同的低完成率宣称“压缩不影响效果”。简历口径只允许写 90 次真实消融和 44.6% Token 中位数下降，必须附带功能验证地板效应限制。
+
+### 4. 评测实现修正与限制
+新增可复现的 `context-ablation-aggregate`，按 `case + trial + mode` 配对，避免重复结果被 case 字典覆盖；补充首轮/复测/合并聚合、P50/P95、Wilson 区间、paired bootstrap CI、McNemar discordant counts、总 API usage 与 Trace 首差异归因。机器结果写入 `benchmarks/context_ablation_final_results.json`，中文结论写入 `docs/context_ablation_final_report.md`。
+
+两项严格限制没有隐藏：各模式绝对目录唯一但逻辑 Run ID 会重复，违反任务书的独立 Run-ID 字面要求；冻结 scorer 的 constraint retention 混合了传输保留与最终 report/verification 是否生成，只能解释为“约束字段可用率”。冻结提交也没有单独记录 context build/compression 自身耗时和真实进程 kill 恢复，这两项明确标记未测。
+
+### 5. 测试
+新增聚合器测试，覆盖重复 trial 配对不丢失、P50/P95、总 Token 与 Wilson CI。针对性 `tests/test_context_ablation.py` 为 `10/10`。随后使用项目当前解释器和独立 `--basetemp` 完成全量回归：`447 tests collected`，进度到 `[100%]`，退出码 `0`。Windows `.pytest_cache` 仍因历史所有权产生非致命 warning，但不影响测试结果。
+
+---
+
 ## 2026-09-01 14:45:00 +08:00：新增真实上下文压缩 A/B/C 配对 Benchmark，并完成正式实验前两轮缺陷审计
 
 ### 1. 本轮目标与实现

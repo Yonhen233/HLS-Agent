@@ -156,6 +156,14 @@ def build_parser() -> argparse.ArgumentParser:
     context_ablation_parser.add_argument("--smoke", action="store_true")
     context_ablation_parser.add_argument("--manifest-only", action="store_true")
 
+    context_ablation_aggregate_parser = subparsers.add_parser(
+        "context-ablation-aggregate",
+        help="Aggregate initial and repeated context-ablation results.",
+    )
+    context_ablation_aggregate_parser.add_argument("--source-dir", action="append", required=True)
+    context_ablation_aggregate_parser.add_argument("--output-dir", required=True)
+    context_ablation_aggregate_parser.add_argument("--summary-output")
+
     rag_calibrate_parser = subparsers.add_parser("rag-calibrate")
     rag_calibrate_parser.add_argument("--dataset", default="benchmarks/hls_reranker_hard_negatives.json")
     rag_calibrate_parser.add_argument("--output", default="runs/calibration/hls_reranker_calibration.json")
@@ -503,6 +511,12 @@ def main(argv: list[str] | None = None) -> int:
         payload = run_context_ablation_benchmark(args)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0 if payload.get("status") in {"complete", "manifest_created"} else 2
+    if args.command == "context-ablation-aggregate":
+        from .benchmarks.context_ablation_aggregate import run_aggregate
+
+        payload = run_aggregate(args)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
     if args.command == "rag-calibrate":
         agent = _build_agent()
         calibrator = HLSRerankerCalibrator(agent.rag_memory.semantic_engine)
