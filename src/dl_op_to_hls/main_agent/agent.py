@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import atexit
+import copy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -67,7 +68,15 @@ class MainAgent:
     def __init__(self, workspace_root: str | Path | None = None, *, console: bool = True):
         self.config = AppConfig.load(workspace_root)
         self.config.ensure_directories()
-        self.permission_gate = PermissionGate(self.config.load_permissions(), self.config.workspace_root)
+        permission_config = copy.deepcopy(self.config.load_permissions())
+        filesystem_policy = permission_config.setdefault("filesystem", {})
+        for key in ("allowed_read_dirs", "allowed_write_dirs"):
+            allowed = list(filesystem_policy.get(key) or [])
+            configured_runs_root = str(self.config.runs_root)
+            if configured_runs_root not in allowed:
+                allowed.append(configured_runs_root)
+            filesystem_policy[key] = allowed
+        self.permission_gate = PermissionGate(permission_config, self.config.workspace_root)
         schema_path = Path(__file__).resolve().parents[1] / "db" / "schema.sql"
         self.database = Database(self.config.db_path, schema_path)
         self.repository = MetadataRepository(self.database)
@@ -82,7 +91,12 @@ class MainAgent:
             self.config.workspace_root,
             semantic_config=self.config.rag_semantic_config,
         )
-        self.memory_manager = MemoryManager(self.repository, self.rag_memory, self.config.workspace_root)
+        self.memory_manager = MemoryManager(
+            self.repository,
+            self.rag_memory,
+            self.config.workspace_root,
+            runs_root=self.config.runs_root,
+        )
         self.session_manager = SessionManager(self.config.runs_root / "sessions", self.database)
         self.workspace_context = WorkspaceContext(
             self.config.workspace_root,

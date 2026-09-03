@@ -45,3 +45,19 @@ def test_main_agent_indexes_rag(temp_workspace):
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     results = agent.rag_memory.retrieve("Dense reuse factor DSP", top_k=5)
     assert results
+
+
+def test_main_agent_allows_only_configured_external_runs_root(temp_workspace, monkeypatch):
+    external_runs = temp_workspace.parent / "short_execution_root"
+    monkeypatch.setenv("DL_OP_TO_HLS_RUNS_ROOT", str(external_runs))
+    monkeypatch.setenv("DL_OP_TO_HLS_DB_PATH", str(external_runs / "metadata.db"))
+
+    agent = MainAgent(temp_workspace, console=False)
+    try:
+        allowed = agent.permission_gate.check_write_path(str(external_runs / "run_001" / "state.json"))
+        unrelated = agent.permission_gate.check_write_path(str(temp_workspace.parent / "unrelated" / "state.json"))
+        assert allowed["decision"] == "allow"
+        assert unrelated["decision"] == "deny"
+        assert agent.permission_gate.check_url("https://llmapi.paratera.com/v1/chat/completions")["decision"] == "allow"
+    finally:
+        agent.close()

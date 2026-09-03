@@ -21,6 +21,18 @@ def test_memory_write_short_term(tmp_path):
     assert Path(result["path"]).exists()
 
 
+def test_memory_uses_configured_external_runs_root(tmp_path):
+    external_runs = tmp_path / "short_execution_root"
+    database = Database(external_runs / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
+    repo = MetadataRepository(database)
+    manager = MemoryManager(repo, RagMemory(repo), tmp_path, runs_root=external_runs)
+
+    result = manager.write_short_term("r1", "todo_001", {"summary": "isolated"})
+
+    assert Path(result["path"]).resolve() == (external_runs / "r1" / "memory" / "short_term.json").resolve()
+    assert not (tmp_path / "runs" / "r1" / "memory" / "short_term.json").exists()
+
+
 def test_memory_compress_run_context(tmp_path):
     manager = _manager(tmp_path)
     manager.write_short_term("r1", "todo_001", {"summary": "ok"})

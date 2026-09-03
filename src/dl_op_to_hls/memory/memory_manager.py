@@ -118,10 +118,11 @@ def _is_functionally_verified(verification: dict[str, Any] | None) -> bool:
 
 
 class MemoryManager:
-    def __init__(self, repository, rag_memory, workspace_root: str | Path):
+    def __init__(self, repository, rag_memory, workspace_root: str | Path, *, runs_root: str | Path | None = None):
         self.repository = repository
         self.rag_memory = rag_memory
-        self.workspace_root = Path(workspace_root)
+        self.workspace_root = Path(workspace_root).resolve()
+        self.runs_root = Path(runs_root).resolve() if runs_root is not None else self.workspace_root / "runs"
         self.policy = MemoryPolicy()
 
     @staticmethod
@@ -159,7 +160,7 @@ class MemoryManager:
         return self.repository.save_memory_item(merged), True
 
     def _run_dir(self, run_id: str) -> Path:
-        return self.workspace_root / "runs" / run_id
+        return self.runs_root / run_id
 
     def _memory_dir(self, run_id: str) -> Path:
         directory = self._run_dir(run_id) / "memory"

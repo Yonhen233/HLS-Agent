@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-09-03 18:13:20 +08:00：真实消融冒烟暴露外部短路径权限缺口并完成根因修复
+
+### 1. 真实测试动作与结果
+在已通过真实 API 预检后，启动 Add 算子的 A/B/C 三模式真实冒烟，报告目录为 `runs/benchmarks/context_ablation_fixed_smoke_20260903`，短执行根目录为 `D:\ca_smoke_0903`。共执行 4 次完整 pair attempt、12 个独立子 Run；所有子进程均在约 1-4 秒内退出，且一致返回 `PermissionError: Path is outside allowed write directories.`。因此本轮没有发生 LLM 调用、CSim 或 CSynth，12 个 Run 全部被新 validity gate 判为无效，没有被误计为 Agent/HLS 失败。
+
+### 2. 根因
+Benchmark 已把 `DL_OP_TO_HLS_RUNS_ROOT` 指向项目外短路径以规避 Vivado HLS 2018.3 的 Windows 长路径问题，但 MainAgent 仍只加载静态 `permissions.yaml` 中的 `./runs` 写权限；同时 MemoryManager 的 `_run_dir` 硬编码为 `workspace_root/runs/run_id`。前者阻止短路径运行，后者即使放行也会使 memory artifact 泄漏回项目深目录。这是执行根目录配置、权限策略和 Memory 存储根目录之间的集成契约缺失，不是 API 限流、LLM 能力或 Vivado 工具链问题。
+
+### 3. 修复方案
+MainAgent 现在对权限配置做深拷贝，仅把本次显式配置且解析后的 `runs_root` 加入读写白名单，不放开父目录或整个 D 盘。MemoryManager 新增可选 `runs_root` 并统一使用该目录保存 run memory；原构造方式保持兼容。网络策略精确加入 `llmapi.paratera.com`，保留原有 scheme、localhost 与 metadata 地址限制。新增回归测试验证外部 root 可写、相邻无关目录仍拒绝，以及 short-term memory 只落在配置的短目录。
+
+### 4. 后续验证与未完成项
+新增根因回归 `2/2` 通过，随后完整项目 `463 tests collected`、进度到 `[100%]`、退出码 `0`；唯一提示仍是历史 `.pytest_cache` 所有权 warning，不影响结果。该条目记录的是第一次真实 smoke 的无效结果和代码级修复；新的 A/B/C 冒烟必须使用全新 report/execution 目录从头运行，旧 12 个 PermissionError Run 不进入统计。只有新 smoke 同时通过真实 API、Golden CSim、当前 Run 的真实 CSynth report、completion gate 和 100% 约束保留后，才允许启动 108 个正式有效 Run。
+
+---
+
 ## 2026-09-03 18:03:47 +08:00：修复上下文消融评测可信度缺陷并完成新 API 预检
 
 ### 1. 修复范围
