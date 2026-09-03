@@ -329,6 +329,7 @@ def test_long_vivado_path_rejected_before_launch(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("message", "failure_type"),
     [
+        ("OpenAI API HTTP error: 401 authentication failed", "authentication_failure"),
         ("OpenAI API HTTP error: 402 insufficient balance", "insufficient_balance"),
         ("HTTP 429 rate limit", "rate_limit"),
         ("HTTP 503 server overloaded", "service_unavailable"),

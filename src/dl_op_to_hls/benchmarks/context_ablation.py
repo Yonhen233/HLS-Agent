@@ -35,7 +35,7 @@ MODES = {
 TEXT_SUFFIXES = {".txt", ".log", ".rpt", ".json", ".jsonl", ".md", ".cpp", ".cc", ".c", ".h", ".hpp", ".tcl", ".yml", ".yaml"}
 MAX_ESTIMATED_VIVADO_PATH = 200
 VIVADO_INTERNAL_SUFFIX = Path("vivado_project") / "solution1" / ".autopilot" / "db" / "very_long_generated_dataflow_process_name.autopilot.flow.log"
-EXTERNAL_HTTP_CODES = {402, 429, 500, 502, 503, 504}
+EXTERNAL_HTTP_CODES = {401, 402, 429, 500, 502, 503, 504}
 
 
 class EvaluationConfigurationError(RuntimeError):
@@ -71,12 +71,12 @@ def validate_execution_path(run_dir: Path) -> dict[str, Any]:
 
 def classify_external_failure(text: str) -> dict[str, Any]:
     normalized = text or ""
-    http_match = re.search(r"(?:HTTP(?: error)?[: ]+|status(?: code)?[: ]+)(402|429|500|502|503|504)\b", normalized, re.I)
+    http_match = re.search(r"(?:HTTP(?: error)?[: ]+|status(?: code)?[: ]+)(401|402|429|500|502|503|504)\b", normalized, re.I)
     if not http_match:
-        http_match = re.search(r"\b(402|429|500|502|503|504)\b.*(?:balance|rate|overload|gateway|service|server)", normalized, re.I)
+        http_match = re.search(r"\b(401|402|429|500|502|503|504)\b.*(?:auth|invalid|balance|rate|overload|gateway|service|server)", normalized, re.I)
     if http_match and int(http_match.group(1)) in EXTERNAL_HTTP_CODES:
         code = int(http_match.group(1))
-        labels = {402: "insufficient_balance", 429: "rate_limit", 500: "http_500", 502: "bad_gateway", 503: "service_unavailable", 504: "gateway_timeout"}
+        labels = {401: "authentication_failure", 402: "insufficient_balance", 429: "rate_limit", 500: "http_500", 502: "bad_gateway", 503: "service_unavailable", 504: "gateway_timeout"}
         return {"external_failure": True, "external_failure_type": labels[code], "external_failure_message": f"HTTP {code}"}
     lowered = normalized.lower()
     if any(marker in lowered for marker in ("timed out", "timeout", "read timeout")) and any(marker in lowered for marker in ("api", "openai", "llm", "http")):
@@ -889,6 +889,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
                             "DL_OP_TO_HLS_LLM_ENABLED": "1",
                             "DL_OP_TO_HLS_LLM_MODEL": model,
                             "DL_OP_TO_HLS_LLM_BASE_URL": base_url,
+                            "DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG": "1",
                             "DL_OP_TO_HLS_VIVADO_HLS_PATH": os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH", r"D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"),
                             "DL_OP_TO_HLS_REUSE_VERIFIED_IMPLEMENTATIONS": "0",
                         }
@@ -928,11 +929,14 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
                     raw_run_index.append({"case_id": case["case_id"], "mode": mode, "trial_index": trial, "pair_attempt": pair_attempt, "run_id": run_id, "run_dir": str(actual_run), "valid": record["run_valid_for_comparison"]})
                     if record.get("external_failure"):
                         pair_has_external_failure = True
-                        if record.get("external_failure_type") == "insufficient_balance":
+                        if record.get("external_failure_type") in {"authentication_failure", "insufficient_balance"}:
                             invalid_runs.extend(pair_records)
                             _json_write(output_dir / "invalid_runs.json", invalid_runs)
                             _json_write(output_dir / "raw_run_index.json", raw_run_index)
-                            raise RuntimeError("Benchmark stopped immediately because the LLM provider reported HTTP 402 insufficient balance.")
+                            raise RuntimeError(
+                                "Benchmark stopped immediately because the LLM provider reported "
+                                f"{record.get('external_failure_type')}."
+                            )
                         break
                 if pair_has_external_failure or not all(item.get("run_valid_for_comparison") for item in pair_records):
                     invalid_runs.extend(pair_records)

@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-09-03 18:35:59 +08:00：真实冒烟发现评测配置被历史 Release Baseline 覆盖
+
+### 1. 真实现象
+在提交 `70e8f72` 上使用全新目录 `D:\ca_smoke_0903_r2` 重跑 Add A/B/C 冒烟。最小 API preflight 使用 `https://llmapi.paratera.com/v1/chat/completions` 与精确模型 `DeepSeek-V4-Pro` 成功，耗时 `43.009s`，provider usage 为 `88 prompt + 22 completion = 110 tokens`；但实际 Agent 子 Run A/B 的 Planner 随后返回 HTTP 401，Trace 中模型名变成旧的小写 `deepseek-v4-pro`。C 组出现相同 401 后仍进入内部恢复，因继续请求不具备有效评测意义而人工中止整组；没有把结果计入有效样本。
+
+### 2. 根因
+每个 Run 为保持同源 Memory 而复制项目 SQLite snapshot，其中包含历史 `model:main-agent` release baseline。LLMClient 的 active provider/model/base URL 设计为 release manifest 优先于当前环境变量。因此 preflight 使用新 Paratera 配置，而 Agent 使用历史 `api.deepseek.com + deepseek-v4-pro` 配置，并把 Paratera Key 发给旧端点，触发认证失败。问题属于实验配置冻结与生产 release governance 的优先级冲突，不是 Context A/B/C 模式差异，也不能归因于模型能力。
+
+### 3. 修复
+新增显式 `DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG` 契约：仅在冻结评测中启用时，MainAgent 将当前 provider/base URL/model 写入本 Run 的 release manifest，并标记 `runtime_config_pinned=true`；普通生产 Run 仍保留数据库 baseline/canary 路由语义。Context benchmark 子进程固定启用该契约，保证 preflight、Agent Trace 和 manifest 使用同一个模型端点。HTTP 401 同时新增为 `authentication_failure` 外部故障；与 402 一样立即停止，不重试整组、不计为 Agent 失败，防止错误凭据或端点继续消耗时间。
+
+### 4. 未完成项
+本轮 A/B/C 因 endpoint 不一致而无效，不能用于压缩效果结论。修复后的 Context + MainAgent 针对性回归通过；完整项目 `465 tests collected`、进度到 `[100%]`、退出码 `0`，仅保留历史 `.pytest_cache` 所有权 warning。下一步需提交固定版本，并用第三组全新目录重跑真实 smoke。
+
+---
+
 ## 2026-09-03 18:13:20 +08:00：真实消融冒烟暴露外部短路径权限缺口并完成根因修复
 
 ### 1. 真实测试动作与结果

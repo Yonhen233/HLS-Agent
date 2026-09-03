@@ -726,6 +726,21 @@ class MainAgent:
     def create_run_context(self, run_id: str, session_id: str | None = None) -> dict[str, Any]:
         run_dir = self.config.runs_root / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
+        release_manifest = self.release_manager.resolve_bundle(run_id)
+        if os.environ.get("DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG", "").strip().lower() in {"1", "true", "yes", "on"}:
+            model_release = dict(release_manifest.get("model:main-agent") or {})
+            model_release.update(
+                {
+                    "selected_version": self.llm_client.config.model,
+                    "selected_config": {
+                        "provider": self.llm_client.config.provider,
+                        "base_url": self.llm_client.config.base_url,
+                        "model": self.llm_client.config.model,
+                    },
+                    "runtime_config_pinned": True,
+                }
+            )
+            release_manifest["model:main-agent"] = model_release
         trace_writer = TraceWriter(run_dir / "trace.jsonl", run_id)
         hooks = HookManager()
         hooks.register("*", TraceHook(trace_writer))
@@ -795,7 +810,7 @@ class MainAgent:
             "run_started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "hooks": hooks,
             "telemetry": telemetry,
-            "release_manifest": self.release_manager.resolve_bundle(run_id),
+            "release_manifest": release_manifest,
             "credential_broker": self.credential_broker,
             "artifact_manager": artifact_manager,
             "session_id": session_id,

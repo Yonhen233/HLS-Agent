@@ -61,3 +61,21 @@ def test_main_agent_allows_only_configured_external_runs_root(temp_workspace, mo
         assert agent.permission_gate.check_url("https://llmapi.paratera.com/v1/chat/completions")["decision"] == "allow"
     finally:
         agent.close()
+
+
+def test_main_agent_can_pin_explicit_llm_runtime_config_over_stale_release(temp_workspace, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_MODEL", "DeepSeek-V4-Pro")
+    monkeypatch.setenv("DL_OP_TO_HLS_LLM_BASE_URL", "https://llmapi.paratera.com")
+    monkeypatch.setenv("DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG", "1")
+    agent = MainAgent(temp_workspace, console=False)
+    try:
+        context = agent.create_run_context("pinned_release_test")
+        selected = context["release_manifest"]["model:main-agent"]
+        assert selected["selected_version"] == "DeepSeek-V4-Pro"
+        assert selected["selected_config"]["base_url"] == "https://llmapi.paratera.com"
+        assert selected["runtime_config_pinned"] is True
+        agent.llm_client.set_context(context)
+        assert agent.llm_client.active_model() == "DeepSeek-V4-Pro"
+        assert agent.llm_client.active_base_url() == "https://llmapi.paratera.com"
+    finally:
+        agent.close()
