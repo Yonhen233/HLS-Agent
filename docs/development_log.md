@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-09-03 18:03:47 +08:00：修复上下文消融评测可信度缺陷并完成新 API 预检
+
+### 1. 修复范围
+依据“上下文消融评测修复与重跑任务书”重构 Benchmark 执行契约。新增强制绝对短路径 `--execution-root`、200 字符 Vivado 内部路径预检、`case + mode + trial + 随机后缀` 唯一 Run ID，以及 12 任务 × A/B/C × 3 trial 的统一轮换执行。每个运行使用同源只读基线复制出的独立 SQLite 数据库；执行产物直接位于短目录，统计报告仍保留在项目 `runs/benchmarks/`。旧的“只复测失败或差异任务”不再作为正式方法。
+
+### 2. 证据与指标修复
+Golden CSim 和真实 CSynth 已完全拆分为 `csim_started/csim_exit_code/golden_marker_found/golden_csim_passed` 与 `csynth_started/csynth_exit_code/csynth_report_present/real_csynth_completed`。CSim 只接受当前 Run 内日志和 Golden marker；后续 CSynth 失败不会覆盖已通过的 CSim。真实 CSynth 只接受当前 Run 内、可解析且 SHA256 有效的报告。约束保留评分改为 `specialist_input_constraint_retention`、`main_agent_result_constraint_retention` 和 `constraint_semantic_correctness`，不再把尚未产生的验证结果当作上下文丢失；缺失项保留原值、传输值和首次丢失阶段。
+
+Specialist 的不可变任务摘要现在显式携带输入/输出 shape、dtype、top function、函数签名、目标器件、时钟、优化目标、必需文件以及禁止 Mock/历史报告伪成功的策略。Artifact 引用增加 `exists + sha256`，原始日志与代码仍不进入 Main Agent 上下文。
+
+### 3. 外部 API 故障处理
+新增 402、429、500/502/503/504、网络失败和 API timeout 分类。外部故障不以 0 Token 参与统计，也不计为 Agent 失败；任一 A/B/C 模式发生外部故障时整组作废并补跑。429/5xx 采用有限指数退避，402 立即停止整个 Benchmark。使用项目外安全环境变量对 `https://llmapi.paratera.com/v1/chat/completions` 做了最小真实检查，精确模型名 `DeepSeek-V4-Pro` 调用成功，耗时 `7.635s`，API usage 为 `88 prompt + 20 completion = 108 total tokens`；API Key 未写入仓库、Trace 或报告。
+
+### 4. 测试结果与未完成项
+新增测试覆盖 CSim 通过后 CSynth 失败、CSim 失败且未综合、两阶段均成功、旧 Run Golden marker、成功进程但报告缺失、CSynth timeout、长路径预拒绝、五类 API 外部故障、唯一 Run ID 和纯传输约束评分。上下文专项测试 `24/24` 通过；包含 Specialist/Context 的扩大回归通过；完整项目 `461 tests collected`、进度到 `[100%]`、退出码 `0`。仍有历史 `.pytest_cache` 所有权 warning，但不影响测试结果。
+
+真实 A/B/C 冒烟和 108 个有效正式运行尚未开始。本阶段先固定并提交评测代码，避免再次出现“运行产物无法对应 Git commit”的问题；后续真实实验不得复用旧 90-run 的质量结论。
+
+---
+
 ## 2026-09-02 15:18:40 +08:00：完成 90 次真实上下文压缩 A/B/C 消融、两轮稳定性复测与严格负面结论
 
 ### 1. 实验执行与环境

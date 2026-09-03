@@ -691,6 +691,14 @@ class MainAgent:
                 self.release_manager.set_baseline(component_type, name, version)
 
     def make_run_id(self, task: dict[str, Any]) -> str:
+        forced = os.environ.get("DL_OP_TO_HLS_RUN_ID")
+        if forced:
+            safe_forced = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in forced).strip("_-")
+            if not safe_forced or safe_forced != forced:
+                raise ValueError("DL_OP_TO_HLS_RUN_ID must contain only letters, digits, '_' or '-'.")
+            if (self.config.runs_root / safe_forced).exists():
+                raise FileExistsError(f"Forced run directory already exists: {self.config.runs_root / safe_forced}")
+            return safe_forced
         name = str(task.get("name") or task.get("op_type") or task.get("task_type") or "run")
         safe = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in name).strip("_").lower() or "run"
         base = f"{safe}_{stable_hash(task)[:8]}"

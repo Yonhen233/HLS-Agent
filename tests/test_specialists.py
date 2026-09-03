@@ -117,7 +117,10 @@ def test_context_builder_excludes_full_trace(temp_workspace):
 def test_context_builder_includes_artifact_refs(temp_workspace):
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
-    assert {"type": "tcl", "path": state.artifacts["tcl"]} in envelope.artifact_refs
+    tcl_ref = next(item for item in envelope.artifact_refs if item["type"] == "tcl")
+    assert tcl_ref["path"] == state.artifacts["tcl"]
+    assert tcl_ref["exists"] is True
+    assert len(tcl_ref["sha256"]) == 64
 
 
 def test_specialist_receives_context_envelope_not_full_state(temp_workspace):

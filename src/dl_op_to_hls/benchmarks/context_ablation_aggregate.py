@@ -67,7 +67,12 @@ def _get(record: dict[str, Any], *path: str, default: float = 0.0) -> float:
 def extended_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for mode in MODES:
-        items = [item for item in records if item.get("mode") == mode and "api_usage" in item]
+        items = [
+            item for item in records
+            if item.get("mode") == mode and "api_usage" in item and item.get("run_valid_for_comparison", True)
+        ]
+        supported = [item for item in items if item.get("task_category", "supported") == "supported"]
+        unsupported = [item for item in items if item.get("task_category") == "unsupported"]
         completed = sum(bool(item.get("task_completed")) for item in items)
         tool_selection = [bool(item.get("tool_selection_correct")) for item in items if item.get("tool_selection_correct") is not None]
         binary_counts = {
@@ -88,6 +93,17 @@ def extended_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "evidence_complete_rate": sum(bool(item.get("evidence_complete")) for item in items) / max(1, len(items)),
             "correct_rejection_rate": sum(bool(item.get("correct_rejection")) for item in items) / max(1, len(items)),
             "repair_final_success_rate": sum(bool(item.get("repair_final_success")) for item in items) / max(1, len(items)),
+            "supported_metrics": {
+                "n": len(supported),
+                "end_to_end_success_rate": sum(bool(item.get("task_completed")) for item in supported) / max(1, len(supported)),
+                "golden_csim_rate": sum(bool(item.get("golden_csim_passed")) for item in supported) / max(1, len(supported)),
+                "real_csynth_rate": sum(bool(item.get("real_csynth_completed")) for item in supported) / max(1, len(supported)),
+            },
+            "unsupported_metrics": {
+                "n": len(unsupported),
+                "correct_rejection_rate": sum(bool(item.get("correct_rejection")) for item in unsupported) / max(1, len(unsupported)),
+                "invalid_vivado_call_rate": sum(bool(item.get("invalid_vivado_call_for_unsupported")) for item in unsupported) / max(1, len(unsupported)),
+            },
             "context_overflow_count": sum(bool(item.get("context_overflow")) for item in items),
             "binary_counts_and_ci95": {
                 name: {"successes": count, "total": len(items), "rate": count / max(1, len(items)), "wilson_ci95": _wilson(count, len(items))}
@@ -119,6 +135,8 @@ def extended_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "llm_format_errors": _distribution([_get(item, "llm_format_errors") for item in items]),
             "replans": _distribution([_get(item, "replans") for item in items]),
             "early_terminations": _distribution([_get(item, "early_termination") for item in items]),
+            "context_build_ms": _distribution([_get(item, "offline_tokens", "context_build_ms") for item in items]),
+            "result_compression_and_merge_ms": _distribution([_get(item, "offline_tokens", "result_compression_and_merge_ms") for item in items]),
             "totals": {
                 "llm_calls": int(sum(_get(item, "api_usage", "llm_calls") for item in items)),
                 "api_prompt_tokens": int(sum(_get(item, "api_usage", "prompt_tokens") for item in items)),
@@ -272,7 +290,7 @@ def aggregate_sources(source_dirs: list[Path]) -> dict[str, Any]:
         )
         for record in results.get("runs") or []:
             copy = dict(record)
-            copy["trial_index"] = trial
+            copy.setdefault("trial_index", trial)
             copy["source_result"] = str(result_path.resolve())
             all_records.append(copy)
     commits = {item["git_commit"] for item in source_metadata}
@@ -297,8 +315,8 @@ def aggregate_sources(source_dirs: list[Path]) -> dict[str, Any]:
             "same_tokenizer": len(tokenizers) == 1,
             "unique_run_directories": len(set(run_dirs)) == len(run_dirs),
             "unique_logical_run_ids": len(set(run_ids)) == len(run_ids),
-            "logical_run_id_limitation": "Mode-isolated roots produced repeated logical run_id values; absolute run directories are unique and no artifacts were reused.",
-            "retention_metric_limitation": "The frozen scorer checks final-state field presence; failed verification can reduce this rate even when context transport preserved the requirement.",
+            "logical_run_id_limitation": None if len(set(run_ids)) == len(run_ids) else "Logical Run IDs are not unique.",
+            "retention_metric_limitation": None,
         },
         "run_count": len(all_records),
         "initial_run_count": len(initial),

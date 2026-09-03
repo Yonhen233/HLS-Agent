@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ..core.context_modes import ContextModeConfig
@@ -94,6 +96,17 @@ class ContextBuilder:
             "frontend": task.get("frontend"),
             "objective": state.objective,
             "target": task.get("target", {}),
+            "input_shape": task.get("input_shape"),
+            "output_shape": task.get("output_shape"),
+            "dtype": task.get("dtype") or (task.get("hls4ml") or {}).get("precision"),
+            "top_function": task.get("top_function") or task.get("name"),
+            "function_signature": (task.get("candidate_contract") or {}).get("signature"),
+            "required_files": list((task.get("candidate_contract") or {}).get("required_files") or []),
+            "verification_policy": {
+                "mock_forbidden": True,
+                "historical_report_forbidden": True,
+                "success_requires_current_run_evidence": True,
+            },
             "todo_title": todo.title,
             "assigned_tool": getattr(todo, "assigned_tool", None),
             "assigned_specialist": getattr(todo, "assigned_specialist", None),
@@ -159,7 +172,7 @@ class ContextBuilder:
 
     def _all_artifact_refs(self, state) -> list[dict[str, Any]]:
         return [
-            {"type": artifact_type, "path": str(path)}
+            self._artifact_ref(artifact_type, path)
             for artifact_type, path in state.artifacts.items()
             if path
         ]
@@ -251,8 +264,25 @@ class ContextBuilder:
             if not path:
                 continue
             if self._artifact_relevant(artifact_type, specialist_name):
-                refs.append({"type": artifact_type, "path": str(path)})
+                refs.append(self._artifact_ref(artifact_type, path))
         return refs
+
+    @staticmethod
+    def _artifact_ref(artifact_type: str, value: Any) -> dict[str, Any]:
+        path = Path(str(value)).resolve()
+        digest = None
+        if path.is_file():
+            sha = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    sha.update(chunk)
+            digest = sha.hexdigest()
+        return {
+            "type": artifact_type,
+            "path": str(path),
+            "exists": path.exists(),
+            "sha256": digest,
+        }
 
     def _artifact_relevant(self, artifact_type: str, specialist_name: str) -> bool:
         relevant = {

@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from dl_op_to_hls.benchmarks.context_ablation import DeepSeekV4Tokenizer, paired_comparison
+from dl_op_to_hls.benchmarks.context_ablation import (
+    DeepSeekV4Tokenizer,
+    EvaluationConfigurationError,
+    _current_run_verification,
+    _retention,
+    classify_external_failure,
+    make_benchmark_run_id,
+    paired_comparison,
+    validate_execution_path,
+)
 from dl_op_to_hls.benchmarks.context_ablation_aggregate import aggregate_sources, extended_aggregate
 from dl_op_to_hls.core.context_modes import ContextModeConfig
 from dl_op_to_hls.main_agent.executor import AgentExecutor
@@ -225,3 +234,141 @@ def test_aggregate_sources_preserves_repeated_trials(tmp_path: Path) -> None:
     assert result["run_count"] == 9
     assert result["paired_comparisons"][2]["n_pairs"] == 3
     assert result["combined_aggregate"]["C"]["n"] == 3
+
+
+def _write_trace(run_dir: Path, events: list[dict]) -> list[dict]:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "trace.jsonl").write_text("\n".join(json.dumps(item) for item in events) + "\n", encoding="utf-8")
+    return events
+
+
+def test_csim_pass_survives_later_csynth_failure(tmp_path: Path) -> None:
+    run_dir = tmp_path / "current"
+    events = _write_trace(
+        run_dir,
+        [
+            {"event": "PreToolUse", "tool": "verify_candidate.run"},
+            {"event": "ToolFailed", "tool": "verify_candidate.run", "error_type": "VivadoSynthesisError"},
+        ],
+    )
+    (run_dir / "candidate").mkdir()
+    (run_dir / "candidate" / "csim.log").write_text("GOLDEN_CHECK_PASSED\n", encoding="utf-8")
+    result = _current_run_verification(run_dir, events)
+    assert result["csim_exit_code"] == 0
+    assert result["golden_csim_passed"] is True
+    assert result["real_csynth_completed"] is False
+
+
+def test_csim_failure_without_csynth(tmp_path: Path) -> None:
+    run_dir = tmp_path / "current"
+    events = _write_trace(run_dir, [{"event": "PreToolUse", "tool": "vivado.run_csim"}])
+    (run_dir / "csim.log").write_text("GOLDEN_CHECK_FAILED\n", encoding="utf-8")
+    result = _current_run_verification(run_dir, events)
+    assert result["csim_exit_code"] == 1
+    assert result["golden_csim_passed"] is False
+    assert result["csynth_started"] is False
+
+
+def test_current_run_csim_and_csynth_both_pass(tmp_path: Path) -> None:
+    run_dir = tmp_path / "current"
+    events = _write_trace(
+        run_dir,
+        [
+            {"event": "PreToolUse", "tool": "vivado.run_csim"},
+            {"event": "PreToolUse", "tool": "vivado.run_csynth"},
+        ],
+    )
+    (run_dir / "csim.log").write_text("GOLDEN_CHECK_PASSED\n", encoding="utf-8")
+    report = run_dir / "solution1" / "syn" / "report" / "top_csynth.rpt"
+    report.parent.mkdir(parents=True)
+    fixture = Path("tests/fixtures/sample_csynth.rpt")
+    report.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
+    result = _current_run_verification(run_dir, events)
+    assert result["golden_csim_passed"] is True
+    assert result["real_csynth_completed"] is True
+    assert len(result["csynth_report_evidence"][0]["sha256"]) == 64
+
+
+def test_golden_marker_from_old_run_is_rejected(tmp_path: Path) -> None:
+    old = tmp_path / "old"
+    old.mkdir()
+    (old / "csim.log").write_text("GOLDEN_CHECK_PASSED\n", encoding="utf-8")
+    current = tmp_path / "current"
+    events = _write_trace(current, [{"event": "PreToolUse", "tool": "vivado.run_csim"}])
+    assert _current_run_verification(current, events)["golden_csim_passed"] is False
+
+
+def test_csynth_success_event_without_report_is_not_completed(tmp_path: Path) -> None:
+    run_dir = tmp_path / "current"
+    events = _write_trace(run_dir, [{"event": "PreToolUse", "tool": "vivado.run_csynth"}])
+    result = _current_run_verification(run_dir, events)
+    assert result["csynth_started"] is True
+    assert result["csynth_report_present"] is False
+    assert result["real_csynth_completed"] is False
+
+
+def test_csynth_timeout_is_not_completed(tmp_path: Path) -> None:
+    run_dir = tmp_path / "current"
+    events = _write_trace(
+        run_dir,
+        [
+            {"event": "PreToolUse", "tool": "vivado.run_csynth"},
+            {"event": "ToolFailed", "tool": "vivado.run_csynth", "error_type": "ToolTimeoutError"},
+        ],
+    )
+    result = _current_run_verification(run_dir, events)
+    assert result["csynth_exit_code"] == 1
+    assert result["real_csynth_completed"] is False
+
+
+def test_long_vivado_path_rejected_before_launch(tmp_path: Path) -> None:
+    with pytest.raises(EvaluationConfigurationError):
+        validate_execution_path(tmp_path / ("nested_" * 35))
+
+
+@pytest.mark.parametrize(
+    ("message", "failure_type"),
+    [
+        ("OpenAI API HTTP error: 402 insufficient balance", "insufficient_balance"),
+        ("HTTP 429 rate limit", "rate_limit"),
+        ("HTTP 503 server overloaded", "service_unavailable"),
+        ("LLM API read timeout", "api_timeout"),
+        ("urlopen error connection refused", "network_failure"),
+    ],
+)
+def test_external_api_failures_are_classified(message: str, failure_type: str) -> None:
+    result = classify_external_failure(message)
+    assert result["external_failure"] is True
+    assert result["external_failure_type"] == failure_type
+
+
+def test_benchmark_run_ids_are_unique_and_descriptive() -> None:
+    left = make_benchmark_run_id("dense", "A", 0, "abc123")
+    right = make_benchmark_run_id("dense", "B", 0, "def456")
+    assert left == "dense_A_t0_abc123"
+    assert left != right
+
+
+def test_retention_scores_transport_not_final_verification(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    telemetry = run_dir / "context_telemetry"
+    telemetry.mkdir(parents=True)
+    task = {
+        "task_type": "operator",
+        "name": "add",
+        "op_type": "Add",
+        "input_shape": [16],
+        "output_shape": [16],
+        "dtype": "ap_fixed<16,6>",
+        "target": {"part": "xc7z020clg400-1", "clock_period": 5},
+        "objective": "resource",
+    }
+    policy = {"mock_forbidden": True, "historical_report_forbidden": True, "success_requires_current_run_evidence": True}
+    envelope = {"task_summary": {**task, "top_function": "add", "verification_policy": policy}}
+    (telemetry / "todo_input_envelope.json").write_text(json.dumps(envelope), encoding="utf-8")
+    (telemetry / "todo_delivered_result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
+    (run_dir / "state.json").write_text(json.dumps({"task": task, "objective": "resource", "verification_policy": policy}), encoding="utf-8")
+    result = _retention(run_dir)
+    assert result["specialist_input_constraint_retention"]["rate"] == 1.0
+    assert result["main_agent_result_constraint_retention"]["rate"] == 1.0
+    assert all(item["field"] != "verification" for item in result["contract"])

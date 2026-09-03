@@ -153,6 +153,14 @@ def build_parser() -> argparse.ArgumentParser:
     context_ablation_parser.add_argument("--tokenizer-path", required=True)
     context_ablation_parser.add_argument("--suite", default="benchmarks/context_ablation_suite.json")
     context_ablation_parser.add_argument("--output-dir")
+    context_ablation_parser.add_argument(
+        "--execution-root",
+        required=True,
+        help="Absolute short directory used for real HLS work; reports remain under --output-dir.",
+    )
+    context_ablation_parser.add_argument("--trials", type=int, default=3)
+    context_ablation_parser.add_argument("--max-pair-attempts", type=int, default=4)
+    context_ablation_parser.add_argument("--run-timeout-seconds", type=int, default=3600)
     context_ablation_parser.add_argument("--smoke", action="store_true")
     context_ablation_parser.add_argument("--manifest-only", action="store_true")
 
