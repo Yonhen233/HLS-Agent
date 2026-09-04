@@ -1,5 +1,21 @@
 # 上下文压缩端到端消融 Benchmark
 
+## 长时运行断点恢复
+
+真实 LLM 加 Vivado 的评测可能持续数小时。外部进程中断后，可使用完全相同的 output directory、execution root 和 `--resume` 恢复。恢复以 pair 为原子单位：只接受 `context_ablation_results.partial.json` 中完整存在且均有效的 A/B/C 三元组；只完成一个或两个模式的中断尝试会隔离为 `interrupted_incomplete_pair`，整组重新执行。
+
+首次启动只保存一份 `memory_snapshot.db`，所有隔离 Run 的数据库都从该不可变 snapshot 复制。恢复时强制核对 Git commit、context modes、模型、base URL、tokenizer hash、trial 数、重试上限、Run timeout、execution root 及 memory snapshot hash；任一字段变化都会拒绝继续。成功恢复记录在 `resume_history.json`。
+
+```powershell
+dl-op-to-hls context-ablation-benchmark `
+  --execution-root D:\ca_eval `
+  --output-dir runs\benchmarks\context_ablation_fixed_example `
+  --tokenizer-path D:\model_assets\deepseek-v4-pro-tokenizer `
+  --trials 3 --max-pair-attempts 10 --resume
+```
+
+Resume 不会合并不同实验，也不会从无效 pair 中挑选单个成功模式。
+
 ## 目标
 
 该 Benchmark 将上下文管理拆成两个正交变量，并固定运行三组：

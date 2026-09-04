@@ -807,6 +807,73 @@ def _runner_failure_record(
     }
 
 
+def validate_resume_checkpoint(
+    *,
+    workspace: Path,
+    output_dir: Path,
+    execution_root: Path,
+    trials: int,
+    smoke: bool,
+    model: str,
+    base_url: str,
+    tokenizer_sha256: str,
+    max_pair_attempts: int,
+    run_timeout_seconds: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], set[tuple[int, str]]]:
+    manifest = _json_load(output_dir / "context_ablation_manifest.json")
+    environment = _json_load(output_dir / "environment.json")
+    partial = _json_load(output_dir / "context_ablation_results.partial.json", {"runs": []})
+    if not isinstance(manifest, dict) or not isinstance(environment, dict):
+        raise EvaluationConfigurationError("Resume requires the original manifest and environment files.")
+    expected = {
+        "git_commit": (_git(workspace, "rev-parse", "HEAD"), manifest.get("git_commit")),
+        "execution_root": (str(execution_root), manifest.get("execution_root")),
+        "trials": (trials, manifest.get("trials")),
+        "smoke": (smoke, manifest.get("smoke")),
+        "modes": (MODES, manifest.get("modes")),
+        "model": (model, environment.get("model")),
+        "base_url": (base_url.rstrip("/"), str(environment.get("base_url") or "").rstrip("/")),
+        "tokenizer_sha256": (tokenizer_sha256, environment.get("tokenizer_sha256")),
+        "max_pair_attempts": (max_pair_attempts, manifest.get("max_pair_attempts")),
+        "run_timeout_seconds": (run_timeout_seconds, manifest.get("run_timeout_seconds")),
+    }
+    mismatches = {key: {"requested": left, "frozen": right} for key, (left, right) in expected.items() if left != right}
+    snapshot = output_dir / "memory_snapshot.db"
+    frozen_snapshot_hash = environment.get("memory_snapshot_sha256")
+    if not snapshot.is_file() or not frozen_snapshot_hash or _sha256(snapshot) != frozen_snapshot_hash:
+        mismatches["memory_snapshot"] = {"requested": "present with matching SHA256", "frozen": frozen_snapshot_hash}
+    if mismatches:
+        raise EvaluationConfigurationError(f"Resume checkpoint does not match the frozen benchmark: {json.dumps(mismatches, ensure_ascii=False)}")
+
+    records = list((partial or {}).get("runs") or [])
+    invalid_runs = list(_json_load(output_dir / "invalid_runs.json", []) or [])
+    raw_run_index = list(_json_load(output_dir / "raw_run_index.json", []) or [])
+    valid_cases = {str(item["case_id"]) for item in manifest.get("cases", [])}
+    groups: dict[tuple[int, str], list[dict[str, Any]]] = {}
+    for record in records:
+        key = (int(record.get("trial_index", -1)), str(record.get("case_id") or ""))
+        groups.setdefault(key, []).append(record)
+    completed: set[tuple[int, str]] = set()
+    for key, items in groups.items():
+        trial, case_id = key
+        modes = [str(item.get("mode")) for item in items]
+        if trial < 0 or trial >= trials or case_id not in valid_cases or len(items) != 3 or set(modes) != set(MODES):
+            raise EvaluationConfigurationError(f"Resume checkpoint contains a partial or duplicate pair: {key} modes={modes}")
+        if not all(bool(item.get("run_valid_for_comparison")) for item in items):
+            raise EvaluationConfigurationError(f"Resume checkpoint contains an invalid accepted pair: {key}")
+        completed.add(key)
+
+    accepted_ids = {str(item.get("run_id")) for item in records}
+    invalid_ids = {str(item.get("run_id")) for item in invalid_runs}
+    for item in raw_run_index:
+        run_id = str(item.get("run_id") or "")
+        key = (int(item.get("trial_index", -1)), str(item.get("case_id") or ""))
+        if key not in completed and run_id not in accepted_ids and run_id not in invalid_ids:
+            invalid_runs.append({**item, "status": "interrupted_incomplete_pair", "run_valid_for_comparison": False})
+            invalid_ids.add(run_id)
+    return manifest, records, invalid_runs, raw_run_index, completed
+
+
 def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     workspace = Path(args.workspace).resolve()
     if _benchmark_code_dirty(workspace) and not args.manifest_only:
@@ -820,33 +887,73 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     execution_root = execution_root.resolve()
     execution_root.mkdir(parents=True, exist_ok=True)
     validate_execution_path(execution_root / "path_probe_A_t0_abcdef")
-    if output_dir.exists() and any(output_dir.iterdir()):
+    resume = bool(getattr(args, "resume", False))
+    if output_dir.exists() and any(output_dir.iterdir()) and not resume:
         raise FileExistsError(f"Benchmark output directory is not empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     trials = 1 if args.smoke else int(args.trials)
     if trials < 1:
         raise EvaluationConfigurationError("--trials must be at least 1.")
-    manifest = build_manifest(workspace, (workspace / args.suite).resolve(), output_dir, args.smoke)
-    manifest["trials"] = trials
-    manifest["execution_root"] = str(execution_root)
-    _json_write(output_dir / "context_ablation_manifest.json", manifest)
+    max_pair_attempts = int(getattr(args, "max_pair_attempts", 4))
+    run_timeout_seconds = int(getattr(args, "run_timeout_seconds", 3600))
+    if max_pair_attempts < 1 or run_timeout_seconds < 1:
+        raise EvaluationConfigurationError("Pair attempts and run timeout must be positive.")
     tokenizer_metadata = tokenizer.metadata()
-    _json_write(output_dir / "tokenizer_metadata.json", tokenizer_metadata)
     model = os.environ.get("DL_OP_TO_HLS_LLM_MODEL", "deepseek-v4-pro")
     base_url = os.environ.get("DL_OP_TO_HLS_LLM_BASE_URL", "https://api.deepseek.com")
-    environment = {
-        "git_commit": manifest["git_commit"],
-        "git_status_porcelain": _git(workspace, "status", "--porcelain"),
-        "model": model,
-        "base_url": base_url,
-        "execution_root": str(execution_root),
-        "prompt_version": _git(workspace, "rev-parse", "HEAD:src/dl_op_to_hls/llm/prompts.py"),
-        "python": sys.version,
-        "platform": platform.platform(),
-        "vivado_hls_path": os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH", r"D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"),
-        "tokenizer_sha256": tokenizer_metadata["aggregate_sha256"],
-    }
-    _json_write(output_dir / "environment.json", environment)
+    source_db = workspace / "runs" / "metadata.db"
+    memory_snapshot = output_dir / "memory_snapshot.db"
+    completed_pairs: set[tuple[int, str]] = set()
+    if resume:
+        manifest, records, invalid_runs, raw_run_index, completed_pairs = validate_resume_checkpoint(
+            workspace=workspace,
+            output_dir=output_dir,
+            execution_root=execution_root,
+            trials=trials,
+            smoke=bool(args.smoke),
+            model=model,
+            base_url=base_url,
+            tokenizer_sha256=tokenizer_metadata["aggregate_sha256"],
+            max_pair_attempts=max_pair_attempts,
+            run_timeout_seconds=run_timeout_seconds,
+        )
+        resume_history = list(_json_load(output_dir / "resume_history.json", []) or [])
+        resume_history.append(
+            {
+                "resumed_at": datetime.now().isoformat(),
+                "completed_pair_count": len(completed_pairs),
+                "accepted_run_count": len(records),
+                "isolated_invalid_or_interrupted_count": len(invalid_runs),
+            }
+        )
+        _json_write(output_dir / "resume_history.json", resume_history)
+        _json_write(output_dir / "invalid_runs.json", invalid_runs)
+    else:
+        manifest = build_manifest(workspace, (workspace / args.suite).resolve(), output_dir, args.smoke)
+        manifest["trials"] = trials
+        manifest["execution_root"] = str(execution_root)
+        manifest["max_pair_attempts"] = max_pair_attempts
+        manifest["run_timeout_seconds"] = run_timeout_seconds
+        _json_write(output_dir / "context_ablation_manifest.json", manifest)
+        _json_write(output_dir / "tokenizer_metadata.json", tokenizer_metadata)
+        _sqlite_snapshot(source_db, memory_snapshot)
+        environment = {
+            "git_commit": manifest["git_commit"],
+            "git_status_porcelain": _git(workspace, "status", "--porcelain"),
+            "model": model,
+            "base_url": base_url,
+            "execution_root": str(execution_root),
+            "prompt_version": _git(workspace, "rev-parse", "HEAD:src/dl_op_to_hls/llm/prompts.py"),
+            "python": sys.version,
+            "platform": platform.platform(),
+            "vivado_hls_path": os.environ.get("DL_OP_TO_HLS_VIVADO_HLS_PATH", r"D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"),
+            "tokenizer_sha256": tokenizer_metadata["aggregate_sha256"],
+            "memory_snapshot_sha256": _sha256(memory_snapshot),
+        }
+        _json_write(output_dir / "environment.json", environment)
+        records = []
+        invalid_runs = []
+        raw_run_index = []
     if args.manifest_only:
         return {"status": "manifest_created", "output_dir": str(output_dir), "manifest": manifest}
     if not os.environ.get("DL_OP_TO_HLS_LLM_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
@@ -857,15 +964,17 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     if preflight.get("status") != "success":
         raise RuntimeError(f"LLM API preflight failed: {preflight.get('external_failure_type')}: {preflight.get('external_failure_message')}")
 
-    source_db = workspace / "runs" / "metadata.db"
-    records: list[dict[str, Any]] = []
-    invalid_runs: list[dict[str, Any]] = []
-    raw_run_index: list[dict[str, Any]] = []
-    max_pair_attempts = int(getattr(args, "max_pair_attempts", 4))
     for trial in range(trials):
         for case in manifest["cases"]:
+            pair_key = (trial, str(case["case_id"]))
+            if pair_key in completed_pairs:
+                continue
             pair_completed = False
-            for pair_attempt in range(1, max_pair_attempts + 1):
+            previous_attempt = max(
+                (int(item.get("pair_attempt") or 0) for item in raw_run_index if int(item.get("trial_index", -1)) == trial and str(item.get("case_id")) == str(case["case_id"])),
+                default=0,
+            )
+            for pair_attempt in range(previous_attempt + 1, max_pair_attempts + 1):
                 pair_records: list[dict[str, Any]] = []
                 pair_has_external_failure = False
                 for mode in _mode_order(trial):
@@ -873,7 +982,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
                     actual_run = execution_root / run_id
                     path_preflight = validate_execution_path(actual_run)
                     isolated_db = execution_root / f"{run_id}.db"
-                    _sqlite_snapshot(source_db, isolated_db)
+                    _sqlite_snapshot(memory_snapshot, isolated_db)
                     env = os.environ.copy()
                     env.update(
                         {
@@ -902,7 +1011,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
                     try:
                         process = subprocess.run(
                             command, cwd=workspace, env=env, capture_output=True, text=True,
-                            errors="replace", check=False, timeout=int(getattr(args, "run_timeout_seconds", 3600)),
+                            errors="replace", check=False, timeout=run_timeout_seconds,
                         )
                         stdout, stderr, exit_code = process.stdout, process.stderr, process.returncode
                     except subprocess.TimeoutExpired as exc:

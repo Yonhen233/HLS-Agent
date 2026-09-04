@@ -14,6 +14,7 @@ from dl_op_to_hls.benchmarks.context_ablation import (
     make_benchmark_run_id,
     paired_comparison,
     validate_execution_path,
+    validate_resume_checkpoint,
 )
 from dl_op_to_hls.benchmarks.context_ablation_aggregate import aggregate_sources, extended_aggregate
 from dl_op_to_hls.core.context_modes import ContextModeConfig
@@ -373,3 +374,114 @@ def test_retention_scores_transport_not_final_verification(tmp_path: Path) -> No
     assert result["specialist_input_constraint_retention"]["rate"] == 1.0
     assert result["main_agent_result_constraint_retention"]["rate"] == 1.0
     assert all(item["field"] != "verification" for item in result["contract"])
+
+
+def _resume_fixture(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
+    import dl_op_to_hls.benchmarks.context_ablation as module
+
+    output_dir = tmp_path / "report"
+    execution_root = tmp_path / "short_runs"
+    output_dir.mkdir()
+    execution_root.mkdir()
+    snapshot = output_dir / "memory_snapshot.db"
+    snapshot.write_bytes(b"frozen-memory")
+    monkeypatch.setattr(module, "_git", lambda *_args: "abc123")
+    (output_dir / "context_ablation_manifest.json").write_text(
+        json.dumps(
+            {
+                "git_commit": "abc123",
+                "execution_root": str(execution_root.resolve()),
+                "trials": 3,
+                "smoke": False,
+                "modes": module.MODES,
+                "max_pair_attempts": 10,
+                "run_timeout_seconds": 3600,
+                "cases": [{"case_id": "dense"}, {"case_id": "relu"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (output_dir / "environment.json").write_text(
+        json.dumps(
+            {
+                "model": "DeepSeek-V4-Pro",
+                "base_url": "https://llmapi.paratera.com",
+                "tokenizer_sha256": "tok123",
+                "memory_snapshot_sha256": module._sha256(snapshot),
+            }
+        ),
+        encoding="utf-8",
+    )
+    records = [
+        {"case_id": "dense", "mode": mode, "trial_index": 0, "run_id": f"dense_{mode}", "run_valid_for_comparison": True}
+        for mode in "ABC"
+    ]
+    (output_dir / "context_ablation_results.partial.json").write_text(json.dumps({"runs": records}), encoding="utf-8")
+    (output_dir / "raw_run_index.json").write_text(
+        json.dumps(
+            [
+                *[{"case_id": "dense", "mode": mode, "trial_index": 0, "pair_attempt": 1, "run_id": f"dense_{mode}"} for mode in "ABC"],
+                {"case_id": "relu", "mode": "A", "trial_index": 0, "pair_attempt": 1, "run_id": "relu_A_interrupted"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return output_dir, execution_root
+
+
+def test_resume_accepts_only_complete_pairs_and_marks_interrupted_attempt(tmp_path: Path, monkeypatch) -> None:
+    output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
+    _, records, invalid, _, completed = validate_resume_checkpoint(
+        workspace=tmp_path,
+        output_dir=output_dir,
+        execution_root=execution_root,
+        trials=3,
+        smoke=False,
+        model="DeepSeek-V4-Pro",
+        base_url="https://llmapi.paratera.com/",
+        tokenizer_sha256="tok123",
+        max_pair_attempts=10,
+        run_timeout_seconds=3600,
+    )
+    assert len(records) == 3
+    assert completed == {(0, "dense")}
+    assert invalid[-1]["status"] == "interrupted_incomplete_pair"
+    assert invalid[-1]["run_id"] == "relu_A_interrupted"
+
+
+def test_resume_rejects_partial_accepted_pair(tmp_path: Path, monkeypatch) -> None:
+    output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
+    partial_path = output_dir / "context_ablation_results.partial.json"
+    payload = json.loads(partial_path.read_text(encoding="utf-8"))
+    partial_path.write_text(json.dumps({"runs": payload["runs"][:2]}), encoding="utf-8")
+    with pytest.raises(EvaluationConfigurationError, match="partial or duplicate pair"):
+        validate_resume_checkpoint(
+            workspace=tmp_path,
+            output_dir=output_dir,
+            execution_root=execution_root,
+            trials=3,
+            smoke=False,
+            model="DeepSeek-V4-Pro",
+            base_url="https://llmapi.paratera.com",
+            tokenizer_sha256="tok123",
+            max_pair_attempts=10,
+            run_timeout_seconds=3600,
+        )
+
+
+def test_resume_rejects_changed_model_or_snapshot(tmp_path: Path, monkeypatch) -> None:
+    output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
+    (output_dir / "memory_snapshot.db").write_bytes(b"mutated")
+    with pytest.raises(EvaluationConfigurationError, match="model|memory_snapshot"):
+        validate_resume_checkpoint(
+            workspace=tmp_path,
+            output_dir=output_dir,
+            execution_root=execution_root,
+            trials=3,
+            smoke=False,
+            model="different-model",
+            base_url="https://llmapi.paratera.com",
+            tokenizer_sha256="tok123",
+            max_pair_attempts=10,
+            run_timeout_seconds=3600,
+        )

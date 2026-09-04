@@ -163,6 +163,11 @@ def build_parser() -> argparse.ArgumentParser:
     context_ablation_parser.add_argument("--run-timeout-seconds", type=int, default=3600)
     context_ablation_parser.add_argument("--smoke", action="store_true")
     context_ablation_parser.add_argument("--manifest-only", action="store_true")
+    context_ablation_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume only complete validated A/B/C pair checkpoints from an interrupted benchmark.",
+    )
 
     context_ablation_aggregate_parser = subparsers.add_parser(
         "context-ablation-aggregate",

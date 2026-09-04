@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-09-04 10:12:05 +08:00：长时真实消融两次中断，新增 A/B/C 整组断点恢复与冻结 Memory Snapshot
+
+### 1. 真实运行暴露的问题
+提交 `c0248fb` 的第一次 108-run 正式评测在 `D:\ca_full_0903` 获得 51 个有效结果后停止：Conv2D trial 1 连续 4 次整组尝试遭遇 provider API timeout，最后一次 B/C 成功但 A timeout，正确达到预设上限并终止；无效模式没有进入 Agent 指标。随后在同一提交、全新目录 `D:\ca_full_0904_r2` 将整组尝试上限提高到 10，从头运行并完整得到 Trial 0 的 36 个有效结果，但承载前台 PowerShell 的 Codex 终端会话结束，父进程随之消失；没有 final report，也没有 Agent/API/Vivado 错误。两轮不完整结果严格隔离，未拼接成正式结论。
+
+### 2. 根因与工程判断
+真实 LLM + Vivado 评测需要数小时，原 runner 只在每个有效 pair 后写 partial JSON，但启动逻辑拒绝非空 output directory，无法消费 checkpoint。于是 API 抖动或终端生命周期结束都会迫使整个 108-run 从零开始。另一个可复现性缺口是每个子 Run 都实时从项目 `runs/metadata.db` 建 SQLite snapshot；长实验期间若主数据库变化，不同样本可能看到不同 Memory 基线。
+
+### 3. 修复方案
+新增 CLI `--resume` 和严格 `validate_resume_checkpoint`。恢复只接受 `context_ablation_results.partial.json` 中恰好包含 A/B/C、三者均有效的完整 pair；中断时只存在一个或两个模式的 raw index 会写为 `interrupted_incomplete_pair`，整组重新执行，禁止选择性补模式。恢复前强校验 Git commit、modes、trial 数、model、base URL、tokenizer SHA256、execution root、max pair attempts、run timeout 及 Memory snapshot SHA256，任何漂移均抛 `EvaluationConfigurationError`。每次恢复记录到 `resume_history.json`。
+
+首次启动现在只生成一次 `memory_snapshot.db`，所有隔离 Run DB 均从这份冻结 source of truth 复制，避免长实验期间 Memory 漂移。新增测试覆盖完整 pair 恢复、中断 raw Run 隔离、partial accepted pair 拒绝、模型与 snapshot 篡改拒绝；专项 `28/28` 通过。一次测试命令误引用不存在的 `tests/test_benchmark_commands.py`，已确认属于命令路径错误，不是产品测试失败。
+
+### 4. 未完成项
+专项 `28/28` 与完整项目 `468 tests collected` 均到达 `[100%]`、退出码 `0`；仍只有历史 `.pytest_cache` 所有权 warning。第一次全量测试承载会话被 heartbeat 切换中断，未取到退出码，因此没有冒充成功，而是从头执行第二次完整回归并通过。尚需提交并推送，再从该新提交的空目录启动正式评测。旧 51-run 与 36-run 仅作为开发故障证据，不能进入最终 A/B/C 统计。
+
+---
+
 ## 2026-09-03 18:35:59 +08:00：真实冒烟发现评测配置被历史 Release Baseline 覆盖
 
 ### 1. 真实现象
