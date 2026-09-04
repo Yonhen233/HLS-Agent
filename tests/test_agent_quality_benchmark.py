@@ -10,6 +10,7 @@ from dl_op_to_hls.benchmarks.agent_quality_benchmark import (
     evaluate_suite_results,
     load_suite_cases,
     _wilson_interval,
+    _path_toolchain_quality,
 )
 
 
@@ -260,6 +261,55 @@ def test_aggregate_metrics_reports_common_rates():
     assert aggregate["toolchain_selection_accuracy"] == 0.5
     assert aggregate["trace_completeness_avg"] == 0.75
     assert aggregate["task_success_rate_by_category"]["operator_fallback"] == 1.0
+
+
+def test_llm_candidate_toolchain_credits_valid_composite_evidence_without_faking_direct_calls():
+    receipt = {
+        "tool_name": "verify_candidate.run",
+        "valid": True,
+        "evidence_class": "real_csynth",
+        "checks": [
+            {"name": "golden_csim_passed", "passed": True},
+            {"name": "candidate_report_exists", "passed": True},
+            {"name": "current_run_candidate_report", "passed": True},
+        ],
+    }
+    result = _path_toolchain_quality(
+        "llm_candidate_path",
+        ["llm.generate_candidate", "verify_candidate.run"],
+        [receipt],
+    )
+
+    assert result["direct_trace_correct_for_selected_path"] is False
+    assert result["evidence_backed_correct_for_selected_path"] is True
+    assert result["correct_for_selected_path"] is True
+    assert result["evidenced_composite_capabilities"] == [
+        "vivado.parse_report",
+        "vivado.run_csim",
+        "vivado.run_csynth",
+    ]
+
+
+def test_toolchain_quality_does_not_credit_planned_but_unexecuted_todos(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": "planned-only",
+                "task": {"task_type": "operator", "name": "dense"},
+                "selected_path": "llm_candidate_path",
+                "todos": [{"assigned_tool": "vivado.run_csynth", "status": "cancelled"}],
+                "tool_results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "trace.jsonl").write_text("", encoding="utf-8")
+
+    metrics = collect_run_metrics(run_dir)
+
+    assert "vivado.run_csynth" not in metrics["tools_used"]
 
 
 def test_collect_run_metrics_tracks_llm_candidate_harness(tmp_path):

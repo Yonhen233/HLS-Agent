@@ -65,7 +65,7 @@ PATH_TOOLCHAIN_RULES = {
     },
     "existing_hls_project_path": {
         "required_any": [
-            ["task.prepare_existing_project"],
+            ["vivado.create_project", "vivado.create_vivado_project"],
             ["vivado.run_csynth"],
             ["vivado.parse_report", "vivado.parse_csynth_report"],
         ],
@@ -254,9 +254,8 @@ def _collect_tool_names(value: Any) -> set[str]:
 
 def _tools_used(state: dict[str, Any], events: list[dict[str, Any]]) -> list[str]:
     names = _collect_tool_names(state.get("tool_results", []))
-    names.update(_collect_tool_names(state.get("todos", [])))
     for event in events:
-        tool_name = event.get("tool")
+        tool_name = event.get("tool") if event.get("event") in {"PreToolUse", "PostToolUse", "ToolFailed"} else None
         if isinstance(tool_name, str) and "." in tool_name:
             names.add(tool_name)
     return sorted(names)
@@ -266,7 +265,30 @@ def _has_any_tool(tools: set[str], candidates: list[str]) -> bool:
     return any(candidate in tools for candidate in candidates)
 
 
-def _path_toolchain_quality(selected_path: str | None, tools_used: list[str]) -> dict[str, Any]:
+def _verified_composite_capabilities(receipts: list[dict[str, Any]]) -> set[str]:
+    capabilities: set[str] = set()
+    for receipt in receipts:
+        if not isinstance(receipt, dict) or receipt.get("tool_name") != "verify_candidate.run":
+            continue
+        if receipt.get("valid") is not True or receipt.get("evidence_class") != "real_csynth":
+            continue
+        checks = {
+            str(check.get("name")): bool(check.get("passed"))
+            for check in receipt.get("checks", [])
+            if isinstance(check, dict)
+        }
+        if checks.get("golden_csim_passed"):
+            capabilities.add("vivado.run_csim")
+        if checks.get("candidate_report_exists") and checks.get("current_run_candidate_report"):
+            capabilities.update({"vivado.run_csynth", "vivado.parse_report"})
+    return capabilities
+
+
+def _path_toolchain_quality(
+    selected_path: str | None,
+    tools_used: list[str],
+    receipts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if selected_path not in PATH_TOOLCHAIN_RULES:
         return {
             "applicable": False,
@@ -275,16 +297,24 @@ def _path_toolchain_quality(selected_path: str | None, tools_used: list[str]) ->
             "forbidden_tools_used": [],
             "tools_used": tools_used,
         }
-    tools = set(tools_used)
+    direct_tools = set(tools_used)
+    evidenced_capabilities = _verified_composite_capabilities(receipts or [])
+    tools = direct_tools | evidenced_capabilities
     rule = PATH_TOOLCHAIN_RULES[selected_path]
+    direct_missing = [group for group in rule["required_any"] if not _has_any_tool(direct_tools, group)]
     missing = [group for group in rule["required_any"] if not _has_any_tool(tools, group)]
     forbidden = [tool for tool in rule.get("forbidden", []) if tool in tools]
     return {
         "applicable": True,
         "correct_for_selected_path": not missing and not forbidden,
+        "direct_trace_correct_for_selected_path": not direct_missing and not forbidden,
+        "evidence_backed_correct_for_selected_path": not missing and not forbidden,
+        "direct_missing_required_groups": direct_missing,
         "missing_required_groups": missing,
         "forbidden_tools_used": forbidden,
         "tools_used": tools_used,
+        "evidenced_composite_capabilities": sorted(evidenced_capabilities),
+        "metric_contract": "direct ToolRegistry calls plus capabilities proven by valid current-run composite receipts",
     }
 
 
@@ -601,13 +631,13 @@ def collect_run_metrics(run_dir: str | Path) -> dict[str, Any]:
     trace_score = _trace_completeness(run_dir, state, trace_events, tool_call_count)
     repair_score = _repair_quality(state, trace_events)
     unsupported_score = _unsupported_honesty(state, synthesis)
-    toolchain_score = _path_toolchain_quality(selected_path, tools_used)
     llm_harness_score = _llm_harness_quality(state, trace_events)
     maturity_score = _maturity_quality(run_dir, state, trace_events)
     completion = state.get("completion") or _read_json(run_dir / "completion_gate.json", {})
     plan_coverage = state.get("plan_coverage") or _read_json(run_dir / "plan_coverage.json", {})
     rag_evidence = state.get("rag_evidence_report") or _read_json(run_dir / "memory" / "rag_evidence_report.json", {})
     receipts = state.get("evidence_receipts") or _read_json(run_dir / "tool_evidence.json", {}).get("receipts", [])
+    toolchain_score = _path_toolchain_quality(selected_path, tools_used, receipts)
     valid_receipts = [item for item in receipts if isinstance(item, dict) and item.get("valid")]
     progress = state.get("progress") or {}
     rag_events = [item for item in trace_events if item.get("event") == "RagRetrieved"]
@@ -746,6 +776,11 @@ def aggregate_metrics(run_metrics: list[dict[str, Any]]) -> dict[str, Any]:
     unsupported_honest_runs = [item["run_id"] for item in unsupported_applicable if item.get("unsupported_honesty", {}).get("honest")]
     toolchain_applicable = [item for item in run_metrics if item.get("toolchain_quality", {}).get("applicable")]
     toolchain_correct_runs = [item["run_id"] for item in toolchain_applicable if item.get("toolchain_quality", {}).get("correct_for_selected_path")]
+    direct_toolchain_correct_runs = [
+        item["run_id"]
+        for item in toolchain_applicable
+        if item.get("toolchain_quality", {}).get("direct_trace_correct_for_selected_path")
+    ]
     repair_applicable = [item for item in run_metrics if item.get("repair_quality", {}).get("failure_stage_count", 0) > 0]
     repair_success_runs = [item["run_id"] for item in repair_applicable if item.get("repair_quality", {}).get("repair_success")]
     report_success_runs = [item["run_id"] for item in run_metrics if item.get("report_status") == "success"]
@@ -832,7 +867,15 @@ def aggregate_metrics(run_metrics: list[dict[str, Any]]) -> dict[str, Any]:
             4,
         ),
         "toolchain_selection_accuracy": round(len(toolchain_correct_runs) / max(len(toolchain_applicable), 1), 4),
+        "direct_tool_trace_coverage": round(
+            len(direct_toolchain_correct_runs) / max(len(toolchain_applicable), 1), 4
+        ),
+        "toolchain_metric_contract": (
+            "selection accuracy accepts direct ToolRegistry calls or valid current-run composite evidence; "
+            "direct_tool_trace_coverage reports only directly visible atomic calls"
+        ),
         "toolchain_correct_runs": toolchain_correct_runs,
+        "direct_toolchain_correct_runs": direct_toolchain_correct_runs,
         "task_success_rate_by_category": {
             category: round(category_successes.get(category, 0) / max(total, 1), 4)
             for category, total in sorted(category_totals.items())

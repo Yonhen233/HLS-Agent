@@ -8,6 +8,9 @@ class SkillPromptContextBuilder:
         candidates = registry.find_candidates(task)[:top_k]
         llm_candidate_cfg = task.get("llm_candidate") if isinstance(task.get("llm_candidate"), dict) else {}
         forced_llm_candidate = bool(llm_candidate_cfg.get("required"))
+        capability_boundary = isinstance(task.get("capability_boundary"), dict)
+        if capability_boundary:
+            candidates = [registry.get("unsupported_boundary_flow")]
         if forced_llm_candidate:
             candidates = [skill for skill in candidates if skill.name == "llm_candidate_verification_flow"]
             if not candidates:
@@ -23,6 +26,11 @@ class SkillPromptContextBuilder:
             selection_notes.insert(
                 0,
                 "This task sets llm_candidate.required=true; choose llm_candidate_verification_flow and do not route back to fallback_template or hls4ml flow.",
+            )
+        if capability_boundary:
+            selection_notes.insert(
+                0,
+                "Candidate generation was rejected by the deterministic capability gate because no independent golden oracle exists; choose unsupported_boundary_flow and do not call LLM candidate or Vivado tools.",
             )
         return {
             "available_skills": [skill.to_prompt_summary() for skill in candidates],

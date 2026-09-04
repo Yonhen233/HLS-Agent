@@ -53,6 +53,30 @@ def _candidate_failed(message: str, *, source: str = "verify_candidate", details
     )
 
 
+def _record_composite_phase(
+    context: dict[str, Any],
+    *,
+    phase: str,
+    capability: str,
+    status: str,
+    artifact_path: str | None = None,
+) -> None:
+    hooks = context.get("hooks")
+    if hooks is None:
+        return
+    hooks.emit(
+        "CompositeToolPhaseObserved",
+        {
+            "run_id": context.get("run_id"),
+            "composite_tool": "verify_candidate.run",
+            "phase": phase,
+            "capability": capability,
+            "status": status,
+            "artifact_path": artifact_path,
+        },
+    )
+
+
 def validate_candidate_contract(candidate_dir: Path, contract: dict[str, Any] | None) -> dict[str, Any]:
     contract = contract or {}
     missing: list[str] = []
@@ -139,6 +163,13 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
             "clock_period": arguments.get("clock_period", 5),
         }
     )
+    _record_composite_phase(
+        context,
+        phase="project_creation",
+        capability="vivado.create_project",
+        status=str(create_result.get("status") or "error"),
+        artifact_path=create_result.get("tcl_path"),
+    )
     if create_result.get("status") != "success":
         error = create_result.get("error") or build_error(
             "VerificationFailedError",
@@ -155,6 +186,21 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
             "tcl_path": create_result["tcl_path"],
             "top_function": create_result.get("top_function") or arguments.get("top_function"),
         }
+    )
+    verification = synth_result.get("verification") if isinstance(synth_result.get("verification"), dict) else {}
+    _record_composite_phase(
+        context,
+        phase="golden_csim",
+        capability="vivado.run_csim",
+        status="success" if verification.get("passed") is True else str(verification.get("status") or "not_run"),
+        artifact_path=verification.get("log_path") or synth_result.get("log_path"),
+    )
+    _record_composite_phase(
+        context,
+        phase="csynth",
+        capability="vivado.run_csynth",
+        status=str(synth_result.get("status") or "error"),
+        artifact_path=synth_result.get("report_path"),
     )
     if synth_result.get("status") != "success":
         error = synth_result.get("error") or build_error(
@@ -174,6 +220,13 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
         )
 
     parsed_report = adapter.parse_report({"report_path": report_path})
+    _record_composite_phase(
+        context,
+        phase="report_parse",
+        capability="vivado.parse_report",
+        status=str(parsed_report.get("status") or "error"),
+        artifact_path=report_path,
+    )
     if parsed_report.get("status") != "success":
         error = parsed_report.get("error") or build_error(
             "ReportParseError",
@@ -193,6 +246,12 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
         "csim": {"status": "passed_via_vivado_tcl", "log_path": synth_result.get("log_path")},
         "csynth": {"status": "passed", "report_path": report_path},
         "report": parsed_report,
+        "executed_subactions": [
+            {"capability": "vivado.create_project", "status": create_result.get("status")},
+            {"capability": "vivado.run_csim", "status": verification.get("status")},
+            {"capability": "vivado.run_csynth", "status": synth_result.get("status")},
+            {"capability": "vivado.parse_report", "status": parsed_report.get("status")},
+        ],
     }
 
 

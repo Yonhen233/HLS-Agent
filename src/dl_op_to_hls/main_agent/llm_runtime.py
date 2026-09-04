@@ -273,6 +273,29 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         if self.agent.config.operator_generation_path != "llm_candidate":
             return task
         normalized = dict(task)
+        from ..llm.candidate_generator import candidate_generation_contract_errors
+
+        contract_errors = candidate_generation_contract_errors(normalized)
+        if contract_errors:
+            candidate = dict(normalized.get("llm_candidate") or {})
+            candidate["required"] = False
+            candidate["eligible"] = False
+            candidate["rejection_reasons"] = contract_errors
+            normalized["llm_candidate"] = candidate
+            demo = dict(normalized.get("demo") or {})
+            demo["expected_path"] = "unsupported_report"
+            normalized["demo"] = demo
+            normalized["capability_boundary"] = {
+                "kind": "unverifiable_operator_semantics",
+                "reasons": contract_errors,
+                "decision": "reject_before_llm_or_vivado",
+            }
+            normalized["generation_policy"] = {
+                "primary_path": "unsupported",
+                "hls4ml_allowed": False,
+                "template_role": "not_applicable",
+            }
+            return normalized
         candidate = dict(normalized.get("llm_candidate") or {})
         candidate["required"] = True
         candidate.setdefault("reuse_verified_implementations", self.agent.config.reuse_verified_implementations)

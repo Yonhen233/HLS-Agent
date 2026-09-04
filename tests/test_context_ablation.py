@@ -163,6 +163,16 @@ def test_paired_comparison_uses_case_pairs() -> None:
     assert result["continuous"]["api_prompt_tokens"]["paired_median_difference"]["median"] == -55.0
 
 
+def test_frozen_suite_separates_supported_unsupported_and_recovery_challenges() -> None:
+    suite = json.loads(Path("benchmarks/context_ablation_suite.json").read_text(encoding="utf-8"))
+    categories = {item["case_id"]: item["category"] for item in suite["cases"]}
+
+    assert categories["onnx_mlp"] == "supported"
+    assert categories["existing_hls"] == "supported"
+    assert categories["unsupported_custom"] == "unsupported"
+    assert categories["verification_repair"] == "recovery_challenge"
+
+
 def _aggregate_record(case: str, mode: str, completed: bool, tokens: int, run_dir: Path) -> dict:
     return {
         "case_id": case,
@@ -173,6 +183,7 @@ def _aggregate_record(case: str, mode: str, completed: bool, tokens: int, run_di
         "golden_csim_passed": completed,
         "real_csynth_completed": completed,
         "tool_selection_correct": True,
+        "direct_tool_trace_complete": True,
         "tool_parameter_correct": True,
         "critical_constraint_retention": {"rate": 1.0},
         "evidence_complete": completed,

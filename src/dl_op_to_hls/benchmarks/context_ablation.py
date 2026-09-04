@@ -451,7 +451,16 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
     csynth_passed = verification["real_csynth_completed"]
     false_success = base.get("status") == "success" and not (base.get("agent_task_success") and (csynth_passed or base.get("selected_path") == "unsupported_path"))
     retention = _retention(run_dir)
-    unsupported_case = "unsupported" in set(case.get("coverage") or []) or "boundary" in set(case.get("coverage") or [])
+    coverage = set(case.get("coverage") or [])
+    task_category = str(case.get("category") or ("unsupported" if "unsupported" in coverage or "boundary" in coverage else "supported"))
+    unsupported_case = task_category == "unsupported"
+    recovery_challenge = task_category == "recovery_challenge"
+    selected_path = base.get("selected_path")
+    path_selection_matches_case = (
+        selected_path == "unsupported_path"
+        if task_category in {"unsupported", "recovery_challenge"}
+        else selected_path != "unsupported_path"
+    )
     post_tool_events = [item for item in events if item.get("event") == "PostToolUse"]
     tool_duration_ms = sum(float(item.get("duration_ms") or 0) for item in post_tool_events)
     vivado_duration_ms = sum(
@@ -476,19 +485,33 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
         "run_id": base.get("run_id"),
         "run_dir": str(run_dir),
         "status": base.get("status"),
-        "selected_path": base.get("selected_path"),
-        "task_category": "unsupported" if unsupported_case else "supported",
+        "selected_path": selected_path,
+        "task_category": task_category,
+        "path_selection_matches_case": path_selection_matches_case,
         "task_completed": bool(base.get("agent_task_success") and not false_success),
         "golden_csim_passed": csim_passed,
         "real_csynth_completed": csynth_passed,
         "verification_evidence": verification,
-        "tool_selection_correct": base.get("toolchain_quality", {}).get("correct_for_selected_path"),
+        "tool_selection_correct": bool(
+            path_selection_matches_case
+            and base.get("toolchain_quality", {}).get("correct_for_selected_path")
+        ),
+        "direct_tool_trace_complete": bool(
+            path_selection_matches_case
+            and base.get("toolchain_quality", {}).get("direct_trace_correct_for_selected_path")
+        ),
         "tool_parameter_correct": base.get("bad_case_governance", {}).get("tool_postcondition_failure_count", 0) == 0,
         "completion_gate_passed": bool(base.get("bad_case_governance", {}).get("completion_gate_passed")),
         "critical_constraint_retention": retention,
         "evidence_complete": evidence_complete,
         "false_success": false_success,
         "correct_rejection": bool(base.get("selected_path") == "unsupported_path" and base.get("status") in {"partial_success", "unsupported", "success"}),
+        "recovery_challenge_handled": bool(
+            recovery_challenge
+            and base.get("selected_path") == "unsupported_path"
+            and base.get("status") in {"partial_success", "unsupported"}
+            and base.get("repair_quality", {}).get("failure_stage_count", 0) > 0
+        ),
         "invalid_vivado_call_for_unsupported": bool(unsupported_case and verification["csynth_started"]),
         "repair_final_success": bool(base.get("repair_quality", {}).get("repair_success")),
         "wall_runtime_s": wall_s,
@@ -608,6 +631,7 @@ def _aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         items = [item for item in records if item["mode"] == mode and item.get("run_valid_for_comparison", True)]
         supported = [item for item in items if item.get("task_category", "supported") == "supported"]
         unsupported = [item for item in items if item.get("task_category") == "unsupported"]
+        recovery = [item for item in items if item.get("task_category") == "recovery_challenge"]
         groups[mode] = {
             "n": len(items),
             "task_completion_rate": sum(item["task_completed"] for item in items) / max(1, len(items)),
@@ -636,12 +660,19 @@ def _aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "real_csynth_rate": sum(bool(item.get("real_csynth_completed")) for item in supported) / max(1, len(supported)),
                 "evidence_complete_rate": sum(bool(item.get("evidence_complete")) for item in supported) / max(1, len(supported)),
                 "completion_gate_pass_rate": sum(bool(item.get("completion_gate_passed")) for item in supported) / max(1, len(supported)),
+                "tool_selection_accuracy": sum(bool(item.get("tool_selection_correct")) for item in supported) / max(1, len(supported)),
+                "direct_tool_trace_coverage": sum(bool(item.get("direct_tool_trace_complete")) for item in supported) / max(1, len(supported)),
             },
             "unsupported": {
                 "n": len(unsupported),
                 "correct_rejection_rate": sum(bool(item.get("correct_rejection")) for item in unsupported) / max(1, len(unsupported)),
                 "false_success_rate": sum(bool(item.get("false_success")) for item in unsupported) / max(1, len(unsupported)),
                 "invalid_vivado_call_rate": sum(bool(item.get("invalid_vivado_call_for_unsupported")) for item in unsupported) / max(1, len(unsupported)),
+            },
+            "recovery_challenge": {
+                "n": len(recovery),
+                "handled_rate": sum(bool(item.get("recovery_challenge_handled")) for item in recovery) / max(1, len(recovery)),
+                "false_success_rate": sum(bool(item.get("false_success")) for item in recovery) / max(1, len(recovery)),
             },
         }
     return groups
@@ -657,13 +688,13 @@ def _write_reports(output_dir: Path, manifest: dict[str, Any], results: dict[str
         "",
         "## Supported HLS Tasks",
         "",
-        "| Mode | N | End-to-end | Golden CSim | Real CSynth | Completion gate | Evidence complete |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Mode | N | End-to-end | Golden CSim | Real CSynth | Completion gate | Evidence complete | Tool selection | Direct tool trace |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for mode in MODES:
         item = aggregate[mode]["supported"]
         lines.append(
-            f"| {mode} | {item['n']} | {item['end_to_end_success_rate']:.3f} | {item['golden_csim_rate']:.3f} | {item['real_csynth_rate']:.3f} | {item['completion_gate_pass_rate']:.3f} | {item['evidence_complete_rate']:.3f} |"
+            f"| {mode} | {item['n']} | {item['end_to_end_success_rate']:.3f} | {item['golden_csim_rate']:.3f} | {item['real_csynth_rate']:.3f} | {item['completion_gate_pass_rate']:.3f} | {item['evidence_complete_rate']:.3f} | {item['tool_selection_accuracy']:.3f} | {item['direct_tool_trace_coverage']:.3f} |"
         )
     lines.extend([
         "",
@@ -675,6 +706,16 @@ def _write_reports(output_dir: Path, manifest: dict[str, Any], results: dict[str
     for mode in MODES:
         item = aggregate[mode]["unsupported"]
         lines.append(f"| {mode} | {item['n']} | {item['correct_rejection_rate']:.3f} | {item['false_success_rate']:.3f} | {item['invalid_vivado_call_rate']:.3f} |")
+    lines.extend([
+        "",
+        "## Recovery Challenges",
+        "",
+        "| Mode | N | Recovery handled | False success |",
+        "|---|---:|---:|---:|",
+    ])
+    for mode in MODES:
+        item = aggregate[mode]["recovery_challenge"]
+        lines.append(f"| {mode} | {item['n']} | {item['handled_rate']:.3f} | {item['false_success_rate']:.3f} |")
     lines.extend([
         "",
         "## Context And Token Metrics",

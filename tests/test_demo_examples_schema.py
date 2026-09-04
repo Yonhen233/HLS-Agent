@@ -42,6 +42,15 @@ def test_mnist_mlp_schema_valid():
     assert data["frontend"] == "onnx"
 
 
+def test_generic_mlp_fixture_is_a_real_static_onnx_model():
+    onnx = pytest.importorskip("onnx")
+    model = onnx.load(str(ROOT / "models" / "mlp.onnx"))
+
+    onnx.checker.check_model(model)
+    assert [node.op_type for node in model.graph.node] == ["Gemm", "Relu", "Gemm"]
+    assert list(model.graph.input[0].type.tensor_type.shape.dim)[-1].dim_value == 16
+
+
 def test_mnist_recognition_mlp_schema_valid():
     data = _validate_example("mnist_recognition_mlp.json")
     assert data["task_type"] == "model"

@@ -215,7 +215,8 @@ def _evaluate_named_condition(name: str, task: dict[str, Any]) -> bool:
         "llm_enabled": llm_candidate_required,
         "hls4ml_unsupported": llm_candidate_required,
         "fallback_template_missing": llm_candidate_required,
-        "hls4ml_unsupported_or_not_recommended": expected_path in {"unsupported", "unsupported_report"},
+        "hls4ml_unsupported_or_not_recommended": expected_path in {"unsupported", "unsupported_report"}
+        or isinstance(task.get("capability_boundary"), dict),
     }
     return predicates.get(name, False)
 

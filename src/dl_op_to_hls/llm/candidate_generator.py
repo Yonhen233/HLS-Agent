@@ -14,6 +14,28 @@ from .schemas import CANDIDATE_GENERATION_SCHEMA
 from .trace import emit_llm_event
 
 
+KNOWN_OPERATOR_SEMANTICS = {"Dense", "MatMul", "ReLU", "Add", "ScaleShift", "Conv2D"}
+
+
+def candidate_generation_contract_errors(op_spec: dict[str, Any]) -> list[str]:
+    """Reject candidates that cannot be checked against an independent oracle."""
+
+    op_type = str(op_spec.get("op_type") or "").strip()
+    contract = op_spec.get("candidate_contract") if isinstance(op_spec.get("candidate_contract"), dict) else {}
+    errors: list[str] = []
+    if op_type not in KNOWN_OPERATOR_SEMANTICS:
+        if not str(contract.get("operation") or "").strip():
+            errors.append(f"Unknown operator {op_type or '<missing>'} requires candidate_contract.operation")
+        if not str(contract.get("signature") or "").strip():
+            errors.append(f"Unknown operator {op_type or '<missing>'} requires candidate_contract.signature")
+        testbench = contract.get("testbench") if isinstance(contract.get("testbench"), dict) else {}
+        if not (testbench.get("expected_formula") or testbench.get("reference_output")):
+            errors.append(
+                f"Unknown operator {op_type or '<missing>'} requires an independent golden oracle in candidate_contract.testbench"
+            )
+    return errors
+
+
 class LLMCandidateGenerator:
     def __init__(self, guard: LLMGuard | None = None):
         self.guard = guard or LLMGuard()
@@ -161,10 +183,10 @@ class LLMCandidateGenerator:
 
     @staticmethod
     def validate_operator_contract(op_spec: dict[str, Any]) -> list[str]:
+        errors = candidate_generation_contract_errors(op_spec)
         if str(op_spec.get("op_type")) != "Conv2D":
-            return []
+            return errors
         params = op_spec.get("operator_params") or op_spec.get("params") or {}
-        errors: list[str] = []
         shape = op_spec.get("input_shape")
         if not isinstance(shape, list) or len(shape) != 3 or not all(isinstance(value, int) and value > 0 for value in shape):
             errors.append("Conv2D input_shape must be static [height, width, channels]")

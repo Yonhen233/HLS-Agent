@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -37,6 +38,14 @@ def test_parse_csim_verification_from_golden_log(tmp_path):
     result = parse_csim_verification(log, work_dir=tmp_path)
     assert result["status"] == "csim_passed"
     assert result["passed"] is True
+
+
+def test_existing_hls_example_testbench_contains_real_golden_oracle():
+    testbench = Path("examples/hls_projects/dense/testbench.cpp").read_text(encoding="utf-8")
+
+    assert "output[i] != input[i]" in testbench
+    assert "GOLDEN_CHECK_FAILED" in testbench
+    assert "GOLDEN_CHECK_PASSED" in testbench
 
 
 def test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log(tmp_path):

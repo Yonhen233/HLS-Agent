@@ -123,6 +123,78 @@ def test_verify_candidate_real_mode_rejects_signature_mismatch_before_vivado(tmp
     assert result["error"]["details"]["expected_top_function"] == "expected_top"
 
 
+def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monkeypatch):
+    monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
+    candidate_dir = tmp_path / "candidate"
+    candidate_dir.mkdir()
+    (candidate_dir / "top.cpp").write_text("void top() {}\n", encoding="utf-8")
+    (candidate_dir / "testbench.cpp").write_text("int main() { return 0; }\n", encoding="utf-8")
+    report_path = tmp_path / "top_csynth.rpt"
+    report_path.write_text("real report evidence\n", encoding="utf-8")
+
+    class FakeVivadoAdapter:
+        mock_mode = False
+
+        def create_project(self, arguments):
+            del arguments
+            return {
+                "status": "success",
+                "work_dir": str(tmp_path / "vivado"),
+                "tcl_path": str(tmp_path / "run_hls.tcl"),
+                "top_function": "top",
+            }
+
+        def run_csynth(self, arguments):
+            del arguments
+            return {
+                "status": "success",
+                "log_path": str(tmp_path / "csynth.log"),
+                "report_path": str(report_path),
+                "verification": {
+                    "status": "csim_passed",
+                    "passed": True,
+                    "log_path": str(tmp_path / "csim.log"),
+                },
+            }
+
+        def parse_report(self, arguments):
+            assert arguments["report_path"] == str(report_path)
+            return {"status": "success", "latency": {"min_cycles": 1, "max_cycles": 1}}
+
+    class RecordingHooks:
+        def __init__(self):
+            self.events = []
+
+        def emit(self, event_name, payload):
+            self.events.append({"event": event_name, **payload})
+
+    hooks = RecordingHooks()
+    result = verify_candidate(
+        {
+            "candidate_dir": str(candidate_dir),
+            "report_dir": str(tmp_path / "reports"),
+            "mode": "real",
+            "top_function": "top",
+        },
+        {"run_id": "composite_trace", "vivado_adapter": FakeVivadoAdapter(), "hooks": hooks},
+    )
+
+    assert result["status"] == "verified"
+    assert [item["capability"] for item in result["executed_subactions"]] == [
+        "vivado.create_project",
+        "vivado.run_csim",
+        "vivado.run_csynth",
+        "vivado.parse_report",
+    ]
+    observed = [item for item in hooks.events if item["event"] == "CompositeToolPhaseObserved"]
+    assert [item["capability"] for item in observed] == [
+        "vivado.create_project",
+        "vivado.run_csim",
+        "vivado.run_csynth",
+        "vivado.parse_report",
+    ]
+
+
 def test_unsupported_report_generated(temp_workspace):
     task = {
         "task_type": "operator",

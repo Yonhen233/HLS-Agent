@@ -3,6 +3,7 @@
   "name": "mlp_demo",
   "model_path": "models/mlp.onnx",
   "frontend": "onnx",
+  "input_shape": [16],
   "target": {
     "backend": "Vivado",
     "part": "xc7z020clg400-1",
@@ -15,4 +16,3 @@
   },
   "objective": "latency"
 }
-

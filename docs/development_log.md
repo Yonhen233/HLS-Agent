@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-09-04 15:52:01 +08:00：修复 Context Ablation 四项能力边界与验收口径错误，并完成真实 ONNX/Existing-HLS 回归
+
+### 1. 问题定位
+对 `D:\ca_full_0904_r2` 的 36 个真实 LLM + Vivado Trial-0 Run 逐项回放后确认四个问题来自不同层次，不能统一归因于模型能力。`unsupported_custom` 只有名字、shape 和 dtype，没有运算语义、函数签名或独立 Golden Oracle，旧 runtime 却仍强制进入 LLM Candidate，导致三种模式都调用了 Vivado；这是 capability admission 缺失。`onnx_mlp` 引用的 `models/mlp.onnx` 实际是 51-byte 占位文本，真实 ONNX parser 必然失败；`verification_repair` 则是显式 `force_fail` 的恢复挑战，却被误放入 supported 分母。工具选择的旧 30% 还混合了两个口径：Evaluator 一方面把计划但未执行的 Todo 当工具调用，另一方面又要求封装在 `verify_candidate.run` 内部的真实 CSim/CSynth 必须以顶层 `vivado.*` Trace 出现。`existing_hls` 的 testbench 只调用 identity top 并返回 0，没有 Golden 数值断言，因此真实 CSynth 成功也不满足功能验证门禁。
+
+### 2. 修复方案
+新增 candidate capability admission：Dense、MatMul、ReLU、Add、ScaleShift、Conv2D 使用已知语义；未知算子必须同时提供 `candidate_contract.operation`、`signature` 和独立 `testbench.expected_formula/reference_output`，否则在 LLM 与 Vivado 前标记 `unverifiable_operator_semantics`，只暴露 `unsupported_boundary_flow`。Context Ablation suite 为全部 case 增加显式 category，并将 `verification_repair` 独立为 `recovery_challenge`。
+
+工具评测改为双指标。`direct_tool_trace_coverage` 只统计实际 Pre/Post/Failed ToolRegistry 事件，不再读取 planned/cancelled Todo；`toolchain_selection_accuracy` 还允许当前 Run 的有效 `real_csynth` receipt 证明复合验证能力，但必须同时通过 Golden CSim、candidate report 存在及 report provenance 校验。`verify_candidate.run` 新增 `CompositeToolPhaseObserved` 和 `executed_subactions`，记录 create project、CSim、CSynth、parse report；这些事件不会伪造为 `vivado.* PreToolUse`。Existing-HLS testbench 增加逐元素 identity Golden 断言及 PASS/FAIL marker。原 51-byte ONNX fixture 被确定性脚本生成的静态 16->8->4 Gemm/ReLU/Gemm 模型替换，并新增 ONNX checker 防回归测试。
+
+### 3. 真实验证与量化结果
+修复后的 Existing-HLS Run `existing_dense_project_20fa63c7_09` 使用真实 Vivado HLS 2018.3：Golden CSim 通过，CSynth latency/II 为 `49/49`，DSP/BRAM/LUT/FF 为 `0/0/62/51`，estimated clock `2.322 ns` 满足 `5 ns`，pipeline level 为 `functional_verified`。修复后的 ONNX Run `mlp_demo_b4b0cf1b` 使用真实 hls4ml + Vivado HLS 2018.3：inspect/support/config/convert、Golden reference CSim、CSynth、report parse 全部成功；latency `13 cycles`、II `1`、DSP `115`、BRAM `0`、LUT `4831`、FF `13366`，estimated clock `4.362 ns` 满足 `5 ns`，同样达到 `functional_verified`。
+
+旧 36-run 数据按新评测代码重算后，每个 A/B/C 模式的 supported 分母为 9，证据支持的工具选择正确率均为 `8/9 = 88.9%`，而直接原子 Trace 覆盖均为 `1/9 = 11.1%`；两者不再被错误压成 30%。旧数据剩余的 `1/9` 是修复前占位 ONNX 导致的错误 unsupported，现已由上述真实 Run 验证修复。旧 unsupported 分桶正确拒绝率仍为 `1/2 = 50%`，因为它忠实保留了修复前 `unsupported_custom` 的错误 Vivado 调用；代码门禁与单元测试已修复该行为，但没有伪造一次新的完整 LLM A/B/C 实验结果。`verification_repair` 在三种模式下均被独立统计为 recovery challenge，并诚实终止，handled rate 为 100%。
+
+### 4. 测试与限制
+能力边界、skill exposure、复合证据、类别聚合、Golden testbench、真实 ONNX fixture 和 CandidateSandbox 分层门禁均有回归测试。针对性测试 `92/92` 及前一组 `96/96` 通过，完整项目 `476 tests collected`、进度到 `[100%]`、退出码 `0`。本轮真实硬件回归未使用 LLM API：当前进程没有 API Key，LLM-first `run` 按 strict 契约正确拒绝启动；因此本条只声明 deterministic runtime 的真实 hls4ml/Vivado 验证和 LLM runtime 的代码级门禁测试，不把它包装成新的 LLM A/B/C 复测。后续若重跑完整消融，必须从新提交、空 output/execution 目录开始，旧 36-run 仅用于前后口径诊断。
+
+---
+
 ## 2026-09-04 10:12:05 +08:00：长时真实消融两次中断，新增 A/B/C 整组断点恢复与冻结 Memory Snapshot
 
 ### 1. 真实运行暴露的问题

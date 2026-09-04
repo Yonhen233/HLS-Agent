@@ -74,7 +74,8 @@ $env:DL_OP_TO_HLS_LLM_MODEL='deepseek-v4-pro'
 | `agent_runtime.delegation_completion_rate` | request/result correlation 闭环率 | 验证 Main/Sub Agent 通信 |
 | `agent_runtime.duplicate_tool_call_count_total` | 排除幂等 retry 后的重复调用 | 发现无效循环和 token/tool 浪费 |
 | `avg_recorded_tokens_per_run` | provider usage 或 runtime 记录 token | 约束真实 LLM 成本 |
-| `toolchain_selection_accuracy` | path 对应工具链是否被实际调用 | 衡量 tool/path selection，不看硬件好坏 |
+| `toolchain_selection_accuracy` | path 对应能力是否由直接 ToolRegistry 调用或当前 Run 的有效复合证据证明 | 衡量真实 tool/path selection，不因 `verify_candidate.run` 的封装边界漏计 |
+| `direct_tool_trace_coverage` | path 所需原子工具是否逐个直接出现在 ToolRegistry Trace | 衡量编排可见性；必须与证据支持的工具链正确率分开报告 |
 | `task_success_rate_by_category` | 各任务桶成功率 | 区分 fallback、hls4ml、unsupported、toolchain recovery |
 | `llm_harness.plan_acceptance_rate` | LLM plan 被 guard/skill policy 接受的比例 | 衡量 planner 输出是否能进入可执行 DAG |
 | `llm_harness.json_repair_success_rate` | LLM JSON/schema 修复成功率 | 衡量结构化输出 harness，而不是裸聊天效果 |
@@ -122,6 +123,10 @@ RAG 评估通过 `--rag-eval-file` 提供标签。支持两种标签：
 真实模型专项探针使用 `semantic-rag-benchmark`，同时检查 embedding 持久化、两阶段路径、相关 Top-1、Corrective RAG、实体污染门禁和 backend fallback。领域质量仍应以人工标注 query-document 集的 Recall@K、nDCG 和 hard-negative pollution 为准，不能只依赖该探针。
 
 ## 当前评测口径
+
+`verify_candidate.run` 是一个复合验证工具，内部真实执行项目创建、Golden CSim、CSynth 和报告解析。评测器只在其当前 Run `real_csynth` evidence receipt 有效，且 `golden_csim_passed`、报告存在和报告归属校验通过时，才把这些能力计入 `toolchain_selection_accuracy`。这不会伪造 `vivado.*` 的 `PreToolUse` 事件；原子调用是否直接可见由 `direct_tool_trace_coverage` 单独报告。计划中存在但 cancelled/skipped 的 Todo 不算工具调用。
+
+任务按 `supported`、`unsupported`、`recovery_challenge` 显式分桶。强制验证失败用例用于衡量 repair/诚实终止，不能混入支持任务成功率；不支持任务必须在 LLM candidate 和 Vivado 之前通过能力边界门禁拒绝。
 
 当前真实跑通的主路径是 MNIST recognition MLP，因此正式展示应优先报告 `examples/mnist_recognition_mlp.json` 的 Agent 指标。Dense/MatMul/ResNet/ScaleShift 等 case 可以作为 mock contract、LLM harness 或边界回归，不应包装成主硬件 benchmark。
 

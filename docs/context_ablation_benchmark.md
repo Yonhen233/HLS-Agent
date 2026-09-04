@@ -72,7 +72,9 @@ python -m dl_op_to_hls.cli context-ablation-benchmark `
 
 ## 输出
 
-每次实验输出 manifest、environment、tokenizer metadata、短路径 raw-run 索引、无效运行清单、机器结果、Trace 分歧归因、Markdown 报告和简历结论。二分类使用配对 discordant counts 与 exact McNemar；Token/耗时使用配对中位数差和 bootstrap 95% CI。支持任务与正确拒绝任务分开统计。
+每次实验输出 manifest、environment、tokenizer metadata、短路径 raw-run 索引、无效运行清单、机器结果、Trace 分歧归因、Markdown 报告和简历结论。二分类使用配对 discordant counts 与 exact McNemar；Token/耗时使用配对中位数差和 bootstrap 95% CI。`supported`、`unsupported` 与 `recovery_challenge` 三类任务分开统计，强制修复失败用例不进入支持任务成功率分母。
+
+工具指标同时报告两种口径：`tool_selection_accuracy` 接受直接 ToolRegistry 调用，或由当前 Run 有效 evidence receipt 证明的复合工具内部能力；`direct_tool_trace_coverage` 只接受 Trace 中直接可见的原子工具调用。`verify_candidate.run` 只有在 Golden CSim、真实 CSynth、报告存在和当前 Run provenance 都通过时才能提供复合证据，不能仅凭 Todo 计划或函数名补分。
 
 Golden CSim 由当前 Run 的退出状态和 `GOLDEN_CHECK_PASSED` 日志哈希独立判断；后续 CSynth 失败不会覆盖已经通过的 CSim。真实 CSynth 要求当前 Run 启动综合、成功退出、生成可解析报告且 SHA256 有效。
 

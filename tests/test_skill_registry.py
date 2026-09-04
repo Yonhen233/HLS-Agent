@@ -79,6 +79,25 @@ def test_llm_candidate_required_prompt_context_exposes_only_candidate_skill():
     assert "do not route back to fallback_template" in context["selection_notes"][0]
 
 
+def test_unverifiable_capability_boundary_exposes_only_unsupported_skill():
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    context = SkillPromptContextBuilder().build(
+        {
+            "task_type": "operator",
+            "op_type": "CustomUnsupported",
+            "name": "custom_unknown",
+            "capability_boundary": {"kind": "unverifiable_operator_semantics"},
+            "demo": {"expected_path": "unsupported_report"},
+            "llm_candidate": {"required": False, "eligible": False},
+        },
+        registry,
+    )
+
+    assert [skill["name"] for skill in context["available_skills"]] == ["unsupported_boundary_flow"]
+    assert "do not call LLM candidate or Vivado tools" in context["selection_notes"][0]
+
+
 def test_unsupported_boundary_skill_allows_schema_validation():
     registry = SkillRegistry(Path("skills"))
     registry.load_all()

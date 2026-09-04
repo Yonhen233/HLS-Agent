@@ -91,6 +91,25 @@ def test_runtime_generation_policy_forces_operator_to_llm_candidate(tmp_path):
     assert normalized["generation_policy"]["template_role"] == "fair_baseline_only"
 
 
+def test_runtime_rejects_unknown_operator_without_golden_oracle_before_candidate_generation(tmp_path):
+    config = AppConfig.load(Path.cwd())
+    runtime = SimpleNamespace(agent=SimpleNamespace(config=config))
+    task = {
+        "task_type": "operator",
+        "op_type": "CustomUnsupported",
+        "name": "custom_unknown",
+        "input_shape": [8],
+        "output_shape": [8],
+    }
+
+    normalized = LLMFirstRuntime._apply_generation_policy(runtime, task)
+
+    assert normalized["generation_policy"]["primary_path"] == "unsupported"
+    assert normalized["llm_candidate"]["eligible"] is False
+    assert normalized["demo"]["expected_path"] == "unsupported_report"
+    assert normalized["capability_boundary"]["decision"] == "reject_before_llm_or_vivado"
+
+
 def test_candidate_prompt_requires_compact_sandbox_safe_testbench():
     assert "Keep the JSON and source files compact" in CANDIDATE_GENERATOR_SYSTEM_PROMPT
     assert "Do not include <cstdlib>, <fstream>" in CANDIDATE_GENERATOR_SYSTEM_PROMPT

@@ -44,7 +44,9 @@ def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
 
     with pytest.raises(AgentRuntimeError) as exc:
         LLMCandidateGenerator().generate(
-            op_spec={"op_type": "Custom"},
+            # Use a known operator so this test reaches the sandbox layer;
+            # unknown semantics are rejected earlier by the capability gate.
+            op_spec={"op_type": "ReLU", "name": "relu_sandbox_probe", "input_shape": [1], "output_shape": [1]},
             rag_context=[],
             run_dir=str(run_dir),
             client=client,
