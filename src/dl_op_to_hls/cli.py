@@ -22,6 +22,7 @@ from .memory.feedback_governance import FeedbackGovernor
 from .rag.calibration import HLSRerankerCalibrator
 from .main_agent.agent import MainAgent
 from .main_agent.workflow import resume_task_llm, run_task, run_task_llm
+from .chat.loop import InteractiveChat
 from .adapters.hls4ml_adapter import HLS4MLAdapter
 from .adapters.vivado_hls_adapter import VivadoHLSAdapter
 from .core.config import AppConfig
@@ -68,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     run_nl_parser.add_argument("--session-id")
     run_nl_parser.add_argument("--user-id", default="local-user")
     run_nl_parser.add_argument("--project-id")
+
+    chat_parser = subparsers.add_parser("chat", help="Interactive multi-turn LLM Agent session.")
+    chat_parser.add_argument("--session-id", help="Resume an existing durable session.")
+    chat_parser.add_argument("--user-id", default="local-user")
+    chat_parser.add_argument("--project-id")
+    chat_parser.add_argument("--mock-tools", action="store_true", help="Explicitly use mock toolchains.")
+    chat_parser.add_argument("--real-tools", action="store_true", help="Explicitly require real toolchains.")
 
     subparsers.add_parser("session-list")
     session_show_parser = subparsers.add_parser("session-show")
@@ -397,6 +405,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(state.to_dict(), indent=2, ensure_ascii=False))
         return 0
+    if args.command == "chat":
+        agent = _build_agent(mock_tools=args.mock_tools, real_tools=args.real_tools)
+        return InteractiveChat(
+            agent,
+            session_id=args.session_id,
+            user_id=args.user_id,
+            project_id=args.project_id,
+        ).run()
     if args.command == "session-list":
         agent = _build_agent()
         print(json.dumps(agent.session_manager.list_sessions(), indent=2, ensure_ascii=False))

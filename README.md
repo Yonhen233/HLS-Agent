@@ -198,6 +198,25 @@ python -m dl_op_to_hls.cli session-rollback <session_id> --steps 1
 python -m dl_op_to_hls.cli session-retract <session_id>
 ```
 
+### 连续对话 CLI
+
+项目还提供持久化的多轮自然语言入口：
+
+```powershell
+python -m dl_op_to_hls.cli chat
+```
+
+启动后普通文本会连续提交到同一个 Agent session，后续请求会携带压缩后的历史摘要、最近消息和上一轮任务。例如：
+
+```text
+> 把这个 Dense 算子转换成 HLS，优先优化 latency
+> 在不明显增加 latency 的情况下继续降低 DSP
+> /status
+> /exit
+```
+
+`/status` 查看当前 session，`/help` 查看命令，`/exit` 或 `/quit` 退出。退出后可用 `dl-op-to-hls chat --session-id <session_id>` 继续同一会话。聊天终端只显示压缩结果，完整 AgentState、Todo、Trace、Memory 和 artifacts 仍按原有路径保存。详细说明见 `docs/interactive_chat.md`。
+
 详细设计、状态机、安全边界和评测口径见 `docs/llm_agent_runtime_v2.md`。
 
 ### Demo / strict 优化建议模式

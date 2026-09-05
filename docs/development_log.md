@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-09-05：新增基于持久化 Session 的连续对话 CLI
+
+### 1. 实现内容
+新增 `dl-op-to-hls chat`。普通文本会在同一个 `session_id` 下逐轮调用已有 `LLMFirstRuntime`；首次输入创建 session，后续输入由 `SessionManager.create()` 记录为 `follow_up_input`，`LLMTaskInterpreter` 读取压缩历史、最近消息和上一轮任务后生成完整结构化任务，再复用 Planner、Todo、Specialist、Tool、Memory、Trace 和 checkpoint 流程。没有另写一套执行器，也没有绕过权限和完成门禁。
+
+聊天终端只输出 `session_id`、`run_id`、状态、selected path、Todo 进度和最近结构化错误；完整 `AgentState`、原始 artifacts 和 `trace.jsonl` 仍落盘。新增 `/help`、`/status`、`/session`、`/exit` 和 `/quit`；输入错误或单轮异常不会让交互循环直接退出，详细错误仍保留在对应 run 的状态文件中。支持 `--session-id` 从上次退出处继续。
+
+### 2. 测试结果
+新增连续对话测试，验证终端结果不携带 raw 长内容，并验证两条普通消息分别复用旧 session 和上一轮返回的新 session。CLI help 已确认暴露 `chat` 子命令；专项 `2/2` 通过，完整项目回归 `476 tests` 通过。
+
+### 3. 设计边界与未完成项
+当前是“持久化多轮 CLI”，不是 Web UI，也不是后台并行聊天服务。每条普通消息会启动一个新的 Agent run，但复用同一 session，这是为了保持每轮 artifacts、状态和完成门禁相互隔离，同时让解释器获得压缩会话上下文。当前没有额外实现独立的 `/send` 命令，因为普通文本就是发送操作；`session-resume` 仍保留用于恢复被中断的执行 Todo，而 `chat --session-id` 用于继续会话对话。
+
+---
+
 ## 2026-09-04 15:52:01 +08:00：修复 Context Ablation 四项能力边界与验收口径错误，并完成真实 ONNX/Existing-HLS 回归
 
 ### 1. 问题定位
