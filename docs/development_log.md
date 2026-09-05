@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-09-05 19:17:12 +08:00：修复 release 配置覆盖后完成真实 LLM-first CLI 复测
+
+### 1. 问题根因
+前两次完整 LLM-first 运行使用了 Paratera endpoint 和用户提供的 key，但 Trace 中实际模型仍是小写 `deepseek-v4-pro`，且请求使用了数据库 release manifest 中冻结的旧配置。项目原有 release governance 默认优先于环境变量，因此新的 Paratera 配置没有真正覆盖运行时配置；服务端把旧配置/旧凭证请求返回为 401。之前的最小 HTTP 请求返回 200，造成“同一个 key 一边可用、一边 401”的表象。
+
+### 2. 复测动作
+设置 `DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG=1`，显式将当前环境中的 provider、Base URL 和模型写入本次 run 的 release manifest；请求模型固定为精确字符串 `DeepSeek-V4-Pro`，没有降级。执行：`python -m dl_op_to_hls.cli run-llm examples\\dense_operator.json --mock-tools`。这里 `--mock-tools` 只隔离 Vivado/hls4ml 工具链，LLM 请求、Planner、候选生成和优化建议请求均为真实外部 API 调用。
+
+### 3. 结果
+Run `dense_16x32_243d12ed_05` 成功：Trace 中 `LLMCallStarted/Finished` 的模型为 `DeepSeek-V4-Pro`，`LLMPlanAccepted` 成功生成 7 个计划 Todo，实际状态包含 8 个 Todo、无错误，selected path 为 `llm_candidate_path`，并进入 `VerificationSpecialist`、`VivadoSpecialist`、`MemorySpecialist` 和 Optimization 阶段。期间首次 Candidate 返回不完整 JSON，被严格拒绝并触发一次合法 regeneration；第二次 Candidate 成功，Optimization JSON 也成功，最终 completion gate 为 success。该结果证明真实 LLM-first 的任务解释、计划约束、Specialist 路由、候选重生成和记忆/优化编排链路可运行。
+
+### 4. 边界与未完成项
+本轮使用 mock toolchain，不能证明真实 Vivado HLS 的 CSim/CSynth 结果；真实硬件验证必须另用 `--real-tools` 单独执行。前两次未 pin 配置的 401 结果保留为配置治理问题证据，不计入模型能力失败。API key 未写入代码、Trace、日志或 Git。
+
+---
+
 ## 2026-09-05 18:59:32 +08:00：真实多轮 CLI 复测暴露并修复会话连续性与任务解释约束
 
 ### 1. 真实测试与事实
