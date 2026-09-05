@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-09-05 19:30:39 +08:00：完成 CLI 入口真实 LLM API 多轮对话评测
+
+### 1. 测试方式
+通过 `python -m dl_op_to_hls.cli chat --mock-tools` 连续输入两轮自然语言请求，并设置 `DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG=1`，确保本次运行实际使用 Paratera endpoint 与精确模型 `DeepSeek-V4-Pro`。`--mock-tools` 仅隔离 Vivado/hls4ml，任务解释、Planner、Candidate、Optimization 等 LLM 调用均为真实 API 请求。
+
+### 2. 结果
+两轮请求复用了同一个 `session_id=session_0733543d05fa`，没有退化为两个独立会话。第一轮 run `dense_16x32_2eb04c59_02` 状态为 `success`，8/8 Todo 完成且无错误；第二轮 run `dense_16x32_2eb04c59_03` 状态为 `success`，7/7 Todo 完成且无错误。第二轮 Planner 和 Candidate 生成均成功，第一轮 Candidate 曾出现不完整 JSON，Agent 按严格契约拒绝后完成 regeneration，未把不完整结果当作成功。最后 `/status` 返回同一 session 的两个 run id，证明上下文会话连续性和每轮 run 隔离同时生效。
+
+### 3. 结论与边界
+本次证明了 CLI 多轮交互、session 持久化、上一轮上下文继承、LLM-first Planner、Candidate regeneration、Specialist 调度和结构化结果输出可以在真实 `DeepSeek-V4-Pro` API 下完整运行。由于本轮使用 `--mock-tools`，不宣称本次产生了真实 Vivado CSim/CSynth 证据；真实硬件链路仍需用 `--real-tools` 单独验证。此前 401 的直接原因是旧 release manifest 覆盖新 API 配置，pin 机制修复后本轮未再出现 401。
+
+---
+
 ## 2026-09-05 19:17:12 +08:00：修复 release 配置覆盖后完成真实 LLM-first CLI 复测
 
 ### 1. 问题根因
