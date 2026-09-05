@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from ..main_agent.agent import MainAgent
-from ..main_agent.workflow import run_task_llm
+from ..main_agent.llm_runtime import LLMFirstRuntime
 
 
 @dataclass
@@ -29,7 +30,7 @@ class ChatTurnResult:
             run_id=str(state.run_id),
             status=str(state.status),
             selected_path=getattr(state, "selected_path", None),
-            summary_path=str(state.run_dir / "summary.md"),
+            summary_path=str(Path(state.artifacts.get("run_dir", f"runs/{state.run_id}")) / "summary.md"),
             completed_todos=sum(item.status in {"completed", "completed_with_warning"} for item in todos),
             total_todos=len(todos),
             errors=list(getattr(state, "errors", []) or [])[-3:],
@@ -94,21 +95,30 @@ class InteractiveChat:
             self._run_turn(message)
 
     def _run_turn(self, message: str) -> None:
+        runtime = LLMFirstRuntime(
+            self.agent,
+            session_id=self.session_id,
+            user_id=self.user_id,
+            project_id=self.project_id,
+        )
         try:
-            state = run_task_llm(
-                message,
-                agent=self.agent,
-                session_id=self.session_id,
-                user_id=self.user_id,
-                project_id=self.project_id,
-            )
-            self.session_id = state.session_id
+            state = runtime.run(message)
+            # Keep the session even when a later initialization stage raises.
             result = ChatTurnResult.from_state(state)
             self.output_fn(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
             if result.errors:
                 self.output_fn("本轮存在错误，完整详情已保存到 state.json 和 trace.jsonl。")
         except Exception as exc:
-            self.output_fn(json.dumps({"status": "error", "error_type": type(exc).__name__, "message": str(exc)}, ensure_ascii=False, indent=2))
+            self.output_fn(json.dumps({
+                "status": "error",
+                "session_id": runtime.session_id,
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            }, ensure_ascii=False, indent=2))
+        finally:
+            # Runtime creates the session before task interpretation; preserve it
+            # even when interpretation fails before an AgentState exists.
+            self.session_id = runtime.session_id
 
     def _show_session(self, prefix: str) -> None:
         if not self.session_id:

@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-09-05 18:59:32 +08:00：真实多轮 CLI 复测暴露并修复会话连续性与任务解释约束
+
+### 1. 真实测试与事实
+使用 Paratera OpenAI-compatible endpoint 进行低次数真实 LLM 探测，请求模型固定为 `DeepSeek-V4-Pro`，没有降级到其他模型；CLI 使用 `--mock-tools` 只隔离 HLS 工具，LLM 请求本身仍是真实外部请求。第一轮请求已通过 API 鉴权并返回模型结果，说明 endpoint、协议和模型配置可以被实际调用；模型随后生成了不合法的裸 `ap_fixed` dtype，严格任务 schema 正确拒绝了该任务。第二轮沿用同一个 session，服务端返回 HTTP 401 invalid key，因此没有把该轮包装成成功的多轮 LLM 任务执行。测试证据中的 session 为 `session_815aee2ee891`，CLI 能在异常后继续显示 session 状态；本记录不保存 API key。
+
+### 2. 根因与修复
+发现交互 CLI 在 LLM 初始化阶段失败时，虽然 `LLMFirstRuntime` 已创建并持有 session id，但异常 JSON 使用的是循环对象旧值，导致输出 `session_id: null`，后续也无法可靠恢复。修复为直接持有 `LLMFirstRuntime`，在异常输出和 finally 中使用/回写 `runtime.session_id`；同时将摘要路径从不存在的 `AgentState.run_dir` 改为读取 `state.artifacts["run_dir"]`，避免成功结果在终端投影阶段再次触发 `AttributeError`。针对真实模型生成的非法 dtype，增强 task interpreter prompt：明确要求 `ap_fixed<total_bits,integer_bits>`，禁止裸 `ap_fixed`、`fixed`、`float32` 和不完整字符串；用户未指定时使用合法默认 `ap_fixed<16,6>` 并写入 assumptions。没有通过静默改写非法模型输出来掩盖协议问题。
+
+### 3. 验证结果与未完成项
+新增回归测试覆盖异常时保留 session、连续两轮复用 session、紧凑输出不携带 raw 上下文，以及 dtype prompt 约束；定向回归 `8/8` 通过。之前启动的完整项目回归已运行至 `[100%]` 且未见失败输出。真实 LLM 多轮业务执行仍未完成，原因是第二次请求收到外部服务 HTTP 401，且第一轮模型输出未通过任务 schema；这属于 API 凭证稳定性和模型输出质量问题，不能冒充 Agent 已完成真实业务链路。后续提供稳定有效凭证后，可直接使用相同 CLI 命令复测，session 连续性修复会保留。
+
+---
+
 ## 2026-09-05：新增基于持久化 Session 的连续对话 CLI
 
 ### 1. 实现内容

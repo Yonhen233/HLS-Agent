@@ -15,6 +15,7 @@ def test_chat_turn_result_is_compact(tmp_path):
         run_dir=tmp_path,
         todos=[SimpleNamespace(status="completed"), SimpleNamespace(status="skipped")],
         errors=[{"error_type": "VivadoNotFoundError"}],
+        artifacts={"run_dir": str(tmp_path)},
     )
 
     result = ChatTurnResult.from_state(state).to_dict()
@@ -34,23 +35,47 @@ def test_chat_reuses_session_and_handles_commands(monkeypatch):
         session_manager = FakeSessionManager()
 
     class FakeState:
-        session_id = "session_new"
+        session_id = "session_old"
         run_id = "run_new"
         status = "success"
         selected_path = "hls4ml_path"
-        run_dir = Path("runs/run_new")
+        artifacts = {"run_dir": "runs/run_new"}
         todos = []
         errors = []
 
-    def fake_run(message, **kwargs):
-        calls.append((message, kwargs["session_id"]))
-        return FakeState()
+    class FakeRuntime:
+        def __init__(self, agent, *, session_id, user_id, project_id):
+            del agent, user_id, project_id
+            self.session_id = session_id or "session_created"
 
-    monkeypatch.setattr("dl_op_to_hls.chat.loop.run_task_llm", fake_run)
+        def run(self, message):
+            calls.append((message, self.session_id))
+            return FakeState()
+
+    monkeypatch.setattr("dl_op_to_hls.chat.loop.LLMFirstRuntime", FakeRuntime)
     inputs = iter(["/status", "first request", "second request", "/exit"])
     output = []
     chat = InteractiveChat(FakeAgent(), session_id="session_old", input_fn=lambda _: next(inputs), output_fn=output.append)
 
     assert chat.run() == 0
-    assert calls == [("first request", "session_old"), ("second request", "session_new")]
+    assert calls == [("first request", "session_old"), ("second request", "session_old")]
     assert any("session_old" in item for item in output)
+
+
+def test_chat_keeps_session_id_when_runtime_fails(monkeypatch):
+    class FakeRuntime:
+        def __init__(self, agent, *, session_id, user_id, project_id):
+            del agent, user_id, project_id
+            self.session_id = session_id or "session_created"
+
+        def run(self, message):
+            del message
+            raise RuntimeError("task interpretation failed")
+
+    monkeypatch.setattr("dl_op_to_hls.chat.loop.LLMFirstRuntime", FakeRuntime)
+    output = []
+    inputs = iter(["request", "/exit"])
+    chat = InteractiveChat(object(), input_fn=lambda _: next(inputs), output_fn=output.append)
+
+    assert chat.run() == 0
+    assert '"session_id": "session_created"' in "\n".join(output)

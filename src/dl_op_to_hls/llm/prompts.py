@@ -14,6 +14,7 @@ Keep original facts and put inferred facts only in assumptions.
 Use static integer shapes. If a required shape is explicitly dynamic, preserve that fact so schema validation can reject it safely.
 For MatMul A[M,K] x B[K,N], use input_shape=[M,K], weight_shape=[K,N], output_shape=[M,N].
 For operator requests, preserve operator-specific fields such as stride, padding, group, weights, and bias when supplied.
+For operator dtype, use the exact form ap_fixed<total_bits,integer_bits>, where both values are positive and total_bits is greater than integer_bits. Never emit a bare "ap_fixed", "fixed", float32, or an incomplete fixed-point string. If the user does not specify a dtype, use ap_fixed<16,6> and record that choice in assumptions.
 An ONNX/QONNX/Keras/QKeras file is a model task: use task_type=model, model_path, and frontend. It is not an hls_project.
 When the user prioritizes stability and maintainability rather than speed or area, use objective=standard.
 Example:

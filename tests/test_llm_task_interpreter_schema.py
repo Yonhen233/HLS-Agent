@@ -1,6 +1,7 @@
 from dl_op_to_hls.llm.client import FakeLLMClient
 from dl_op_to_hls.llm.schemas import TASK_INTERPRETATION_SCHEMA, validate_required
 from dl_op_to_hls.llm.task_interpreter import LLMTaskInterpreter
+from dl_op_to_hls.llm.prompts import TASK_INTERPRETER_SYSTEM_PROMPT
 import pytest
 
 
@@ -70,3 +71,8 @@ def test_task_interpreter_canonicalizes_onnx_source_alias():
     assert result["task"]["model_path"] == "models/network.onnx"
     assert result["task"]["frontend"] == "onnx"
     assert result["task"]["objective"] == "standard"
+
+
+def test_task_interpreter_prompt_requires_complete_fixed_point_dtype():
+    assert "Never emit a bare \"ap_fixed\"" in TASK_INTERPRETER_SYSTEM_PROMPT
+    assert "ap_fixed<16,6>" in TASK_INTERPRETER_SYSTEM_PROMPT
