@@ -1,3 +1,8 @@
+"""tools layer implementation for fallback_template.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,21 +14,67 @@ from .functional_verification import write_fallback_reference_data
 
 
 def _load_template(template_dir: Path, name: str) -> Template:
+    """Implement the internal _load_template helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        template_dir: Value supplied by the caller and validated by the surrounding schema.
+        name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return Template((template_dir / name).read_text(encoding="utf-8"))
 
 
 def _write_file(path: Path, content: str) -> None:
+    """Implement the internal _write_file helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        content: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
 
 def _shape_value(values: list[int] | None, index: int, default: int) -> int:
+    """Implement the internal _shape_value helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        index: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values or len(values) <= index:
         return default
     return int(values[index])
 
 
 def _render_testbench(op_type: str, task: dict[str, Any], template_dir: Path) -> str:
+    """Implement the internal _render_testbench helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        op_type: Value supplied by the caller and validated by the surrounding schema.
+        task: Value supplied by the caller and validated by the surrounding schema.
+        template_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     top_function = task["name"]
     header_name = f"{top_function}.h"
     dtype = task.get("dtype", "ap_fixed<16,6>")
@@ -158,6 +209,17 @@ def _render_testbench(op_type: str, task: dict[str, Any], template_dir: Path) ->
 
 
 def render_fallback_operator(task: dict[str, Any], output_dir: str) -> dict[str, Any]:
+    """Execute render_fallback_operator at the fallback_template boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     template_dir = Path(__file__).resolve().parents[1] / "templates" / "fallback"
     op_type = str(task.get("op_type", "")).strip()
     top_function = task["name"]
@@ -225,6 +287,17 @@ def render_fallback_operator(task: dict[str, Any], output_dir: str) -> dict[str,
 
 
 def generate_operator_hls(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute generate_operator_hls at the fallback_template boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = arguments["task"]
     output_dir = arguments["output_dir"]
     result = render_fallback_operator(task, output_dir)
@@ -245,6 +318,17 @@ def generate_operator_hls(arguments: dict[str, Any], context: dict[str, Any]) ->
 
 
 def generate_testbench(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute generate_testbench at the fallback_template boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = arguments["task"]
     output_dir = Path(arguments["output_dir"])
     template_dir = Path(__file__).resolve().parents[1] / "templates" / "fallback"

@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_onnx_cases.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,10 +15,32 @@ from .operator_suite_specs import all_suite_payloads
 
 
 def _utc_now() -> str:
+    """Implement the internal _utc_now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _save_model(path: Path, nodes: list[Any], inputs: list[Any], outputs: list[Any], initializers: list[Any] | None = None, *, opset: int = 13) -> None:
+    """Implement the internal _save_model helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        nodes: Value supplied by the caller and validated by the surrounding schema.
+        inputs: Value supplied by the caller and validated by the surrounding schema.
+        outputs: Value supplied by the caller and validated by the surrounding schema.
+        initializers: Value supplied by the caller and validated by the surrounding schema.
+        opset: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     from onnx import helper, save  # type: ignore
 
     graph = helper.make_graph(nodes, path.stem, inputs, outputs, initializer=initializers or [])
@@ -22,12 +49,36 @@ def _save_model(path: Path, nodes: list[Any], inputs: list[Any], outputs: list[A
 
 
 def _tensor(name: str, shape: list[int | str | None], data_type: int | None = None) -> Any:
+    """Implement the internal _tensor helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+        shape: Value supplied by the caller and validated by the surrounding schema.
+        data_type: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     from onnx import TensorProto, helper  # type: ignore
 
     return helper.make_tensor_value_info(name, data_type or TensorProto.FLOAT, shape)
 
 
 def _array(name: str, values: Any, dtype: Any = None) -> Any:
+    """Implement the internal _array helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+        values: Value supplied by the caller and validated by the surrounding schema.
+        dtype: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import numpy as np  # type: ignore
     from onnx import numpy_helper  # type: ignore
 
@@ -35,6 +86,19 @@ def _array(name: str, values: Any, dtype: Any = None) -> Any:
 
 
 def _dense_nodes(*, relu: bool = False, matmul_add: bool = False, trans_a: int = 0, alpha: float = 1.0) -> tuple[list[Any], list[Any]]:
+    """Implement the internal _dense_nodes helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        relu: Value supplied by the caller and validated by the surrounding schema.
+        matmul_add: Value supplied by the caller and validated by the surrounding schema.
+        trans_a: Value supplied by the caller and validated by the surrounding schema.
+        alpha: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import numpy as np  # type: ignore
     from onnx import helper  # type: ignore
 
@@ -57,6 +121,16 @@ def _dense_nodes(*, relu: bool = False, matmul_add: bool = False, trans_a: int =
 
 
 def _conv_prefix(*, group: int = 1) -> tuple[list[Any], list[Any]]:
+    """Implement the internal _conv_prefix helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        group: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import numpy as np  # type: ignore
     from onnx import helper  # type: ignore
 
@@ -70,6 +144,17 @@ def _conv_prefix(*, group: int = 1) -> tuple[list[Any], list[Any]]:
 
 
 def _build_positive(case_id: str, path: Path) -> str:
+    """Implement the internal _build_positive helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case_id: Value supplied by the caller and validated by the surrounding schema.
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import numpy as np  # type: ignore
     from onnx import TensorProto, helper  # type: ignore
 
@@ -157,6 +242,17 @@ def _build_positive(case_id: str, path: Path) -> str:
 
 
 def _build_negative(case_id: str, path: Path) -> str:
+    """Implement the internal _build_negative helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case_id: Value supplied by the caller and validated by the surrounding schema.
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import numpy as np  # type: ignore
     from onnx import helper  # type: ignore
 
@@ -212,6 +308,17 @@ def _build_negative(case_id: str, path: Path) -> str:
 
 
 def run_operator_onnx_cases(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_operator_onnx_cases at the operator_onnx_cases boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     manifest_path = root / "benchmarks" / "operator_onnx_graph_suite.json"
     if manifest_path.exists():
@@ -224,6 +331,18 @@ def run_operator_onnx_cases(workspace_root: str | Path, output_path: str | Path)
     results: list[dict[str, Any]] = []
 
     def execute(case: dict[str, Any], positive: bool, builder: Callable[[str, Path], str]) -> None:
+        """Execute execute at the operator_onnx_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            case: Value supplied by the caller and validated by the surrounding schema.
+            positive: Value supplied by the caller and validated by the surrounding schema.
+            builder: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         case_id = str(case["case_id"])
         graph_path = graph_dir / f"{case_id}.onnx"
         expected = builder(case_id, graph_path)

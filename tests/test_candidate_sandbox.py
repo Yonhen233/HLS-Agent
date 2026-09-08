@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_candidate_sandbox.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import pytest
 
 from dl_op_to_hls.core.candidate_sandbox import CandidateSandbox
@@ -10,6 +15,13 @@ from dl_op_to_hls.tools.llm_candidate import LLMCandidateGenerator as ToolCandid
 
 
 def test_candidate_sandbox_rejects_system_call():
+    """Verify the test_candidate_sandbox_rejects_system_call contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = {
         "files": [
             {
@@ -24,6 +36,16 @@ def test_candidate_sandbox_rejects_system_call():
 
 
 def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
+    """Verify the test_llm_candidate_generator_applies_candidate_sandbox contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True)
     client = FakeLLMClient(
@@ -61,18 +83,67 @@ def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
 
 
 def test_candidate_tool_uses_run_scoped_llm_client(tmp_path):
+    """Verify the test_candidate_tool_uses_run_scoped_llm_client contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     class RecordingClient:
+        """Coordinate RecordingClient within the test_candidate_sandbox boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self):
+            """Verify the __init__ contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.context = None
 
         def set_context(self, context):
+            """Verify the set_context contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.context = context
 
     class RecordingEngine:
+        """Coordinate RecordingEngine within the test_candidate_sandbox boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self):
+            """Verify the __init__ contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.client = None
 
         def generate(self, **kwargs):
+            """Verify the generate contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.client = kwargs["client"]
             return {"status": "candidate_generated", "files": [], "requires_verification": True}
 
@@ -96,6 +167,13 @@ def test_candidate_tool_uses_run_scoped_llm_client(tmp_path):
 
 
 def test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point():
+    """Verify the test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = {
         "files": [
             {
@@ -112,6 +190,13 @@ def test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point():
 
 
 def test_candidate_sandbox_rejects_dynamic_memory():
+    """Verify the test_candidate_sandbox_rejects_dynamic_memory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = {
         "files": [
             {
@@ -126,6 +211,13 @@ def test_candidate_sandbox_rejects_dynamic_memory():
 
 
 def test_candidate_sandbox_rejects_large_complete_mutable_activation_partition():
+    """Verify the test_candidate_sandbox_rejects_large_complete_mutable_activation_partition contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = {
         "files": [
             {

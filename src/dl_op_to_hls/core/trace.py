@@ -1,3 +1,8 @@
+"""core layer implementation for trace.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -12,21 +17,53 @@ from typing import Any, Iterable
 
 
 def utc_now() -> str:
+    """Execute utc_now at the trace boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def stable_hash(payload: Any) -> str:
+    """Execute stable_hash at the trace boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     serialized = json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 @dataclass
 class TraceWriter:
+    """Coordinate TraceWriter within the trace boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     path: Path
     run_id: str
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def append(self, event: str, payload: dict[str, Any]) -> None:
+        """Execute append at the trace boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            event: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Envelope fields belong to the writer and must not be overridden by
         # partially populated hook payloads.
@@ -37,10 +74,34 @@ class TraceWriter:
 
 
 class TraceHook:
+    """Coordinate TraceHook within the trace boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, writer: TraceWriter):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            writer: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.writer = writer
 
     def __call__(self, payload: dict[str, Any]) -> None:
+        """Implement the internal __call__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         event = str(payload.get("event", "UnknownEvent"))
         record = {key: value for key, value in payload.items() if key != "event"}
         self.writer.append(event, record)
@@ -82,6 +143,16 @@ def _compact_json(value: Any, *, max_chars: int = 1200) -> Any:
 
 
 def _decision_from_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _decision_from_record helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        record: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     event = str(record.get("event", ""))
     payload = {key: value for key, value in record.items() if key not in {"ts", "event", "run_id"}}
     decision = payload.get("decision") or payload.get("action") or event
@@ -122,9 +193,29 @@ class DecisionTraceHook:
     """
 
     def __init__(self, writer: TraceWriter):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            writer: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.writer = writer
 
     def __call__(self, payload: dict[str, Any]) -> None:
+        """Implement the internal __call__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         event = str(payload.get("event", ""))
         if event == "DecisionRecorded" or event not in DECISION_SOURCE_EVENTS:
             return
@@ -136,9 +227,29 @@ class TraceReader:
     """Read bounded, structured projections from a run's single trace file."""
 
     def __init__(self, path: str | Path):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path = Path(path)
 
     def records(self, *, max_records: int = 500) -> list[dict[str, Any]]:
+        """Execute records at the trace boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            max_records: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.path.exists():
             return []
         records: deque[dict[str, Any]] = deque(maxlen=max(1, int(max_records)))
@@ -154,6 +265,17 @@ class TraceReader:
 
     @staticmethod
     def _project(records: list[dict[str, Any]], view: str) -> list[dict[str, Any]]:
+        """Implement the internal _project helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+            view: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if view in {"decisions", "decision_ledger"}:
             projected = [_compact_json(record) for record in records if record.get("event") == "DecisionRecorded"]
             if not projected:
@@ -177,6 +299,17 @@ class TraceReader:
         raise ValueError(f"Unsupported trace projection: {view}")
 
     def query(self, view: str = "decisions", *, max_items: int = 50) -> dict[str, Any]:
+        """Execute query at the trace boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            view: Value supplied by the caller and validated by the surrounding schema.
+            max_items: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         records = self.records(max_records=max(500, max_items * 10))
         if view == "memory_context":
             limit = max(1, int(max_items))

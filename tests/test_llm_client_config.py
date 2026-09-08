@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_llm_client_config.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.llm.client import LLMClient
 from dl_op_to_hls.llm.config import LLMConfig
 from dl_op_to_hls.llm.schemas import REACT_DECISION_SCHEMA
@@ -6,7 +11,21 @@ from dl_op_to_hls.core.errors import AgentRuntimeError
 
 
 class SequenceLLMClient(LLMClient):
+    """Coordinate SequenceLLMClient within the test_llm_client_config boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, responses):
+        """Verify the __init__ contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            responses: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         super().__init__(
             config=LLMConfig(
                 enabled=True,
@@ -25,12 +44,35 @@ class SequenceLLMClient(LLMClient):
         self.responses = list(responses)
 
     def complete_text(self, system_prompt, user_prompt, temperature=0.2, force_json=False):
+        """Verify the complete_text contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            system_prompt: Value supplied by the caller and validated by the surrounding schema.
+            user_prompt: Value supplied by the caller and validated by the surrounding schema.
+            temperature: Value supplied by the caller and validated by the surrounding schema.
+            force_json: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.responses:
             return "{}"
         return self.responses.pop(0)
 
 
 def test_llm_config_disabled_by_default(monkeypatch):
+    """Verify the test_llm_config_disabled_by_default contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.delenv("DL_OP_TO_HLS_LLM_ENABLED", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_LLM_API_KEY", raising=False)
     config = LLMConfig.from_env()
@@ -39,6 +81,16 @@ def test_llm_config_disabled_by_default(monkeypatch):
 
 
 def test_llm_client_enabled(monkeypatch):
+    """Verify the test_llm_client_enabled contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
     client = LLMClient()
@@ -46,6 +98,16 @@ def test_llm_client_enabled(monkeypatch):
 
 
 def test_llm_client_root_base_url_appends_v1(monkeypatch):
+    """Verify the test_llm_client_root_base_url_appends_v1 contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_BASE_URL", "https://llmapi.paratera.com")
@@ -54,6 +116,16 @@ def test_llm_client_root_base_url_appends_v1(monkeypatch):
 
 
 def test_llm_config_reads_max_tokens(monkeypatch):
+    """Verify the test_llm_config_reads_max_tokens contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "test")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_MAX_TOKENS", "8192")
@@ -61,6 +133,13 @@ def test_llm_config_reads_max_tokens(monkeypatch):
 
 
 def test_llm_client_repairs_missing_react_decision():
+    """Verify the test_llm_client_repairs_missing_react_decision contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     client = SequenceLLMClient(
         [
             '{"reason_summary":"validate first","action":{"tool_name":"task.validate_schema"}}',
@@ -72,6 +151,13 @@ def test_llm_client_repairs_missing_react_decision():
 
 
 def test_llm_client_repairs_empty_json_response_with_context_prompt():
+    """Verify the test_llm_client_repairs_empty_json_response_with_context_prompt contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     client = SequenceLLMClient(
         [
             "",
@@ -88,6 +174,16 @@ def test_llm_client_repairs_empty_json_response_with_context_prompt():
 
 
 def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_workspace):
+    """Verify the test_llm_client_writes_redacted_debug_artifact_on_repair_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("llm_debug_test")
     client = SequenceLLMClient(
@@ -110,6 +206,13 @@ def test_llm_client_writes_redacted_debug_artifact_on_repair_failure(temp_worksp
 
 
 def test_llm_json_request_policy_separates_control_and_candidate_reasoning():
+    """Verify the test_llm_json_request_policy_separates_control_and_candidate_reasoning contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     planner = LLMClient._json_request_policy({"title": "TodoPlan"})
     candidate = LLMClient._json_request_policy({"title": "CandidateGenerationSchema"})
 
@@ -123,6 +226,13 @@ def test_llm_json_request_policy_separates_control_and_candidate_reasoning():
 
 
 def test_candidate_normalization_fills_only_safe_metadata_fields():
+    """Verify the test_candidate_normalization_fills_only_safe_metadata_fields contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     client = SequenceLLMClient(
         [
             '{"files":[{"relative_path":"candidate/conv2d_anchor.cpp","content":"void conv2d_anchor(){}"}]}'
@@ -146,6 +256,13 @@ def test_candidate_normalization_fills_only_safe_metadata_fields():
 
 
 def test_candidate_truncated_json_is_regenerated_not_generic_repaired():
+    """Verify the test_candidate_truncated_json_is_regenerated_not_generic_repaired contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     client = SequenceLLMClient(
         [
             '{"candidate_name":"truncated","files":[{"relative_path":"candidate/truncated.cpp","content":"void',

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_specialists.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -22,6 +27,18 @@ from dl_op_to_hls.specialists import (
 
 
 def _todo(title: str, tool: str, specialist: str | None = None) -> TodoItem:
+    """Verify the _todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        title: Value supplied by the caller and validated by the surrounding schema.
+        tool: Value supplied by the caller and validated by the surrounding schema.
+        specialist: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return TodoItem(
         id="todo_001",
         title=title,
@@ -38,6 +55,16 @@ def _todo(title: str, tool: str, specialist: str | None = None) -> TodoItem:
 
 
 def _dense_state(temp_workspace: Path) -> AgentState:
+    """Verify the _dense_state contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = json.loads((temp_workspace / "examples" / "dense_operator.json").read_text(encoding="utf-8"))
     state = AgentState(run_id="r1", task=task, objective="latency")
     state.hls_project_dir = str(temp_workspace / "examples" / "hls_projects" / "dense")
@@ -56,12 +83,30 @@ def _dense_state(temp_workspace: Path) -> AgentState:
 
 
 class _BadHls4mlArgsClient:
+    """Coordinate _BadHls4mlArgsClient within the test_specialists boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     context = {}
 
     def is_enabled(self):
+        """Verify the is_enabled contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return True
 
     def complete_json(self, **kwargs):
+        """Verify the complete_json contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "reason_summary": "call hls4ml support check with incomplete arguments",
             "decision": "call_tool",
@@ -70,6 +115,16 @@ class _BadHls4mlArgsClient:
 
 
 def test_context_builder_scopes_hls4ml_context(temp_workspace):
+    """Verify the test_context_builder_scopes_hls4ml_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(
         run_id="r1",
         task=json.loads((temp_workspace / "examples" / "mlp_onnx_example.json").read_text(encoding="utf-8")),
@@ -82,6 +137,16 @@ def test_context_builder_scopes_hls4ml_context(temp_workspace):
 
 
 def test_context_builder_drops_stale_hls4ml_support_after_rewrite(temp_workspace):
+    """Verify the test_context_builder_drops_stale_hls4ml_support_after_rewrite contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(
         run_id="r1",
         task=json.loads((temp_workspace / "examples" / "mnist_mlp_hls4ml.json").read_text(encoding="utf-8")),
@@ -95,6 +160,16 @@ def test_context_builder_drops_stale_hls4ml_support_after_rewrite(temp_workspace
 
 
 def test_context_builder_scopes_vivado_context(temp_workspace):
+    """Verify the test_context_builder_scopes_vivado_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
     assert envelope.scoped_state["hls_project_dir"]
@@ -103,6 +178,16 @@ def test_context_builder_scopes_vivado_context(temp_workspace):
 
 
 def test_context_builder_excludes_raw_logs(temp_workspace):
+    """Verify the test_context_builder_excludes_raw_logs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     state.artifacts["vivado_log"] = str(temp_workspace / "runs" / "r1" / "vivado_hls.log")
     envelope = ContextBuilder().build_for_specialist(state, _todo("Generate optimization suggestions", "suggestion.suggest_optimization"), "OptimizationSpecialist")
@@ -111,12 +196,32 @@ def test_context_builder_excludes_raw_logs(temp_workspace):
 
 
 def test_context_builder_excludes_full_trace(temp_workspace):
+    """Verify the test_context_builder_excludes_full_trace contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
     assert all(ref["type"] != "trace" for ref in envelope.artifact_refs)
 
 
 def test_memory_context_uses_trace_tool_without_exposing_trace_artifact(temp_workspace):
+    """Verify the test_memory_context_uses_trace_tool_without_exposing_trace_artifact contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(
         state,
@@ -129,6 +234,16 @@ def test_memory_context_uses_trace_tool_without_exposing_trace_artifact(temp_wor
 
 
 def test_context_builder_includes_artifact_refs(temp_workspace):
+    """Verify the test_context_builder_includes_artifact_refs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
     tcl_ref = next(item for item in envelope.artifact_refs if item["type"] == "tcl")
@@ -138,6 +253,16 @@ def test_context_builder_includes_artifact_refs(temp_workspace):
 
 
 def test_specialist_receives_context_envelope_not_full_state(temp_workspace):
+    """Verify the test_specialist_receives_context_envelope_not_full_state contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
     payload = envelope.to_dict()
@@ -146,6 +271,16 @@ def test_specialist_receives_context_envelope_not_full_state(temp_workspace):
 
 
 def test_specialist_cannot_call_disallowed_tool(temp_workspace):
+    """Verify the test_specialist_cannot_call_disallowed_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = OptimizationSpecialist(context)
@@ -155,6 +290,13 @@ def test_specialist_cannot_call_disallowed_tool(temp_workspace):
 
 
 def test_specialist_result_schema():
+    """Verify the test_specialist_result_schema contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = SpecialistResult("VivadoSpecialist", "todo_001", "success", "ok", context_usage={"compression_ratio": 0.1})
     payload = result.to_dict()
     assert payload["specialist_name"] == "VivadoSpecialist"
@@ -162,6 +304,16 @@ def test_specialist_result_schema():
 
 
 def test_specialist_result_context_usage(temp_workspace):
+    """Verify the test_specialist_result_context_usage contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = HLS4MLSpecialist(context)
@@ -176,31 +328,73 @@ def test_specialist_result_context_usage(temp_workspace):
 
 
 def test_router_routes_hls4ml_todo():
+    """Verify the test_router_routes_hls4ml_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Check hls4ml support", "hls4ml.check_support")).name == "HLS4MLSpecialist"
 
 
 def test_router_routes_vivado_todo():
+    """Verify the test_router_routes_vivado_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Run Vivado HLS synthesis", "vivado.run_csynth")).name == "VivadoSpecialist"
 
 
 def test_router_routes_verification_todo():
+    """Verify the test_router_routes_verification_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Verify LLM candidate", "verify_candidate.run")).name == "VerificationSpecialist"
 
 
 def test_router_routes_optimization_todo():
+    """Verify the test_router_routes_optimization_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Generate optimization suggestions", "suggestion.suggest_optimization")).name == "OptimizationSpecialist"
 
 
 def test_router_routes_memory_todo():
+    """Verify the test_router_routes_memory_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Promote memories", "memory.promote_to_long_term")).name == "MemorySpecialist"
 
 
 def test_router_routes_llm_candidate_to_codegen_specialist():
+    """Verify the test_router_routes_llm_candidate_to_codegen_specialist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     router = SpecialistRouter(
         [CodegenSpecialist(), HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()]
     )
@@ -208,11 +402,44 @@ def test_router_routes_llm_candidate_to_codegen_specialist():
 
 
 def test_codegen_specialist_receives_envelope_and_returns_candidate_result(temp_workspace):
+    """Verify the test_codegen_specialist_receives_envelope_and_returns_candidate_result contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     class FakeRegistry:
+        """Coordinate FakeRegistry within the test_specialists boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self):
+            """Verify the __init__ contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.calls = []
 
         def call(self, name, arguments, context):
+            """Verify the call contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                name: Value supplied by the caller and validated by the surrounding schema.
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+                context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.calls.append((name, arguments, context))
             return {
                 "status": "candidate_generated",
@@ -220,6 +447,10 @@ def test_codegen_specialist_receives_envelope_and_returns_candidate_result(temp_
             }
 
     class AllowAll:
+        """Coordinate AllowAll within the test_specialists boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         pass
 
     state = _dense_state(temp_workspace)
@@ -236,6 +467,16 @@ def test_codegen_specialist_receives_envelope_and_returns_candidate_result(temp_
 
 
 def test_hls4ml_specialist_mock_success(temp_workspace):
+    """Verify the test_hls4ml_specialist_mock_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = HLS4MLSpecialist(context)
@@ -247,6 +488,16 @@ def test_hls4ml_specialist_mock_success(temp_workspace):
 
 
 def test_hls4ml_specialist_preserves_canonical_args_from_context(temp_workspace):
+    """Verify the test_hls4ml_specialist_preserves_canonical_args_from_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     context["specialist_llm_decider_enabled"] = "1"
@@ -265,6 +516,16 @@ def test_hls4ml_specialist_preserves_canonical_args_from_context(temp_workspace)
 
 
 def test_vivado_specialist_mock_success(temp_workspace):
+    """Verify the test_vivado_specialist_mock_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = VivadoSpecialist(context)
@@ -275,6 +536,16 @@ def test_vivado_specialist_mock_success(temp_workspace):
 
 
 def test_vivado_specialist_create_project_respects_assigned_tool(temp_workspace):
+    """Verify the test_vivado_specialist_create_project_respects_assigned_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = VivadoSpecialist(context)
@@ -289,6 +560,16 @@ def test_vivado_specialist_create_project_respects_assigned_tool(temp_workspace)
 
 
 def test_vivado_specialist_parse_report_uses_assigned_tool_not_title_case(temp_workspace):
+    """Verify the test_vivado_specialist_parse_report_uses_assigned_tool_not_title_case contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = VivadoSpecialist(context)
@@ -303,6 +584,17 @@ def test_vivado_specialist_parse_report_uses_assigned_tool_not_title_case(temp_w
 
 
 def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkeypatch):
+    """Verify the test_vivado_specialist_missing_binary_partial_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     monkeypatch.setattr(
         "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
@@ -318,6 +610,17 @@ def test_vivado_specialist_missing_binary_partial_success(temp_workspace, monkey
 
 
 def test_vivado_specialist_parses_report_after_csynth_timeout(temp_workspace, sample_csynth_report_path):
+    """Verify the test_vivado_specialist_parses_report_after_csynth_timeout contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        sample_csynth_report_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     report_path = temp_workspace / "runs" / "r1" / "vivado_hls" / "solution1" / "syn" / "report" / "myproject_csynth.rpt"
@@ -343,6 +646,16 @@ def test_vivado_specialist_parses_report_after_csynth_timeout(temp_workspace, sa
 
 
 def test_vivado_specialist_timing_failure_is_partial_success(temp_workspace):
+    """Verify the test_vivado_specialist_timing_failure_is_partial_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     report_path = temp_workspace / "runs" / "r1" / "vivado_hls" / "solution1" / "syn" / "report" / "myproject_csynth.rpt"
@@ -372,6 +685,16 @@ def test_vivado_specialist_timing_failure_is_partial_success(temp_workspace):
 
 
 def test_vivado_specialist_blocks_without_hls_project_dir(temp_workspace):
+    """Verify the test_vivado_specialist_blocks_without_hls_project_dir contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -385,6 +708,16 @@ def test_vivado_specialist_blocks_without_hls_project_dir(temp_workspace):
 
 
 def test_verification_specialist_mock_success(temp_workspace):
+    """Verify the test_verification_specialist_mock_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -397,6 +730,16 @@ def test_verification_specialist_mock_success(temp_workspace):
 
 
 def test_verification_specialist_propagates_target_clock_and_part(temp_workspace):
+    """Verify the test_verification_specialist_propagates_target_clock_and_part contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -404,7 +747,23 @@ def test_verification_specialist_propagates_target_clock_and_part(temp_workspace
     calls = []
 
     class RecordingRegistry:
+        """Coordinate RecordingRegistry within the test_specialists boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def call(self, name, arguments, tool_context):
+            """Verify the call contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                name: Value supplied by the caller and validated by the surrounding schema.
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+                tool_context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             calls.append((name, arguments))
             return {
                 "status": "verified",
@@ -429,6 +788,16 @@ def test_verification_specialist_propagates_target_clock_and_part(temp_workspace
 
 
 def test_memory_specialist_retrieval_does_not_promote(temp_workspace):
+    """Verify the test_memory_specialist_retrieval_does_not_promote contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -445,6 +814,16 @@ def test_memory_specialist_retrieval_does_not_promote(temp_workspace):
 
 
 def test_optimization_specialist_uses_rag_context(temp_workspace):
+    """Verify the test_optimization_specialist_uses_rag_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     specialist = OptimizationSpecialist(context)
@@ -455,6 +834,16 @@ def test_optimization_specialist_uses_rag_context(temp_workspace):
 
 
 def test_memory_specialist_promotes_candidates(temp_workspace):
+    """Verify the test_memory_specialist_promotes_candidates contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -471,6 +860,16 @@ def test_memory_specialist_promotes_candidates(temp_workspace):
 
 
 def test_memory_specialist_uses_llm_to_select_experience_without_changing_evidence(temp_workspace):
+    """Verify the test_memory_specialist_uses_llm_to_select_experience_without_changing_evidence contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     context["hooks"].emit(
@@ -525,6 +924,16 @@ def test_memory_specialist_uses_llm_to_select_experience_without_changing_eviden
 
 
 def test_memory_specialist_returns_bounded_candidate_projection(temp_workspace):
+    """Verify the test_memory_specialist_returns_bounded_candidate_projection contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     candidate = {
         "kind": "verified_implementation",
         "key": "verified.one",
@@ -540,6 +949,16 @@ def test_memory_specialist_returns_bounded_candidate_projection(temp_workspace):
 
 
 def test_memory_specialist_accepts_missing_llm_fact_without_losing_source_evidence(temp_workspace):
+    """Verify the test_memory_specialist_accepts_missing_llm_fact_without_losing_source_evidence contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     context["llm_client"] = FakeLLMClient(
@@ -565,6 +984,16 @@ def test_memory_specialist_accepts_missing_llm_fact_without_losing_source_eviden
 
 
 def test_trace_query_rejects_cross_run_access(temp_workspace):
+    """Verify the test_trace_query_rejects_cross_run_access contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     result = agent.registry.call("trace.query", {"run_id": "another_run", "view": "decisions"}, context)
@@ -574,6 +1003,16 @@ def test_trace_query_rejects_cross_run_access(temp_workspace):
 
 
 def test_each_specialist_local_react_contract_uses_only_envelope_and_allowed_tools(temp_workspace):
+    """Verify the test_each_specialist_local_react_contract_uses_only_envelope_and_allowed_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     context = agent.create_run_context("r1")
     state = _dense_state(temp_workspace)
@@ -603,11 +1042,31 @@ def test_each_specialist_local_react_contract_uses_only_envelope_and_allowed_too
 
 
 def test_main_agent_assigns_specialist_to_todo(temp_workspace):
+    """Verify the test_main_agent_assigns_specialist_to_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert any(item.assigned_specialist == "VivadoSpecialist" for item in state.todos)
 
 
 def test_main_agent_merges_specialist_result(temp_workspace):
+    """Verify the test_main_agent_merges_specialist_result contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     synth_todo = next(item for item in state.todos if item.title == "Run Vivado HLS synthesis")
     assert synth_todo.specialist_result["specialist_name"] == "VivadoSpecialist"
@@ -615,6 +1074,16 @@ def test_main_agent_merges_specialist_result(temp_workspace):
 
 
 def test_main_agent_does_not_merge_raw_log(temp_workspace):
+    """Verify the test_main_agent_does_not_merge_raw_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     payload = json.dumps(state.to_dict(), ensure_ascii=False)
     assert "Vivado HLS raw log" not in payload
@@ -622,6 +1091,16 @@ def test_main_agent_does_not_merge_raw_log(temp_workspace):
 
 
 def test_trace_specialist_events_written(temp_workspace):
+    """Verify the test_trace_specialist_events_written contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     run_dir = temp_workspace / "runs" / state.run_id
     trace = (run_dir / "trace.jsonl").read_text(encoding="utf-8")
@@ -632,6 +1111,16 @@ def test_trace_specialist_events_written(temp_workspace):
 
 
 def test_summary_contains_specialist_execution_summary(temp_workspace):
+    """Verify the test_summary_contains_specialist_execution_summary contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     summary = (temp_workspace / "runs" / state.run_id / "summary.md").read_text(encoding="utf-8")
     assert "Specialist Execution Summary" in summary

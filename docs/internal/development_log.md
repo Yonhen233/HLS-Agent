@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-09-08：完成全仓库代码可读性与面试导览改造
+
+### 1. 改造范围
+- 新增 `docs/repository_guide.md`，按用户入口、运行主链路、控制面、执行面和证据面解释仓库结构，并逐层说明核心源码、Specialist、MCP、Memory/RAG、Skill、Benchmark、脚本和测试的职责。
+- 为 `src/`、`scripts/` 和 `tests/` 下全部 Python 文件补齐模块 docstring；保留原有注释，只补缺失项，并新增持续覆盖测试。
+- 为缺少说明的 `2,091` 个类、函数和方法补齐 docstring，描述职责、输入、返回值及与 schema、权限、Trace、证据边界的关系。
+- README 增加“仓库结构与代码导览”入口，方便面试官从项目首页进入源码阅读路径。
+
+### 2. 暴露的问题与修复
+- 初版批量文档化把 `MemoryPolicy` 类说明插入到首个 `@staticmethod` 与函数定义之间，触发语法错误；根因是 AST 中 decorated function 的 `lineno` 不包含 decorator。修复后类 docstring 位于 decorator 之前，并增加全仓库 AST 解析检查。
+- 初版 docstring 的空行包含缩进空格，导致 `git diff --check` 报告大量 trailing whitespace；统一清理 Python 文件行尾空白后复检通过。
+
+### 3. 验证结果
+- AST 审计：`250/250` 个 Python 文件解析成功，缺失 module docstring 为 `0`，缺失 class/function/method docstring 为 `0`。
+- `python -m compileall -q src scripts tests` 通过。
+- 完整 `pytest` 回归运行到 `100%`，退出码为 `0`。
+- `git diff --check` 通过；本轮仅增加说明性文档和 docstring，不改变 Agent、HLS 或评测逻辑。
+
+### 4. 未完成项
+无。本轮目标是代码可读性和面试讲解入口，不涉及重新运行真实 Vivado 综合或真实 LLM 调用。
+
+---
+
 ## 2026-09-08：面试展示版 README 与发布仓库整理
 
 ### 1. 发布整理

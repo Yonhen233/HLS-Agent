@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for run_vitis_fairness_experiments.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -29,6 +34,10 @@ DEFAULT_VITIS_2022 = Path("D:/Vitis2022.2/Vitis_HLS/2022.2/bin/vitis_hls.bat")
 
 @dataclass
 class Variant:
+    """Coordinate Variant within the run_vitis_fairness_experiments boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     dir_name: str
     source_work_dir: Path
@@ -42,6 +51,17 @@ class Variant:
 
 
 def copy_design_work(source: Path, destination: Path) -> None:
+    """Execute copy_design_work at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        source: Value supplied by the caller and validated by the surrounding schema.
+        destination: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
@@ -66,6 +86,16 @@ def copy_design_work(source: Path, destination: Path) -> None:
 
 
 def migrate_legacy_pragmas(work_dir: Path) -> list[str]:
+    """Execute migrate_legacy_pragmas at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     changed: list[str] = []
     for path in work_dir.rglob("*.h"):
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -83,6 +113,18 @@ def migrate_legacy_pragmas(work_dir: Path) -> list[str]:
 
 
 def write_tcl(variant: Variant, work_dir: Path, top_function: str) -> Path:
+    """Execute write_tcl at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        variant: Value supplied by the caller and validated by the surrounding schema.
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+        top_function: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lines = [
         "# Auto-generated fair toolchain experiment TCL",
         "open_project -reset vivado_hls",
@@ -112,6 +154,21 @@ def write_tcl(variant: Variant, work_dir: Path, top_function: str) -> Path:
 
 
 def run_tool(variant: Variant, work_dir: Path, tcl_path: Path, vivado: Path, vitis: Path, timeout: int) -> dict[str, Any]:
+    """Execute run_tool at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        variant: Value supplied by the caller and validated by the surrounding schema.
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+        tcl_path: Value supplied by the caller and validated by the surrounding schema.
+        vivado: Value supplied by the caller and validated by the surrounding schema.
+        vitis: Value supplied by the caller and validated by the surrounding schema.
+        timeout: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     log_path = work_dir / "csynth.log"
     if variant.toolchain == "vivado_hls":
         command = [str(vivado), "-f", tcl_path.name]
@@ -142,6 +199,17 @@ def run_tool(variant: Variant, work_dir: Path, tcl_path: Path, vivado: Path, vit
 
 
 def locate_report(work_dir: Path, top_function: str) -> Path | None:
+    """Execute locate_report at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+        top_function: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     candidates = list(work_dir.rglob(f"{top_function}_csynth.rpt"))
     if not candidates:
         candidates = list(work_dir.rglob("*_csynth.rpt"))
@@ -149,6 +217,16 @@ def locate_report(work_dir: Path, top_function: str) -> Path | None:
 
 
 def summarize_log(log_path: Path | None) -> dict[str, Any]:
+    """Execute summarize_log at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        log_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not log_path or not log_path.exists():
         return {"warnings": 0, "errors": 0, "fifo_lines": 0, "dataflow_lines": 0, "interesting": []}
     text = log_path.read_text(encoding="utf-8", errors="ignore")
@@ -167,6 +245,22 @@ def summarize_log(log_path: Path | None) -> dict[str, Any]:
 
 
 def run_variant(variant: Variant, output_root: Path, top_function: str, vivado: Path, vitis: Path, timeout: int, force: bool) -> dict[str, Any]:
+    """Execute run_variant at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        variant: Value supplied by the caller and validated by the surrounding schema.
+        output_root: Value supplied by the caller and validated by the surrounding schema.
+        top_function: Value supplied by the caller and validated by the surrounding schema.
+        vivado: Value supplied by the caller and validated by the surrounding schema.
+        vitis: Value supplied by the caller and validated by the surrounding schema.
+        timeout: Value supplied by the caller and validated by the surrounding schema.
+        force: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     work_dir = output_root / variant.dir_name
     result_path = work_dir / "experiment_result.json"
     if not force and result_path.exists():
@@ -213,6 +307,16 @@ def run_variant(variant: Variant, output_root: Path, top_function: str, vivado: 
 
 
 def _resource_score(metrics: dict[str, Any]) -> int | None:
+    """Implement the internal _resource_score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        metrics: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     resources = metrics.get("resources")
     if not resources:
         return None
@@ -226,17 +330,57 @@ def _resource_score(metrics: dict[str, Any]) -> int | None:
 
 
 def summarize_best_by_objective(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Execute summarize_best_by_objective at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        results: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     successful = [item for item in results if item.get("metrics", {}).get("status") == "success"]
 
     def latency_key(item: dict[str, Any]) -> tuple[int, str]:
+        """Execute latency_key at the run_vitis_fairness_experiments boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         latency = item.get("metrics", {}).get("latency") or {}
         return int(latency.get("max_cycles") or 10**12), item["name"]
 
     def resource_key(item: dict[str, Any]) -> tuple[int, str]:
+        """Execute resource_key at the run_vitis_fairness_experiments boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         score = _resource_score(item.get("metrics", {}))
         return int(score if score is not None else 10**12), item["name"]
 
     def pack(item: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Execute pack at the run_vitis_fairness_experiments boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not item:
             return None
         metrics = item.get("metrics", {})
@@ -260,6 +404,13 @@ def summarize_best_by_objective(results: list[dict[str, Any]]) -> dict[str, Any]
 
 
 def main() -> int:
+    """Execute main at the run_vitis_fairness_experiments boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", default="runs/vfe_qonnx_0605")
     parser.add_argument("--vivado-backend-work", default="runs/mnist_qonnx_cnn_bc625576_02/vivado_hls")

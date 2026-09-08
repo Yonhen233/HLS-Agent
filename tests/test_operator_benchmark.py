@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_operator_benchmark.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 from pathlib import Path
 
@@ -10,6 +15,13 @@ from dl_op_to_hls.benchmarks.operator_suite_specs import all_suite_payloads
 
 
 def test_wilson_rate_does_not_describe_one_of_one_as_stable():
+    """Verify the test_wilson_rate_does_not_describe_one_of_one_as_stable contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     metric = wilson_rate(1, 1)
     assert metric["rate"] == 1.0
     assert metric["statistically_usable"] is False
@@ -17,6 +29,13 @@ def test_wilson_rate_does_not_describe_one_of_one_as_stable():
 
 
 def test_operator_suite_manifests_have_required_sample_sizes():
+    """Verify the test_operator_suite_manifests_have_required_sample_sizes contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     suites = all_suite_payloads()
     assert len(suites["operator_real_csim_suite.json"]["cases"]) == 18
     assert len(suites["operator_real_csynth_suite.json"]["cases"]) == 10
@@ -25,6 +44,16 @@ def test_operator_suite_manifests_have_required_sample_sizes():
 
 
 def test_operator_bad_case_suite_executes_all_production_guards(tmp_path):
+    """Verify the test_operator_bad_case_suite_executes_all_production_guards contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = run_operator_bad_cases(tmp_path, "benchmarks/operator_bad_case_results.json")
     assert report["case_count"] == 20
     assert report["passed_count"] == 20
@@ -35,6 +64,16 @@ def test_operator_bad_case_suite_executes_all_production_guards(tmp_path):
 
 
 def test_operator_onnx_suite_executes_real_positive_and_negative_graphs(tmp_path):
+    """Verify the test_operator_onnx_suite_executes_real_positive_and_negative_graphs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     source = Path(__file__).resolve().parents[1] / "benchmarks" / "operator_onnx_graph_suite.json"
     benchmark_dir = tmp_path / "benchmarks"
     benchmark_dir.mkdir()
@@ -49,6 +88,16 @@ def test_operator_onnx_suite_executes_real_positive_and_negative_graphs(tmp_path
 
 
 def test_template_vs_llm_comparison_requires_same_contract_and_real_golden_evidence(tmp_path):
+    """Verify the test_template_vs_llm_comparison_requires_same_contract_and_real_golden_evidence contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     runs = tmp_path / "runs"
     contract_task = {
         "op_type": "Dense", "input_shape": [16], "output_shape": [32], "dtype": "ap_fixed<16,6>",
@@ -100,6 +149,16 @@ def test_template_vs_llm_comparison_requires_same_contract_and_real_golden_evide
 
 
 def test_operator_benchmark_writes_machine_readable_release(tmp_path):
+    """Verify the test_operator_benchmark_writes_machine_readable_release contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     (tmp_path / "runs").mkdir()
     (tmp_path / "docs").mkdir()
     report = run_operator_benchmark(tmp_path, "runs/benchmarks/operator_release.json")
@@ -113,6 +172,16 @@ def test_operator_benchmark_writes_machine_readable_release(tmp_path):
 
 
 def test_verified_receipt_counts_both_real_csim_and_real_csynth(tmp_path):
+    """Verify the test_verified_receipt_counts_both_real_csim_and_real_csynth contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "verified_conv"
     run_dir.mkdir(parents=True)
     (run_dir / "state.json").write_text(
@@ -145,6 +214,16 @@ def test_verified_receipt_counts_both_real_csim_and_real_csynth(tmp_path):
 
 
 def test_llm_pass3_reports_failures_without_best_of_filtering(tmp_path):
+    """Verify the test_llm_pass3_reports_failures_without_best_of_filtering contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     runs = tmp_path / "runs"
     for operator in ("Dense", "MatMul", "ReLU", "Add", "ScaleShift"):
         for repeat in range(1, 4):

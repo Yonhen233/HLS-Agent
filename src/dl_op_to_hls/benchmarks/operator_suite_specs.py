@@ -1,9 +1,21 @@
+"""benchmarks layer implementation for operator_suite_specs.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
 
 
 def real_csim_suite() -> dict[str, Any]:
+    """Execute real_csim_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     anchors = {
         "Dense": ["dense_8x8_fx8", "dense_16x32_boundary", "dense_32x16_fx16"],
         "MatMul": ["matmul_4x4_fx8", "matmul_8x8_boundary", "matmul_8x16x4_fx16"],
@@ -16,6 +28,13 @@ def real_csim_suite() -> dict[str, Any]:
 
 
 def real_csynth_suite() -> dict[str, Any]:
+    """Execute real_csynth_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = [
         ("Dense", "dense_latency", "latency"),
         ("Dense", "dense_resource", "resource"),
@@ -52,6 +71,13 @@ def real_csynth_suite() -> dict[str, Any]:
 
 
 def llm_candidate_suite() -> dict[str, Any]:
+    """Execute llm_candidate_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = []
     for operator in ("Dense", "MatMul", "ReLU", "Add", "ScaleShift"):
         for repeat in range(1, 4):
@@ -81,6 +107,13 @@ def llm_candidate_suite() -> dict[str, Any]:
 
 
 def template_vs_llm_suite() -> dict[str, Any]:
+    """Execute template_vs_llm_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "schema_version": "1.0",
         "suite_name": "operator_template_vs_llm_suite",
@@ -96,6 +129,13 @@ def template_vs_llm_suite() -> dict[str, Any]:
 
 
 def onnx_graph_suite() -> dict[str, Any]:
+    """Execute onnx_graph_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     positive = [
         "Gemm->Dense", "MatMul+static bias Add->Dense", "Gemm+ReLU", "Conv+ReLU",
         "Conv+BatchNorm fold", "Conv+MaxPool", "Conv+AveragePool", "Conv+GlobalAveragePool",
@@ -118,6 +158,13 @@ def onnx_graph_suite() -> dict[str, Any]:
 
 
 def bad_case_suite() -> dict[str, Any]:
+    """Execute bad_case_suite at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     failures = [
         ("shape mismatch", "InvalidTaskError"),
         ("invalid dtype", "InvalidTaskError"),
@@ -163,6 +210,13 @@ def bad_case_suite() -> dict[str, Any]:
 
 
 def all_suite_payloads() -> dict[str, dict[str, Any]]:
+    """Execute all_suite_payloads at the operator_suite_specs boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "operator_real_csim_suite.json": real_csim_suite(),
         "operator_real_csynth_suite.json": real_csynth_suite(),
@@ -174,6 +228,20 @@ def all_suite_payloads() -> dict[str, dict[str, Any]]:
 
 
 def _suite(name: str, evidence_class: str, anchors: dict[str, list[str]], generation_path: str, minimum: int) -> dict[str, Any]:
+    """Implement the internal _suite helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+        evidence_class: Value supplied by the caller and validated by the surrounding schema.
+        anchors: Value supplied by the caller and validated by the surrounding schema.
+        generation_path: Value supplied by the caller and validated by the surrounding schema.
+        minimum: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = [
         {
             "case_id": case_id,

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_mcp_transport.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -15,6 +20,13 @@ from dl_op_to_hls.mcp_servers.hls4ml_server import build_hls4ml_registry
 
 
 def test_official_sdk_manifest_exposes_input_and_output_schemas():
+    """Verify the test_official_sdk_manifest_exposes_input_and_output_schemas contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     server = MCPServer("hls4ml", build_hls4ml_registry(HLS4MLAdapter(mock_mode=True)), page_size=2)
 
     first = anyio.run(server._list_tools, None, None)
@@ -29,6 +41,13 @@ def test_official_sdk_manifest_exposes_input_and_output_schemas():
 
 
 def test_mcp_cursor_is_opaque_and_tamper_evident():
+    """Verify the test_mcp_cursor_is_opaque_and_tamper_evident contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     server = MCPServer("hls4ml", build_hls4ml_registry(HLS4MLAdapter(mock_mode=True)), page_size=1)
     first = anyio.run(server._list_tools, None, None)
     with pytest.raises(ValueError, match="Invalid or expired"):
@@ -36,12 +55,26 @@ def test_mcp_cursor_is_opaque_and_tamper_evident():
 
 
 def test_streamable_http_requires_loopback_without_oauth():
+    """Verify the test_streamable_http_requires_loopback_without_oauth contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     server = MCPServer("hls4ml", build_hls4ml_registry(HLS4MLAdapter(mock_mode=True)))
     with pytest.raises(ValueError, match="OAuth"):
         server.serve_http(host="0.0.0.0")
 
 
 def test_streamable_http_performs_standard_initialize_handshake():
+    """Verify the test_streamable_http_performs_standard_initialize_handshake contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     server = MCPServer("hls4ml", build_hls4ml_registry(HLS4MLAdapter(mock_mode=True)))
     app = server.streamable_http_app(stateless=True, json_response=True)
     payload = {
@@ -67,6 +100,16 @@ def test_streamable_http_performs_standard_initialize_handshake():
 
 
 def test_real_stdio_mcp_client_round_trip(tmp_path):
+    """Verify the test_real_stdio_mcp_client_round_trip contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_root = Path(__file__).resolve().parents[1]
     python_path = str(project_root / "src")
     prior = os.environ.get("PYTHONPATH")

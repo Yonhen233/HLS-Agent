@@ -1,3 +1,8 @@
+"""specialists layer implementation for react.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -20,7 +25,23 @@ SPECIALIST_REACT_ACTIONS = [
 
 @dataclass
 class SpecialistReActGuard:
+    """Coordinate SpecialistReActGuard within the react boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def validate(self, decision: dict[str, Any], allowed_tools: list[str], preferred_tool: str | None = None) -> dict[str, Any]:
+        """Execute validate at the react boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            decision: Value supplied by the caller and validated by the surrounding schema.
+            allowed_tools: Value supplied by the caller and validated by the surrounding schema.
+            preferred_tool: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         decision_name = decision.get("decision")
         action = decision.get("action") or {}
@@ -36,7 +57,21 @@ class SpecialistReActGuard:
 
 
 class SpecialistReActDecider:
+    """Coordinate SpecialistReActDecider within the react boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, guard: SpecialistReActGuard | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            guard: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.guard = guard or SpecialistReActGuard()
 
     def decide(
@@ -49,6 +84,21 @@ class SpecialistReActDecider:
         arguments: dict[str, Any] | None = None,
         client=None,
     ) -> dict[str, Any]:
+        """Execute decide at the react boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            allowed_tools: Value supplied by the caller and validated by the surrounding schema.
+            recent_observations: Value supplied by the caller and validated by the surrounding schema.
+            preferred_tool: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            client: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         arguments = arguments or {}
         if client is not None and client.is_enabled():
             payload = {
@@ -88,6 +138,18 @@ class SpecialistReActDecider:
         preferred_tool: str | None,
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
+        """Implement the internal _enforce_preferred_tool_contract helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            decision: Value supplied by the caller and validated by the surrounding schema.
+            preferred_tool: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if preferred_tool is None:
             return decision
         missing = sorted(key for key, value in arguments.items() if value is None)
@@ -123,6 +185,18 @@ class SpecialistReActDecider:
         arguments: dict[str, Any],
         allowed_tools: list[str],
     ) -> dict[str, Any]:
+        """Implement the internal _deterministic_decision helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            preferred_tool: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            allowed_tools: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if preferred_tool is None:
             return {
                 "reason_summary": "No local tool is required; finish with current result.",

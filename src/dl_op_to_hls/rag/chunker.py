@@ -1,7 +1,24 @@
+"""rag layer implementation for chunker.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 80) -> list[str]:
+    """Execute chunk_text at the chunker boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+        chunk_size: Value supplied by the caller and validated by the surrounding schema.
+        overlap: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = " ".join((text or "").split())
     if not normalized:
         return []

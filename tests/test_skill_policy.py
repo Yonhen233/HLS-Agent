@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_skill_policy.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from copy import deepcopy
 
 from dl_op_to_hls.main_agent.agent import MainAgent
@@ -7,6 +12,16 @@ from dl_op_to_hls.specialists.router import build_default_router
 
 
 def test_skill_policy_rejects_unknown_tool(temp_workspace):
+    """Verify the test_skill_policy_rejects_unknown_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     registry = SkillRegistry(temp_workspace / "skills")
     registry.load_all()
@@ -22,6 +37,16 @@ def test_skill_policy_rejects_unknown_tool(temp_workspace):
 
 
 def test_validate_skill_references_existing_tools(temp_workspace):
+    """Verify the test_validate_skill_references_existing_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     registry = SkillRegistry(temp_workspace / "skills")
     registry.load_all()
@@ -31,6 +56,16 @@ def test_validate_skill_references_existing_tools(temp_workspace):
 
 
 def test_skill_policy_rejects_optimization_skill_without_report_metrics(temp_workspace):
+    """Verify the test_skill_policy_rejects_optimization_skill_without_report_metrics contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(temp_workspace / "skills")
     registry.load_all()
     skill = registry.get("resource_optimization_flow")

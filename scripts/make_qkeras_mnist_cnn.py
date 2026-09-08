@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for make_qkeras_mnist_cnn.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -5,12 +10,29 @@ from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the make_qkeras_mnist_cnn boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Generate a tiny QKeras MNIST CNN model for demo usage.")
     parser.add_argument("--output", default="models/generated/mnist_qkeras_cnn.h5", help="Output .h5 path.")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the make_qkeras_mnist_cnn boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

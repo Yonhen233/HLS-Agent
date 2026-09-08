@@ -1,3 +1,8 @@
+"""db layer implementation for database.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import sqlite3
@@ -5,13 +10,35 @@ from pathlib import Path
 
 
 class Database:
+    """Coordinate Database within the database boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, db_path: str | Path, schema_path: str | Path):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            db_path: Value supplied by the caller and validated by the surrounding schema.
+            schema_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.db_path = Path(db_path)
         self.schema_path = Path(schema_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def _initialize(self) -> None:
+        """Implement the internal _initialize helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         schema_sql = self.schema_path.read_text(encoding="utf-8")
         with sqlite3.connect(self.db_path) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
@@ -55,6 +82,13 @@ class Database:
         connection.execute("CREATE INDEX IF NOT EXISTS idx_memory_hash ON memory_items(content_hash, status)")
 
     def connect(self) -> sqlite3.Connection:
+        """Execute connect at the database boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         connection = sqlite3.connect(self.db_path, timeout=5.0)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")

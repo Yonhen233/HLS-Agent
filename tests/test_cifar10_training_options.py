@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_cifar10_training_options.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import importlib.util
@@ -5,6 +10,13 @@ from pathlib import Path
 
 
 def _training_script_module():
+    """Verify the _training_script_module contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "train_cifar10_tiny_vgg.py"
     spec = importlib.util.spec_from_file_location("cifar10_training_script", script_path)
     assert spec and spec.loader
@@ -14,6 +26,13 @@ def _training_script_module():
 
 
 def test_cifar10_training_parser_exposes_student_only_distillation_options():
+    """Verify the test_cifar10_training_parser_exposes_student_only_distillation_options contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = _training_script_module().build_parser()
     args = parser.parse_args(
         [
@@ -47,6 +66,13 @@ def test_cifar10_training_parser_exposes_student_only_distillation_options():
 
 
 def test_cifar10_training_parser_exposes_custom_gap_stage_counts():
+    """Verify the test_cifar10_training_parser_exposes_custom_gap_stage_counts contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = _training_script_module().build_parser()
     args = parser.parse_args(
         [

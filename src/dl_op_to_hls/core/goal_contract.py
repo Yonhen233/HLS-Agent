@@ -1,3 +1,8 @@
+"""core layer implementation for goal_contract.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -15,6 +20,10 @@ SUCCESS_PATHS = {
 
 @dataclass(frozen=True)
 class GoalRequirement:
+    """Coordinate GoalRequirement within the goal_contract boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     requirement_id: str
     description: str
     verifier: str
@@ -25,6 +34,13 @@ class GoalRequirement:
     parameters: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = asdict(self)
         payload["accepted_tools"] = list(self.accepted_tools)
         payload["evidence_types"] = list(self.evidence_types)
@@ -40,6 +56,16 @@ class GoalContractBuilder:
     """
 
     def build(self, task: dict[str, Any]) -> dict[str, Any]:
+        """Execute build at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         task_type = str(task.get("task_type") or "")
         implementation_tools = {
             "model": (
@@ -151,6 +177,10 @@ class GoalContractBuilder:
 
 
 class PlanCoverageValidator:
+    """Coordinate PlanCoverageValidator within the goal_contract boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     ENABLING_TOOL_REQUIREMENTS = {
         "hls4ml.inspect_model": ["implementation.resolved"],
         "hls4ml.check_support": ["implementation.resolved"],
@@ -165,6 +195,17 @@ class PlanCoverageValidator:
     }
 
     def validate(self, contract: dict[str, Any], todos: list[Any]) -> dict[str, Any]:
+        """Execute validate at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            contract: Value supplied by the caller and validated by the surrounding schema.
+            todos: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         tools = {
             str(item.get("assigned_tool"))
             for item in todos
@@ -203,6 +244,18 @@ class PlanCoverageValidator:
         }
 
     def repair_with_skill(self, plan: dict[str, Any], skill: Any, contract: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Execute repair_with_skill at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            plan: Value supplied by the caller and validated by the surrounding schema.
+            skill: Value supplied by the caller and validated by the surrounding schema.
+            contract: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         repaired = {**plan, "todos": [dict(item) for item in plan.get("todos", []) if isinstance(item, dict)]}
         before = self.validate(contract, repaired["todos"])
         if before["status"] == "valid" or skill is None:
@@ -225,6 +278,17 @@ class PlanCoverageValidator:
         return repaired, {"repaired": bool(added_tools), "before": before, "after": after, "added_tools": added_tools}
 
     def requirement_ids_for_tool(self, contract: dict[str, Any], tool_name: str | None) -> list[str]:
+        """Execute requirement_ids_for_tool at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            contract: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not tool_name:
             return []
         direct = [
@@ -247,6 +311,18 @@ class CompletionGate:
     )
 
     def evaluate(self, state: Any, contract: dict[str, Any], receipts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """Execute evaluate at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            contract: Value supplied by the caller and validated by the surrounding schema.
+            receipts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         receipts = list(receipts or [])
         checks = [self._evaluate_requirement(state, item, receipts) for item in contract.get("requirements", [])]
         required_failures = [item for item in checks if item["required"] and item["status"] != "satisfied"]
@@ -301,6 +377,18 @@ class CompletionGate:
         }
 
     def apply(self, state: Any, contract: dict[str, Any], receipts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """Execute apply at the goal_contract boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            contract: Value supplied by the caller and validated by the surrounding schema.
+            receipts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result = self.evaluate(state, contract, receipts)
         if getattr(state, "status", None) != "interrupted":
             state.status = result["recommended_status"]
@@ -308,6 +396,18 @@ class CompletionGate:
         return result
 
     def _evaluate_requirement(self, state: Any, requirement: dict[str, Any], receipts: list[dict[str, Any]]) -> dict[str, Any]:
+        """Implement the internal _evaluate_requirement helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            requirement: Value supplied by the caller and validated by the surrounding schema.
+            receipts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         verifier = str(requirement.get("verifier") or "")
         parameters = requirement.get("parameters") or {}
         accepted_tools = set(requirement.get("accepted_tools") or [])
@@ -408,6 +508,17 @@ class CompletionGate:
 
     @staticmethod
     def _completed_tool(state: Any, tool_name: str) -> Any:
+        """Implement the internal _completed_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in getattr(state, "todos", []):
             if item.assigned_tool == tool_name and item.status in {"completed", "completed_with_warning"}:
                 return item.outputs or {"todo_id": item.id}
@@ -415,6 +526,17 @@ class CompletionGate:
 
     @classmethod
     def _completed_any_tool(cls, state: Any, tool_names: set[str]) -> Any:
+        """Implement the internal _completed_any_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for tool_name in tool_names:
             completed = cls._completed_tool(state, tool_name)
             if completed:

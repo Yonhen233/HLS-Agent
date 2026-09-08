@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for maturity_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -31,6 +36,17 @@ from ..rag.vector_index import FaissHNSWIndex
 
 
 def run_maturity_benchmark(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_maturity_benchmark at the maturity_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     output = Path(output_path)
     if not output.is_absolute():
@@ -263,6 +279,17 @@ def run_maturity_benchmark(workspace_root: str | Path, output_path: str | Path) 
 
 
 def _permission_probes(gate: PermissionGate, root: Path) -> list[dict[str, Any]]:
+    """Implement the internal _permission_probes helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        gate: Value supplied by the caller and validated by the surrounding schema.
+        root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     schema = {
         "type": "object",
         "properties": {
@@ -305,6 +332,16 @@ def _permission_probes(gate: PermissionGate, root: Path) -> list[dict[str, Any]]
 
 
 def _mcp_probe(root: Path) -> dict[str, Any]:
+    """Implement the internal _mcp_probe helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     prior = os.environ.get("PYTHONPATH")
     env = {
         "PYTHONPATH": str(root / "src") + (os.pathsep + prior if prior else ""),
@@ -326,26 +363,87 @@ def _mcp_probe(root: Path) -> dict[str, Any]:
 
 
 class _ProbeEmbedder:
+    """Coordinate _ProbeEmbedder within the maturity_benchmark boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id = "probe-embedding-v1"
 
     def __init__(self, vectors: dict[str, list[float]]):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            vectors: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.vectors = vectors
 
     def encode(self, texts: list[str], *, batch_size: int) -> list[list[float]]:
+        """Execute encode at the maturity_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            texts: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return [self.vectors.get(text, [0.0, 1.0]) for text in texts]
 
 
 class _ProbeReranker:
+    """Coordinate _ProbeReranker within the maturity_benchmark boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id = "probe-cross-encoder-v1"
 
     def __init__(self, scores: dict[str, float]):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            scores: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.scores = scores
 
     def predict(self, pairs: list[tuple[str, str]], *, batch_size: int) -> list[float]:
+        """Execute predict at the maturity_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            pairs: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return [self.scores.get(text, -6.0) for _, text in pairs]
 
 
 def _semantic_rag_probes(repository: MetadataRepository, probe_id: str) -> list[dict[str, Any]]:
+    """Implement the internal _semantic_rag_probes helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        repository: Value supplied by the caller and validated by the surrounding schema.
+        probe_id: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query = f"power efficient multiplier design {probe_id}"
     embedding_favorite = f"Candidate A exact multiplier implementation {probe_id}."
     reranker_favorite = f"Parallel arithmetic can be shared to save circuit energy {probe_id}."
@@ -409,10 +507,33 @@ def _semantic_rag_probes(repository: MetadataRepository, probe_id: str) -> list[
 
 
 def _record(checks: list[dict[str, Any]], name: str, passed: bool, details: Any) -> None:
+    """Implement the internal _record helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        checks: Value supplied by the caller and validated by the surrounding schema.
+        name: Value supplied by the caller and validated by the surrounding schema.
+        passed: Value supplied by the caller and validated by the surrounding schema.
+        details: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     checks.append({"name": name, "passed": bool(passed), "details": details})
 
 
 def _to_markdown(payload: dict[str, Any]) -> str:
+    """Implement the internal _to_markdown helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lines = [
         "# Agent Maturity Probe",
         "",

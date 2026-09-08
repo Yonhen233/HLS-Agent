@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for run_real_hls_probe.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +23,13 @@ from dl_op_to_hls.adapters.vivado_hls_adapter import VivadoHLSAdapter
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the run_real_hls_probe boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(
         description="Run one real hls4ml -> Vivado HLS conversion, CSim, and optional synthesis probe."
     )
@@ -63,6 +75,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the run_real_hls_probe boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     args = build_parser().parse_args(argv)
     os.environ["DL_OP_TO_HLS_VIVADO_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
     root = Path("runs") / args.name

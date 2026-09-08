@@ -1,9 +1,18 @@
+"""core layer implementation for json_schema.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
 
 
 class SchemaValidationError(ValueError):
+    """Coordinate SchemaValidationError within the json_schema boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     pass
 
 

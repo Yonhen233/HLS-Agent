@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for train_cifar10_tiny_vgg.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +26,13 @@ DEFAULT_CIFAR10_MIRRORS = [
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the train_cifar10_tiny_vgg boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(
         description="Train a HLS-friendly CIFAR-10 TinyVGG model and export ONNX/reference data."
     )
@@ -132,6 +144,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _configure_stdio() -> None:
+    """Implement the internal _configure_stdio helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         if hasattr(stream, "reconfigure"):
@@ -139,6 +158,17 @@ def _configure_stdio() -> None:
 
 
 def _write_dat(path: Path, rows: list[list[float]]) -> None:
+    """Implement the internal _write_dat helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        rows: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "\n".join(" ".join(f"{float(value):.8g}" for value in row) for row in rows) + "\n",
@@ -147,6 +177,18 @@ def _write_dat(path: Path, rows: list[list[float]]) -> None:
 
 
 def _subset_indices(size: int, requested: int, seed: int) -> list[int]:
+    """Implement the internal _subset_indices helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        size: Value supplied by the caller and validated by the surrounding schema.
+        requested: Value supplied by the caller and validated by the surrounding schema.
+        seed: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     count = min(int(requested), int(size))
     indices = list(range(int(size)))
     rng = random.Random(seed)
@@ -155,6 +197,16 @@ def _subset_indices(size: int, requested: int, seed: int) -> list[int]:
 
 
 def _md5(path: Path) -> str:
+    """Implement the internal _md5 helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     digest = hashlib.md5()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -163,6 +215,17 @@ def _md5(path: Path) -> str:
 
 
 def _download_file(url: str, target: Path) -> None:
+    """Implement the internal _download_file helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        url: Value supplied by the caller and validated by the surrounding schema.
+        target: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     temp_path = target.with_suffix(target.suffix + ".part")
     if temp_path.exists():
         temp_path.unlink()
@@ -190,6 +253,17 @@ def _download_file(url: str, target: Path) -> None:
 
 
 def _ensure_cifar10_dataset(data_dir: Path, mirrors: list[str]) -> None:
+    """Implement the internal _ensure_cifar10_dataset helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        data_dir: Value supplied by the caller and validated by the surrounding schema.
+        mirrors: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     extracted_dir = data_dir / "cifar-10-batches-py"
     if (extracted_dir / "data_batch_1").exists() and (extracted_dir / "test_batch").exists():
         print(f"[data] CIFAR-10 already extracted under {extracted_dir}", flush=True)
@@ -223,6 +297,19 @@ def _ensure_cifar10_dataset(data_dir: Path, mirrors: list[str]) -> None:
 
 
 def _accuracy(model, loader, torch, device) -> tuple[float, int, int]:
+    """Implement the internal _accuracy helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        model: Value supplied by the caller and validated by the surrounding schema.
+        loader: Value supplied by the caller and validated by the surrounding schema.
+        torch: Value supplied by the caller and validated by the surrounding schema.
+        device: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     model.eval()
     correct = 0
     seen = 0
@@ -244,6 +331,17 @@ def _collect_activation_ranges(model, loader, torch, device, max_samples: int) -
     handles = []
 
     def update(name: str, tensor: Any) -> None:
+        """Execute update at the train_cifar10_tiny_vgg boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            tensor: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(tensor, torch.Tensor):
             return
         values = tensor.detach()
@@ -269,6 +367,19 @@ def _collect_activation_ranges(model, loader, torch, device, max_samples: int) -
             continue
 
         def hook(_module, _inputs, output, *, record_name=f"{name}:{module_type}"):
+            """Execute hook at the train_cifar10_tiny_vgg boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                _module: Value supplied by the caller and validated by the surrounding schema.
+                _inputs: Value supplied by the caller and validated by the surrounding schema.
+                output: Value supplied by the caller and validated by the surrounding schema.
+                record_name: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             update(record_name, output)
 
         handles.append(module.register_forward_hook(hook))
@@ -300,6 +411,16 @@ def _collect_activation_ranges(model, loader, torch, device, max_samples: int) -
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the train_cifar10_tiny_vgg boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     _configure_stdio()
     args = build_parser().parse_args(argv)
     random.seed(args.seed)
@@ -338,7 +459,25 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     class CifarTinyVGG(nn.Module):
+        """Coordinate CifarTinyVGG within the train_cifar10_tiny_vgg boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self, architecture: str, channels: tuple[int, int, int], batchnorm: bool, hidden_size: int, convs_per_stage=(1, 1, 1)) -> None:
+            """Implement the internal __init__ helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                architecture: Value supplied by the caller and validated by the surrounding schema.
+                channels: Value supplied by the caller and validated by the surrounding schema.
+                batchnorm: Value supplied by the caller and validated by the surrounding schema.
+                hidden_size: Value supplied by the caller and validated by the surrounding schema.
+                convs_per_stage: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             super().__init__()
             self.architecture = str(architecture)
             c1_local, c2_local, c3_local = channels
@@ -349,6 +488,18 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError("custom_gap convs_per_stage values must be 1 or 2")
 
                 def stage(in_channels: int, out_channels: int, count: int):
+                    """Execute stage at the train_cifar10_tiny_vgg boundary.
+
+                    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+                    Args:
+                        in_channels: Value supplied by the caller and validated by the surrounding schema.
+                        out_channels: Value supplied by the caller and validated by the surrounding schema.
+                        count: Value supplied by the caller and validated by the surrounding schema.
+
+                    Returns:
+                        The structured value promised by the function signature.
+                    """
                     blocks = []
                     current_channels = in_channels
                     for _ in range(count):
@@ -387,6 +538,16 @@ def main(argv: list[str] | None = None) -> int:
                 self.fc2 = nn.Linear(hidden_size, 10)
 
         def forward(self, x):
+            """Execute forward at the train_cifar10_tiny_vgg boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                x: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if self.architecture == "custom_gap":
                 x = self.pool(self.stage1(x))
                 x = self.pool(self.stage2(x))
@@ -424,6 +585,20 @@ def main(argv: list[str] | None = None) -> int:
         hidden_size: int,
         convs_per_stage: list[int] | tuple[int, int, int] = (1, 1, 1),
     ) -> CifarTinyVGG:
+        """Execute build_model at the train_cifar10_tiny_vgg boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            architecture: Value supplied by the caller and validated by the surrounding schema.
+            channels: Value supplied by the caller and validated by the surrounding schema.
+            batchnorm: Value supplied by the caller and validated by the surrounding schema.
+            hidden_size: Value supplied by the caller and validated by the surrounding schema.
+            convs_per_stage: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return CifarTinyVGG(
             str(architecture),
             tuple(int(value) for value in channels),

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_llm_runtime_no_silent_legacy_fallback.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 
 from dl_op_to_hls.llm.client import FakeLLMClient
@@ -6,6 +11,17 @@ from dl_op_to_hls.main_agent.workflow import run_task_llm
 
 
 def test_run_llm_does_not_silently_fallback_to_legacy_planner(temp_workspace, monkeypatch):
+    """Verify the test_run_llm_does_not_silently_fallback_to_legacy_planner contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     invalid_plan = {

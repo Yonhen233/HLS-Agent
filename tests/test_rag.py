@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_rag.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.db.database import Database
@@ -8,30 +13,92 @@ from dl_op_to_hls.rag.semantic import SemanticRagConfig
 
 
 class _FakeEmbedder:
+    """Coordinate _FakeEmbedder within the test_rag boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id = "test-embedding-v1"
 
     def __init__(self, vectors):
+        """Verify the __init__ contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            vectors: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.vectors = vectors
         self.batches = []
 
     def encode(self, texts, *, batch_size):
+        """Verify the encode contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            texts: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.batches.append(list(texts))
         return [list(self.vectors[text]) for text in texts]
 
 
 class _FakeReranker:
+    """Coordinate _FakeReranker within the test_rag boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id = "test-cross-encoder-v1"
 
     def __init__(self, scores):
+        """Verify the __init__ contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            scores: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.scores = scores
         self.pairs = []
 
     def predict(self, pairs, *, batch_size):
+        """Verify the predict contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            pairs: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.pairs.extend(pairs)
         return [float(self.scores[document]) for _, document in pairs]
 
 
 def _semantic_memory(tmp_path, vectors, rerank_scores):
+    """Verify the _semantic_memory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        vectors: Value supplied by the caller and validated by the surrounding schema.
+        rerank_scores: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     repository = MetadataRepository(database)
     embedder = _FakeEmbedder(vectors)
@@ -52,22 +119,62 @@ def _semantic_memory(tmp_path, vectors, rerank_scores):
 
 
 def _memory(tmp_path):
+    """Verify the _memory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     return RagMemory(MetadataRepository(database))
 
 
 def _memory_with_workspace(tmp_path):
+    """Verify the _memory_with_workspace contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     return RagMemory(MetadataRepository(database), workspace_root=tmp_path)
 
 
 def test_rag_index_text(tmp_path):
+    """Verify the test_rag_index_text contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     result = memory.index_text("doc1", "Dense DSP reuse factor hint", {"op_type": "Dense"})
     assert result["chunks_indexed"] >= 1
 
 
 def test_rag_retrieve_experience(tmp_path):
+    """Verify the test_rag_retrieve_experience contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text("doc1", "Dense DSP reuse factor hint", {"op_type": "Dense"})
     results = memory.retrieve("Dense reuse factor", top_k=3)
@@ -77,6 +184,16 @@ def test_rag_retrieve_experience(tmp_path):
 
 
 def test_rag_retrieve_filters_generic_resource_overlap_when_anchor_mismatches(tmp_path):
+    """Verify the test_rag_retrieve_filters_generic_resource_overlap_when_anchor_mismatches contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text("matmul", "MatMul resource reuse factor DSP hint", {"op_type": "MatMul"})
     results = memory.retrieve("resnet18_boundary_demo resource reuse factor DSP Vivado HLS", top_k=3)
@@ -84,6 +201,16 @@ def test_rag_retrieve_filters_generic_resource_overlap_when_anchor_mismatches(tm
 
 
 def test_hardware_part_and_fixed_precision_are_soft_not_hard_entity_anchors(tmp_path):
+    """Verify the test_hardware_part_and_fixed_precision_are_soft_not_hard_entity_anchors contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "runs/dense_verified/parameter_advice.json",
@@ -102,6 +229,16 @@ def test_hardware_part_and_fixed_precision_are_soft_not_hard_entity_anchors(tmp_
 
 
 def test_rag_index_and_retrieve_strip_second_order_prior_experience(tmp_path):
+    """Verify the test_rag_index_and_retrieve_strip_second_order_prior_experience contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "resnet",
@@ -117,6 +254,16 @@ def test_rag_index_and_retrieve_strip_second_order_prior_experience(tmp_path):
 
 
 def test_rag_index_run_artifacts(tmp_path):
+    """Verify the test_rag_index_run_artifacts contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     summary = tmp_path / "summary.md"
     summary.write_text("Dense DSP reuse factor summary", encoding="utf-8")
@@ -125,6 +272,16 @@ def test_rag_index_run_artifacts(tmp_path):
 
 
 def test_refresh_artifact_metadata_does_not_create_new_chunks(tmp_path):
+    """Verify the test_refresh_artifact_metadata_does_not_create_new_chunks contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     run_dir = tmp_path / "runs" / "dense_real"
     run_dir.mkdir(parents=True)
@@ -152,6 +309,16 @@ def test_refresh_artifact_metadata_does_not_create_new_chunks(tmp_path):
 
 
 def test_rag_retrieves_static_vivado_failure_playbook(tmp_path):
+    """Verify the test_rag_retrieves_static_vivado_failure_playbook contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True)
     playbook = docs_dir / "vivado_failure_playbook.md"
@@ -172,6 +339,16 @@ def test_rag_retrieves_static_vivado_failure_playbook(tmp_path):
 
 
 def test_rag_static_playbook_not_buried_by_duplicate_failure_memories(tmp_path):
+    """Verify the test_rag_static_playbook_not_buried_by_duplicate_failure_memories contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True)
     playbook = docs_dir / "vivado_failure_playbook.md"
@@ -195,6 +372,16 @@ def test_rag_static_playbook_not_buried_by_duplicate_failure_memories(tmp_path):
 
 
 def test_rag_source_anchor_prioritizes_matching_task_family(tmp_path):
+    """Verify the test_rag_source_anchor_prioritizes_matching_task_family contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "runs/dense_16x32/suggestions.md",
@@ -214,6 +401,16 @@ def test_rag_source_anchor_prioritizes_matching_task_family(tmp_path):
 
 
 def test_rag_domain_filter_separates_parameter_and_optimization_memory(tmp_path):
+    """Verify the test_rag_domain_filter_separates_parameter_and_optimization_memory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "runs/mnist_mlp/parameter_advice.json",
@@ -236,6 +433,16 @@ def test_rag_domain_filter_separates_parameter_and_optimization_memory(tmp_path)
 
 
 def test_parameter_retrieval_uses_hard_evidence_gate_when_verified_peer_exists(tmp_path):
+    """Verify the test_parameter_retrieval_uses_hard_evidence_gate_when_verified_peer_exists contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "runs/dense_mock/parameter_advice.json",
@@ -256,6 +463,16 @@ def test_parameter_retrieval_uses_hard_evidence_gate_when_verified_peer_exists(t
 
 
 def test_metadata_filter_separates_operator_from_model_parameter_experience(tmp_path):
+    """Verify the test_metadata_filter_separates_operator_from_model_parameter_experience contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     memory = _memory(tmp_path)
     memory.index_text(
         "runs/dense_operator/parameter_advice.json",
@@ -279,6 +496,16 @@ def test_metadata_filter_separates_operator_from_model_parameter_experience(tmp_
 
 
 def test_embedding_recall_finds_semantic_match_without_lexical_anchor(tmp_path):
+    """Verify the test_embedding_recall_finds_semantic_match_without_lexical_anchor contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query = "lower multiplier energy"
     relevant = "Reducing parallel arithmetic saves power in the synthesized circuit."
     irrelevant = "The report parser reads XML files from the build directory."
@@ -303,6 +530,16 @@ def test_embedding_recall_finds_semantic_match_without_lexical_anchor(tmp_path):
 
 
 def test_cross_encoder_reranks_embedding_candidate_pool(tmp_path):
+    """Verify the test_cross_encoder_reranks_embedding_candidate_pool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query = "best implementation approach"
     embedding_favorite = "Candidate A implementation."
     reranker_favorite = "Candidate B implementation."
@@ -325,6 +562,16 @@ def test_cross_encoder_reranks_embedding_candidate_pool(tmp_path):
 
 
 def test_provenance_does_not_soft_bias_rrf_or_cross_encoder_ranking(tmp_path):
+    """Verify the test_provenance_does_not_soft_bias_rrf_or_cross_encoder_ranking contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     first = "Dense reuse factor option A."
     second = "Dense reuse factor option B."
     memory, _, _, _ = _semantic_memory(
@@ -344,6 +591,16 @@ def test_provenance_does_not_soft_bias_rrf_or_cross_encoder_ranking(tmp_path):
 
 
 def test_indexed_embeddings_are_persisted_and_reused(tmp_path):
+    """Verify the test_indexed_embeddings_are_persisted_and_reused contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query = "semantic query"
     document = "Persisted semantic document."
     memory, repository, embedder, _ = _semantic_memory(
@@ -363,6 +620,16 @@ def test_indexed_embeddings_are_persisted_and_reused(tmp_path):
 
 
 def test_online_embedding_migration_is_bounded(tmp_path):
+    """Verify the test_online_embedding_migration_is_bounded contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     repository = MetadataRepository(database)
     legacy = RagMemory(repository)
@@ -395,6 +662,16 @@ def test_online_embedding_migration_is_bounded(tmp_path):
 
 
 def test_embedding_backfill_is_resumable_and_reports_coverage(tmp_path):
+    """Verify the test_embedding_backfill_is_resumable_and_reports_coverage contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     repository = MetadataRepository(database)
     legacy = RagMemory(repository)
@@ -418,6 +695,16 @@ def test_embedding_backfill_is_resumable_and_reports_coverage(tmp_path):
 
 
 def test_missing_faiss_uses_exact_vector_scan_without_disabling_embeddings(tmp_path):
+    """Verify the test_missing_faiss_uses_exact_vector_scan_without_disabling_embeddings contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query = "Dense resource advice"
     document = "Dense reuse factor lowers DSP usage."
     memory, _, _, _ = _semantic_memory(
@@ -428,7 +715,21 @@ def test_missing_faiss_uses_exact_vector_scan_without_disabling_embeddings(tmp_p
     memory.index_text("dense", document, {"domain": "parameter"})
 
     class _MissingFaissIndex:
+        """Coordinate _MissingFaissIndex within the test_rag boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def ensure(self, records):
+            """Verify the ensure contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                records: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             raise ModuleNotFoundError("No module named 'faiss'")
 
     memory.semantic_engine.vector_index = _MissingFaissIndex()
@@ -443,6 +744,13 @@ def test_missing_faiss_uses_exact_vector_scan_without_disabling_embeddings(tmp_p
 
 
 def test_windows_paths_are_distinct_rag_source_families():
+    """Verify the test_windows_paths_are_distinct_rag_source_families contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     assert RagRetriever._source_family(r"D:\runs\one\summary.md") != RagRetriever._source_family(
         r"D:\runs\two\summary.md"
     )
@@ -450,6 +758,13 @@ def test_windows_paths_are_distinct_rag_source_families():
 
 
 def test_semantic_candidate_pool_limits_chunks_per_run():
+    """Verify the test_semantic_candidate_pool_limits_chunks_per_run contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     scored = [
         (0.9, {"source_id": "run-a/advice.json", "metadata": {"run_id": "run-a"}}),
         (0.8, {"source_id": "run-a/advice.json", "metadata": {"run_id": "run-a"}}),
@@ -463,6 +778,13 @@ def test_semantic_candidate_pool_limits_chunks_per_run():
 
 
 def test_rag_deduplication_preserves_identical_evidence_from_distinct_runs():
+    """Verify the test_rag_deduplication_preserves_identical_evidence_from_distinct_runs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     scored = [
         (0.9, {"source_id": "run-a/advice.json", "text": "same advice", "metadata": {"run_id": "run-a"}}),
         (0.8, {"source_id": "run-b/advice.json", "text": "same advice", "metadata": {"run_id": "run-b"}}),

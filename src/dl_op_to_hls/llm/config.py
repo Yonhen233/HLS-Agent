@@ -1,3 +1,8 @@
+"""llm layer implementation for config.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -8,6 +13,16 @@ from ..core.config import _simple_yaml_load
 
 
 def _truthy(value: str | None) -> bool:
+    """Implement the internal _truthy helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if value is None:
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -15,6 +30,10 @@ def _truthy(value: str | None) -> bool:
 
 @dataclass
 class LLMConfig:
+    """Coordinate LLMConfig within the config boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     enabled: bool
     provider: str
     base_url: str
@@ -31,6 +50,13 @@ class LLMConfig:
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
+        """Execute from_env at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         runtime_llm = {}
         runtime_path = Path.cwd() / "runtime.yaml"
         if runtime_path.exists():
@@ -54,4 +80,11 @@ class LLMConfig:
 
     @property
     def configured(self) -> bool:
+        """Execute configured at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.enabled and bool(self.api_key)

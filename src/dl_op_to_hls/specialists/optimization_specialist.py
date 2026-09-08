@@ -1,3 +1,8 @@
+"""specialists layer implementation for optimization_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -8,6 +13,10 @@ from .result import SpecialistResult
 
 
 class OptimizationSpecialist(BaseSpecialist):
+    """Coordinate OptimizationSpecialist within the optimization_specialist boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name = "OptimizationSpecialist"
     description = "Generates latency/resource/timing suggestions from metrics and scoped memory summaries."
     allowed_tools = [
@@ -17,9 +26,31 @@ class OptimizationSpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the optimization_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("suggestion."))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the optimization_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scoped = envelope.scoped_state
         observations: list[dict[str, Any]] = []
         query = f"{envelope.task_summary.get('name')} {envelope.task_summary.get('op_type') or ''} {scoped.get('objective')} optimization"
@@ -106,4 +137,14 @@ class OptimizationSpecialist(BaseSpecialist):
         return self._finalize_result(envelope, specialist_result)
 
     def _compress_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _compress_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {key: value for key, value in result.items() if key not in {"markdown", "stdout", "stderr", "raw_log"}}

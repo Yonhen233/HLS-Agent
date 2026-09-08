@@ -1,3 +1,8 @@
+"""core layer implementation for credential_broker.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,6 +14,13 @@ from typing import Any, Callable
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
@@ -16,10 +28,35 @@ class CredentialBroker:
     """Issues opaque, scoped leases; plaintext secrets never enter durable state."""
 
     def __init__(self, database, secret_provider: Callable[[str], str | None] | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            database: Value supplied by the caller and validated by the surrounding schema.
+            secret_provider: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.database = database
         self.secret_provider = secret_provider or (lambda _audience: None)
 
     def issue(self, run_id: str, audience: str, scopes: list[str], *, ttl_seconds: int = 300, max_uses: int = 1) -> dict[str, Any]:
+        """Execute issue at the credential_broker boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            audience: Value supplied by the caller and validated by the surrounding schema.
+            scopes: Value supplied by the caller and validated by the surrounding schema.
+            ttl_seconds: Value supplied by the caller and validated by the surrounding schema.
+            max_uses: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not run_id or not audience or not scopes:
             raise ValueError("run_id, audience and at least one scope are required.")
         token = "cred_" + secrets.token_urlsafe(32)
@@ -36,6 +73,19 @@ class CredentialBroker:
         return {"token": token, "expires_at": expires_at, "audience": audience, "scopes": sorted(set(scopes))}
 
     def consume(self, token: str, *, run_id: str, audience: str, scope: str) -> dict[str, Any]:
+        """Execute consume at the credential_broker boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            token: Value supplied by the caller and validated by the surrounding schema.
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            audience: Value supplied by the caller and validated by the surrounding schema.
+            scope: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         token_hash = self._hash(token)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -65,6 +115,16 @@ class CredentialBroker:
         return {"secret": secret, "audience": audience, "scope": scope, "remaining_uses": max(0, int(row["max_uses"]) - uses)}
 
     def revoke(self, token: str) -> bool:
+        """Execute revoke at the credential_broker boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            token: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             cursor = connection.execute(
                 "UPDATE short_lived_credentials SET status='revoked' WHERE token_hash=? AND status='active'",
@@ -75,4 +135,14 @@ class CredentialBroker:
 
     @staticmethod
     def _hash(token: str) -> str:
+        """Implement the internal _hash helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            token: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return hashlib.sha256(token.encode("utf-8")).hexdigest()

@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for historical_rag_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -18,6 +23,16 @@ from .agent_quality_benchmark import evaluate_rag_cases
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -26,10 +41,30 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _normalized_path(path: str | Path) -> str:
+    """Implement the internal _normalized_path helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return str(Path(path).resolve()).replace("\\", "/").lower()
 
 
 def _has_real_csynth_evidence(tool_evidence: dict[str, Any]) -> bool:
+    """Implement the internal _has_real_csynth_evidence helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        tool_evidence: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return any(
         receipt.get("valid") is True
         and receipt.get("mock_evidence") is not True
@@ -40,16 +75,46 @@ def _has_real_csynth_evidence(tool_evidence: dict[str, Any]) -> bool:
 
 
 def _task_family(task: dict[str, Any]) -> str:
+    """Implement the internal _task_family helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return str(task.get("op_type") or task.get("name") or "unknown")
 
 
 def _shape_text(value: Any) -> str:
+    """Implement the internal _shape_text helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not isinstance(value, list):
         return ""
     return "x".join(str(item) for item in value)
 
 
 def _query_from_state(state: dict[str, Any]) -> str:
+    """Implement the internal _query_from_state helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = state.get("task") or {}
     target = task.get("target") or {}
     parts = [
@@ -163,6 +228,17 @@ def _timed_evaluation(
     cases: list[dict[str, Any]],
     retrieve: Callable[[str, int, str | None], list[dict[str, Any]]],
 ) -> dict[str, Any]:
+    """Implement the internal _timed_evaluation helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        cases: Value supplied by the caller and validated by the surrounding schema.
+        retrieve: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     latencies = []
     by_query: dict[str, list[dict[str, Any]]] = {}
     for case in cases:
@@ -198,6 +274,17 @@ def _timed_evaluation(
         case_by_query[case["query"]].append(case["case_id"])
 
     def retrieve_cached(query: str, top_k: int) -> list[dict[str, Any]]:
+        """Execute retrieve_cached at the historical_rag_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         case_ids = case_by_query[query]
         case_id = case_ids.pop(0)
         return by_query[case_id][:top_k]
@@ -229,6 +316,18 @@ def run_historical_rag_benchmark(
     *,
     max_cases: int = 64,
 ) -> dict[str, Any]:
+    """Execute run_historical_rag_benchmark at the historical_rag_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        max_cases: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     output = Path(output_path)
     if not output.is_absolute():
@@ -300,6 +399,16 @@ def run_historical_rag_benchmark(
 
 
 def _render_markdown(payload: dict[str, Any]) -> str:
+    """Implement the internal _render_markdown helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lexical = payload["retrievers"]["lexical_baseline"]
     production = payload["retrievers"]["production_domain_bm25_embedding_rrf_cross_encoder"]
     lines = [

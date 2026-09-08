@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_production_harness.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -24,10 +29,30 @@ SCHEMA = Path(__file__).parents[1] / "src" / "dl_op_to_hls" / "db" / "schema.sql
 
 @pytest.fixture
 def database(tmp_path):
+    """Verify the database contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return Database(tmp_path / "metadata.db", SCHEMA)
 
 
 def test_durable_queue_deduplicates_and_commits_once(database):
+    """Verify the test_durable_queue_deduplicates_and_commits_once contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     queue = DurableJobQueue(database)
     first = queue.enqueue({"task": "mnist"}, idempotency_key="same")
     second = queue.enqueue({"task": "ignored"}, idempotency_key="same")
@@ -42,6 +67,16 @@ def test_durable_queue_deduplicates_and_commits_once(database):
 
 
 def test_durable_queue_reclaims_expired_lease(database):
+    """Verify the test_durable_queue_reclaims_expired_lease contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     queue = DurableJobQueue(database)
     job = queue.enqueue({"task": "mnist"})
     queue.claim("worker-a")
@@ -55,6 +90,16 @@ def test_durable_queue_reclaims_expired_lease(database):
 
 
 def test_canary_is_deterministic_and_auto_rolls_back(database):
+    """Verify the test_canary_is_deterministic_and_auto_rolls_back contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     releases = ReleaseManager(database)
     releases.register("prompt", "planner", "1", {"text": "a"})
     releases.register("prompt", "planner", "2", {"text": "b"})
@@ -71,6 +116,16 @@ def test_canary_is_deterministic_and_auto_rolls_back(database):
 
 
 def test_canary_promotes_when_all_gates_pass(database):
+    """Verify the test_canary_promotes_when_all_gates_pass contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     releases = ReleaseManager(database)
     for version in ("1", "2"):
         releases.register("model", "agent", version, {"version": version})
@@ -86,6 +141,16 @@ def test_canary_promotes_when_all_gates_pass(database):
 
 
 def test_canary_does_not_promote_on_tiny_sample(database):
+    """Verify the test_canary_does_not_promote_on_tiny_sample contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     releases = ReleaseManager(database)
     for version in ("1", "2"):
         releases.register("prompt", "planner", version, {"text": version})
@@ -102,6 +167,16 @@ def test_canary_does_not_promote_on_tiny_sample(database):
 
 
 def test_feedback_is_quarantined_and_does_not_pollute_memory(database):
+    """Verify the test_feedback_is_quarantined_and_does_not_pollute_memory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     repository = MetadataRepository(database)
     memory_id = repository.save_memory_item({"memory_type": "experience", "key": "mnist", "value": {"text": "valid"}})
     governor = FeedbackGovernor(repository)
@@ -111,6 +186,16 @@ def test_feedback_is_quarantined_and_does_not_pollute_memory(database):
 
 
 def test_verified_feedback_can_auto_apply_and_be_revoked(database):
+    """Verify the test_verified_feedback_can_auto_apply_and_be_revoked contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     repository = MetadataRepository(database)
     memory_id = repository.save_memory_item({"memory_type": "experience", "key": "mnist", "value": {"text": "valid"}})
     governor = FeedbackGovernor(repository)
@@ -122,6 +207,16 @@ def test_verified_feedback_can_auto_apply_and_be_revoked(database):
 
 
 def test_short_lived_credentials_are_bound_scoped_and_one_use(database):
+    """Verify the test_short_lived_credentials_are_bound_scoped_and_one_use contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     broker = CredentialBroker(database, lambda audience: "real-secret" if audience == "deepseek" else None)
     issued = broker.issue("run-1", "deepseek", ["llm.invoke"], ttl_seconds=60, max_uses=1)
     with pytest.raises(PermissionError):
@@ -133,6 +228,16 @@ def test_short_lived_credentials_are_bound_scoped_and_one_use(database):
 
 
 def test_tool_registry_injects_secret_only_for_scoped_handler(database):
+    """Verify the test_tool_registry_injects_secret_only_for_scoped_handler contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        database: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     broker = CredentialBroker(database, lambda _audience: "secret")
     issued = broker.issue("run-1", "provider", ["invoke"])
     registry = ToolRegistry()
@@ -147,6 +252,16 @@ def test_tool_registry_injects_secret_only_for_scoped_handler(database):
 
 
 def test_container_sandbox_plan_is_least_privilege(tmp_path):
+    """Verify the test_container_sandbox_plan_is_least_privilege contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True)
     sandbox = ContainerSandbox(tmp_path)
@@ -158,6 +273,16 @@ def test_container_sandbox_plan_is_least_privilege(tmp_path):
 
 
 def test_telemetry_pairs_events_and_slo_reports_breach(tmp_path):
+    """Verify the test_telemetry_pairs_events_and_slo_reports_breach contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path = tmp_path / "spans.jsonl"
     hook = TelemetryHook(path, "run-1")
     hook({"event": "RunStarted", "run_id": "run-1"})
@@ -171,6 +296,16 @@ def test_telemetry_pairs_events_and_slo_reports_breach(tmp_path):
 
 
 def test_faiss_hnsw_persists_and_returns_nearest_neighbor(tmp_path):
+    """Verify the test_faiss_hnsw_persists_and_returns_nearest_neighbor contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     records = [
         {"chunk_id": 10, "content_hash": "a", "dimensions": 3, "embedding": [1, 0, 0]},
         {"chunk_id": 20, "content_hash": "b", "dimensions": 3, "embedding": [0, 1, 0]},
@@ -186,18 +321,47 @@ def test_faiss_hnsw_persists_and_returns_nearest_neighbor(tmp_path):
 
 
 class _FakeReranker:
+    """Coordinate _FakeReranker within the test_production_harness boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id = "fake-hls-reranker"
 
     def predict(self, pairs, *, batch_size):
+        """Verify the predict contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            pairs: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return [3.0 if "correct" in text else -3.0 for _, text in pairs]
 
 
 class _FakeEngine:
+    """Coordinate _FakeEngine within the test_production_harness boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     reranker = _FakeReranker()
     config = type("Config", (), {"rerank_batch_size": 8})()
 
 
 def test_hard_negative_calibration_selects_pollution_bounded_threshold(tmp_path):
+    """Verify the test_hard_negative_calibration_selects_pollution_bounded_threshold contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     dataset = {"version": "test", "cases": [{"id": "one", "query": "q", "positive": "correct answer", "hard_negatives": ["wrong answer", "also wrong"]}]}
     path = tmp_path / "labels.json"
     path.write_text(json.dumps(dataset), encoding="utf-8")

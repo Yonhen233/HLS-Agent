@@ -1,10 +1,31 @@
+"""skills layer implementation for prompt_context.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from .registry import SkillRegistry
 
 
 class SkillPromptContextBuilder:
+    """Coordinate SkillPromptContextBuilder within the prompt_context boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def build(self, task: dict, registry: SkillRegistry, top_k: int = 5) -> dict:
+        """Execute build at the prompt_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+            registry: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates = registry.find_candidates(task)[:top_k]
         llm_candidate_cfg = task.get("llm_candidate") if isinstance(task.get("llm_candidate"), dict) else {}
         forced_llm_candidate = bool(llm_candidate_cfg.get("required"))

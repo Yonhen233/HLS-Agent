@@ -1,3 +1,8 @@
+"""llm layer implementation for client.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -20,6 +25,10 @@ from .trace import emit_llm_event
 
 @dataclass
 class LLMClient:
+    """Coordinate LLMClient within the client boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     config: LLMConfig = field(default_factory=LLMConfig.from_env)
     context: dict[str, Any] = field(default_factory=dict)
     _window_start_ts: float = field(default=0.0, init=False, repr=False)
@@ -31,24 +40,72 @@ class LLMClient:
     _previous_input_tokens: int = field(default=0, init=False, repr=False)
 
     def set_context(self, context: dict[str, Any]) -> None:
+        """Execute set_context at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.context = context
 
     def active_model(self) -> str:
+        """Execute active_model at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
         return str(release.get("selected_version") or self.config.model)
 
     def active_provider(self) -> str:
+        """Execute active_provider at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
         return str((release.get("selected_config") or {}).get("provider") or self.config.provider)
 
     def active_base_url(self) -> str:
+        """Execute active_base_url at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         release = (self.context.get("release_manifest") or {}).get("model:main-agent") or {}
         return str((release.get("selected_config") or {}).get("base_url") or self.config.base_url)
 
     def is_enabled(self) -> bool:
+        """Execute is_enabled at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.config.configured
 
     def _sync_window(self, now_ts: float) -> None:
+        """Implement the internal _sync_window helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            now_ts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self._window_start_ts == 0.0:
             self._window_start_ts = now_ts
             return
@@ -57,6 +114,16 @@ class LLMClient:
             self._window_bytes_used = 0
 
     def _pre_request_throttle(self, request_bytes: int) -> None:
+        """Implement the internal _pre_request_throttle helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            request_bytes: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now_ts = time.time()
         if self._cooldown_until_ts > now_ts:
             time.sleep(self._cooldown_until_ts - now_ts)
@@ -82,6 +149,17 @@ class LLMClient:
                     self._sync_window(now_ts)
 
     def _record_usage(self, request_bytes: int, response_bytes: int) -> None:
+        """Implement the internal _record_usage helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            request_bytes: Value supplied by the caller and validated by the surrounding schema.
+            response_bytes: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now_ts = time.time()
         self._sync_window(now_ts)
         self._window_bytes_used += max(0, request_bytes) + max(0, response_bytes)
@@ -94,6 +172,19 @@ class LLMClient:
         schema: dict,
         temperature: float = 0.0,
     ) -> dict:
+        """Execute complete_json at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            system_prompt: Value supplied by the caller and validated by the surrounding schema.
+            user_prompt: Value supplied by the caller and validated by the surrounding schema.
+            schema: Value supplied by the caller and validated by the surrounding schema.
+            temperature: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.is_enabled():
             raise AgentRuntimeError(
                 build_error(
@@ -221,6 +312,20 @@ class LLMClient:
         force_json: bool = False,
         _finalization_attempted: bool = False,
     ) -> str:
+        """Execute complete_text at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            system_prompt: Value supplied by the caller and validated by the surrounding schema.
+            user_prompt: Value supplied by the caller and validated by the surrounding schema.
+            temperature: Value supplied by the caller and validated by the surrounding schema.
+            force_json: Value supplied by the caller and validated by the surrounding schema.
+            _finalization_attempted: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.is_enabled():
             raise AgentRuntimeError(
                 build_error(
@@ -512,6 +617,13 @@ class LLMClient:
             ) from exc
 
     def _chat_completions_url(self) -> str:
+        """Implement the internal _chat_completions_url helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         base_url = self.active_base_url().rstrip("/")
         parsed = urllib.parse.urlparse(base_url)
         if parsed.path in {"", "/"}:
@@ -536,6 +648,16 @@ class LLMClient:
         return {"stage": title, **policies.get(title, {"max_output_tokens": 1600, "thinking": "disabled"})}
 
     def _parse_json_payload(self, text: str) -> dict[str, Any]:
+        """Implement the internal _parse_json_payload helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            text: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             parsed = json.loads(text)
             if isinstance(parsed, dict):
@@ -564,6 +686,20 @@ class LLMClient:
         validation_error: str,
         context_prompt: str | None = None,
     ) -> dict[str, Any]:
+        """Implement the internal _repair_json_payload helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            original_text: Value supplied by the caller and validated by the surrounding schema.
+            parsed_payload: Value supplied by the caller and validated by the surrounding schema.
+            schema: Value supplied by the caller and validated by the surrounding schema.
+            validation_error: Value supplied by the caller and validated by the surrounding schema.
+            context_prompt: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         emit_llm_event(
             self.context,
             "LLMJsonRepairStarted",
@@ -607,6 +743,16 @@ class LLMClient:
         return repaired
 
     def _redact_text(self, text: str) -> str:
+        """Implement the internal _redact_text helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            text: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not text:
             return ""
         redacted = re.sub(r"(?i)(api[_-]?key|authorization|bearer)\s*[:=]\s*['\"]?[^'\"\s,}]+", r"\1=<redacted>", text)
@@ -614,6 +760,16 @@ class LLMClient:
         return redacted
 
     def _redact_payload(self, value: Any) -> Any:
+        """Implement the internal _redact_payload helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if isinstance(value, str):
             return self._redact_text(value)
         if isinstance(value, list):
@@ -636,6 +792,19 @@ class LLMClient:
         raw_text: str,
         parsed_payload: Any,
     ) -> str | None:
+        """Implement the internal _write_llm_debug_artifact helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            schema: Value supplied by the caller and validated by the surrounding schema.
+            error: Value supplied by the caller and validated by the surrounding schema.
+            raw_text: Value supplied by the caller and validated by the surrounding schema.
+            parsed_payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         artifact_manager = self.context.get("artifact_manager")
         if artifact_manager is None:
             return None
@@ -657,6 +826,17 @@ class LLMClient:
             return None
 
     def _normalize_payload(self, payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _normalize_payload helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            schema: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         required = set(schema.get("required", []))
         normalized = dict(payload)
         properties = schema.get("properties", {})
@@ -719,7 +899,22 @@ class LLMClient:
 
 
 class FakeLLMClient(LLMClient):
+    """Coordinate FakeLLMClient within the client boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, json_responses: list[dict[str, Any]] | None = None, text_responses: list[str] | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            json_responses: Value supplied by the caller and validated by the surrounding schema.
+            text_responses: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         super().__init__(
             config=LLMConfig(
                 enabled=True,
@@ -739,6 +934,13 @@ class FakeLLMClient(LLMClient):
         self._text_responses = list(text_responses or [])
 
     def is_enabled(self) -> bool:
+        """Execute is_enabled at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return True
 
     def complete_json(
@@ -748,6 +950,19 @@ class FakeLLMClient(LLMClient):
         schema: dict,
         temperature: float = 0.0,
     ) -> dict:
+        """Execute complete_json at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            system_prompt: Value supplied by the caller and validated by the surrounding schema.
+            user_prompt: Value supplied by the caller and validated by the surrounding schema.
+            schema: Value supplied by the caller and validated by the surrounding schema.
+            temperature: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         emit_llm_event(
             self.context,
             "LLMCallStarted",
@@ -778,6 +993,19 @@ class FakeLLMClient(LLMClient):
         temperature: float = 0.2,
         force_json: bool = False,
     ) -> str:
+        """Execute complete_text at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            system_prompt: Value supplied by the caller and validated by the surrounding schema.
+            user_prompt: Value supplied by the caller and validated by the surrounding schema.
+            temperature: Value supplied by the caller and validated by the surrounding schema.
+            force_json: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         emit_llm_event(
             self.context,
             "LLMCallStarted",

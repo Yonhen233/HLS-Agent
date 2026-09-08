@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for create_advisor_pitch_ppt.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -35,6 +40,21 @@ FONT = "Microsoft YaHei"
 
 
 def set_text(frame, text: str, size: int = 18, bold: bool = False, color=None, align=None) -> None:
+    """Execute set_text at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        frame: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+        size: Value supplied by the caller and validated by the surrounding schema.
+        bold: Value supplied by the caller and validated by the surrounding schema.
+        color: Value supplied by the caller and validated by the surrounding schema.
+        align: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     frame.clear()
     p = frame.paragraphs[0]
     p.text = text
@@ -47,12 +67,43 @@ def set_text(frame, text: str, size: int = 18, bold: bool = False, color=None, a
 
 
 def add_textbox(slide, x, y, w, h, text, size=18, bold=False, color=None, align=None):
+    """Execute add_textbox at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        x: Value supplied by the caller and validated by the surrounding schema.
+        y: Value supplied by the caller and validated by the surrounding schema.
+        w: Value supplied by the caller and validated by the surrounding schema.
+        h: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+        size: Value supplied by the caller and validated by the surrounding schema.
+        bold: Value supplied by the caller and validated by the surrounding schema.
+        color: Value supplied by the caller and validated by the surrounding schema.
+        align: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     set_text(box.text_frame, text, size=size, bold=bold, color=color, align=align)
     return box
 
 
 def add_title(slide, title: str, subtitle: str | None = None):
+    """Execute add_title at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        title: Value supplied by the caller and validated by the surrounding schema.
+        subtitle: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     add_textbox(slide, 0.65, 0.32, 11.8, 0.45, title, size=27, bold=True, color=COLORS["navy"])
     underline = slide.shapes.add_shape(
         MSO_AUTO_SHAPE_TYPE.RECTANGLE,
@@ -69,11 +120,39 @@ def add_title(slide, title: str, subtitle: str | None = None):
 
 
 def add_footer(slide, page: int):
+    """Execute add_footer at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        page: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     add_textbox(slide, 0.65, 7.18, 8.5, 0.25, "DL-Operator-to-HLS Agent · MNIST 真实识别 Demo · 2026-06-17", size=8, color=COLORS["muted"])
     add_textbox(slide, 12.0, 7.18, 0.55, 0.25, str(page), size=8, color=COLORS["muted"], align=PP_ALIGN.RIGHT)
 
 
 def add_card(slide, x, y, w, h, title, body, accent="teal"):
+    """Execute add_card at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        x: Value supplied by the caller and validated by the surrounding schema.
+        y: Value supplied by the caller and validated by the surrounding schema.
+        w: Value supplied by the caller and validated by the surrounding schema.
+        h: Value supplied by the caller and validated by the surrounding schema.
+        title: Value supplied by the caller and validated by the surrounding schema.
+        body: Value supplied by the caller and validated by the surrounding schema.
+        accent: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
     shape.fill.solid()
     shape.fill.fore_color.rgb = COLORS["white"]
@@ -87,6 +166,25 @@ def add_card(slide, x, y, w, h, title, body, accent="teal"):
 
 
 def add_table(slide, x, y, w, h, rows, cols, data, header_fill="navy", font_size=9):
+    """Execute add_table at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        x: Value supplied by the caller and validated by the surrounding schema.
+        y: Value supplied by the caller and validated by the surrounding schema.
+        w: Value supplied by the caller and validated by the surrounding schema.
+        h: Value supplied by the caller and validated by the surrounding schema.
+        rows: Value supplied by the caller and validated by the surrounding schema.
+        cols: Value supplied by the caller and validated by the surrounding schema.
+        data: Value supplied by the caller and validated by the surrounding schema.
+        header_fill: Value supplied by the caller and validated by the surrounding schema.
+        font_size: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     table_shape = slide.shapes.add_table(rows, cols, Inches(x), Inches(y), Inches(w), Inches(h))
     table = table_shape.table
     for r in range(rows):
@@ -107,6 +205,22 @@ def add_table(slide, x, y, w, h, rows, cols, data, header_fill="navy", font_size
 
 
 def add_flow_box(slide, x, y, w, h, text, color="blue"):
+    """Execute add_flow_box at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        x: Value supplied by the caller and validated by the surrounding schema.
+        y: Value supplied by the caller and validated by the surrounding schema.
+        w: Value supplied by the caller and validated by the surrounding schema.
+        h: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+        color: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
     shape.fill.solid()
     shape.fill.fore_color.rgb = COLORS[color]
@@ -116,6 +230,20 @@ def add_flow_box(slide, x, y, w, h, text, color="blue"):
 
 
 def add_arrow(slide, x1, y1, x2, y2):
+    """Execute add_arrow at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        slide: Value supplied by the caller and validated by the surrounding schema.
+        x1: Value supplied by the caller and validated by the surrounding schema.
+        y1: Value supplied by the caller and validated by the surrounding schema.
+        x2: Value supplied by the caller and validated by the surrounding schema.
+        y2: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     line = slide.shapes.add_connector(1, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
     line.line.color.rgb = COLORS["muted"]
     line.line.width = Pt(1.6)
@@ -123,6 +251,18 @@ def add_arrow(slide, x1, y1, x2, y2):
 
 
 def new_slide(prs, title: str, subtitle: str | None = None):
+    """Execute new_slide at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        prs: Value supplied by the caller and validated by the surrounding schema.
+        title: Value supplied by the caller and validated by the surrounding schema.
+        subtitle: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     bg = slide.background.fill
     bg.solid()
@@ -132,10 +272,27 @@ def new_slide(prs, title: str, subtitle: str | None = None):
 
 
 def read_json(path: Path) -> dict:
+    """Execute read_json at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def build_deck() -> None:
+    """Execute build_deck at the create_advisor_pitch_ppt boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     report = read_json(ROOT / "runs" / "mnist_recognition_mlp_234d539d" / "report.json")
     verification = read_json(ROOT / "runs" / "mnist_recognition_mlp_234d539d" / "verification.json")

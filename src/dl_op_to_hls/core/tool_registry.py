@@ -1,3 +1,8 @@
+"""core layer implementation for tool_registry.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +19,10 @@ from .trace import stable_hash
 
 @dataclass
 class ToolSpec:
+    """Coordinate ToolSpec within the tool_registry boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     description: str
     input_schema: dict
@@ -36,15 +45,47 @@ class ToolSpec:
 
 
 class ToolRegistry:
+    """Coordinate ToolRegistry within the tool_registry boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._tools: dict[str, ToolSpec] = {}
 
     def register(self, tool: ToolSpec) -> None:
+        """Execute register at the tool_registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            tool: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
         self._tools[tool.name] = tool
 
     def register_alias(self, alias_name: str, target_name: str) -> None:
+        """Execute register_alias at the tool_registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            alias_name: Value supplied by the caller and validated by the surrounding schema.
+            target_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         target = self.get(target_name)
         self.register(
             ToolSpec(
@@ -71,13 +112,45 @@ class ToolRegistry:
         )
 
     def get(self, name: str) -> ToolSpec:
+        """Execute get at the tool_registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self._tools[name]
 
     def list_tools(self, *, include_aliases: bool = True) -> list[ToolSpec]:
+        """Execute list_tools at the tool_registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            include_aliases: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         tools = list(self._tools.values())
         return tools if include_aliases else [tool for tool in tools if tool.alias_of is None]
 
     def call(self, name: str, arguments: dict, context: dict) -> dict:
+        """Execute call at the tool_registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         requested_tool = self.get(name)
         canonical_name = requested_tool.alias_of or name
         tool = self.get(canonical_name)

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_memory.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 from pathlib import Path
 
@@ -9,6 +14,16 @@ from dl_op_to_hls.rag.memory import RagMemory
 
 
 def _manager(tmp_path):
+    """Verify the _manager contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     database = Database(tmp_path / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     repo = MetadataRepository(database)
     rag = RagMemory(repo)
@@ -16,12 +31,32 @@ def _manager(tmp_path):
 
 
 def test_memory_write_short_term(tmp_path):
+    """Verify the test_memory_write_short_term contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     result = manager.write_short_term("r1", "todo_001", {"summary": "ok"})
     assert Path(result["path"]).exists()
 
 
 def test_memory_uses_configured_external_runs_root(tmp_path):
+    """Verify the test_memory_uses_configured_external_runs_root contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     external_runs = tmp_path / "short_execution_root"
     database = Database(external_runs / "metadata.db", "src/dl_op_to_hls/db/schema.sql")
     repo = MetadataRepository(database)
@@ -34,6 +69,16 @@ def test_memory_uses_configured_external_runs_root(tmp_path):
 
 
 def test_memory_compress_run_context(tmp_path):
+    """Verify the test_memory_compress_run_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.write_short_term("r1", "todo_001", {"summary": "ok"})
     result = manager.compress_run_context("r1")
@@ -41,6 +86,16 @@ def test_memory_compress_run_context(tmp_path):
 
 
 def test_memory_extract_candidates(tmp_path):
+    """Verify the test_memory_extract_candidates contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +115,16 @@ def test_memory_extract_candidates(tmp_path):
 
 
 def test_memory_extracts_synthesis_success_but_not_verified_without_functional_check(tmp_path):
+    """Verify the test_memory_extracts_synthesis_success_but_not_verified_without_functional_check contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -85,6 +150,16 @@ def test_memory_extracts_synthesis_success_but_not_verified_without_functional_c
 
 
 def test_memory_extracts_verified_implementation_and_parameter_experience(tmp_path):
+    """Verify the test_memory_extracts_verified_implementation_and_parameter_experience contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -109,6 +184,16 @@ def test_memory_extracts_verified_implementation_and_parameter_experience(tmp_pa
 
 
 def test_memory_does_not_promote_timing_failed_candidate_as_verified(tmp_path):
+    """Verify the test_memory_does_not_promote_timing_failed_candidate_as_verified contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +219,16 @@ def test_memory_does_not_promote_timing_failed_candidate_as_verified(tmp_path):
 
 
 def test_memory_extract_candidates_sanitizes_prior_experience_hint(tmp_path):
+    """Verify the test_memory_extract_candidates_sanitizes_prior_experience_hint contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -162,12 +257,26 @@ def test_memory_extract_candidates_sanitizes_prior_experience_hint(tmp_path):
 
 
 def test_memory_policy_promotes_failure():
+    """Verify the test_memory_policy_promotes_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {"kind": "failure", "summary": "Vivado missing", "value": {"error_type": "VivadoNotFoundError"}}
     assert policy.should_promote(candidate) is True
 
 
 def test_memory_policy_promotes_optimization():
+    """Verify the test_memory_policy_promotes_optimization contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {
         "kind": "optimization",
@@ -184,18 +293,39 @@ def test_memory_policy_promotes_optimization():
 
 
 def test_memory_policy_requires_verified_optimization():
+    """Verify the test_memory_policy_requires_verified_optimization contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {"kind": "optimization", "summary": "Unverified synthesis metrics."}
     assert policy.should_promote(candidate) is False
 
 
 def test_memory_policy_ignores_raw_log():
+    """Verify the test_memory_policy_ignores_raw_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {"kind": "semantic", "summary": "raw log dump", "fact": "raw log should not be promoted"}
     assert policy.should_promote(candidate) is False
 
 
 def test_memory_policy_rejects_mock_verified_implementation():
+    """Verify the test_memory_policy_rejects_mock_verified_implementation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {
         "kind": "verified_implementation",
@@ -216,6 +346,13 @@ def test_memory_policy_rejects_mock_verified_implementation():
 
 
 def test_memory_policy_promotes_real_verified_implementation():
+    """Verify the test_memory_policy_promotes_real_verified_implementation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     policy = MemoryPolicy()
     candidate = {
         "kind": "verified_implementation",
@@ -236,6 +373,16 @@ def test_memory_policy_promotes_real_verified_implementation():
 
 
 def test_memory_promote_to_long_term(tmp_path):
+    """Verify the test_memory_promote_to_long_term contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     result = manager.promote_to_long_term(
         "r1",
@@ -259,6 +406,16 @@ def test_memory_promote_to_long_term(tmp_path):
 
 
 def test_memory_retrieve_similar_experiences(tmp_path):
+    """Verify the test_memory_retrieve_similar_experiences contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.promote_to_long_term(
         "r1",
@@ -269,6 +426,16 @@ def test_memory_retrieve_similar_experiences(tmp_path):
 
 
 def test_memory_retrieve_uses_task_anchors_to_filter_irrelevant_experiences(tmp_path):
+    """Verify the test_memory_retrieve_uses_task_anchors_to_filter_irrelevant_experiences contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.promote_to_long_term(
         "matmul_run",
@@ -288,6 +455,16 @@ def test_memory_retrieve_uses_task_anchors_to_filter_irrelevant_experiences(tmp_
 
 
 def test_memory_promotion_strips_second_order_prior_experience(tmp_path):
+    """Verify the test_memory_promotion_strips_second_order_prior_experience contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.promote_to_long_term(
         "resnet_run",
@@ -321,6 +498,16 @@ def test_memory_promotion_strips_second_order_prior_experience(tmp_path):
 
 
 def test_memory_retrieve_failure_cases(tmp_path):
+    """Verify the test_memory_retrieve_failure_cases contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.repository.save_failure({"run_id": "r1", "error_type": "VivadoNotFoundError", "error_message": "vivado missing"})
     results = manager.retrieve_failure_cases("Vivado missing", top_k=3)
@@ -328,6 +515,16 @@ def test_memory_retrieve_failure_cases(tmp_path):
 
 
 def test_memory_failure_cases_not_returned_for_normal_optimization_query(tmp_path):
+    """Verify the test_memory_failure_cases_not_returned_for_normal_optimization_query contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.repository.save_failure({"run_id": "r1", "error_type": "VivadoNotFoundError", "error_message": "vivado missing"})
 
@@ -337,6 +534,16 @@ def test_memory_failure_cases_not_returned_for_normal_optimization_query(tmp_pat
 
 
 def test_memory_successful_runs_rank_above_error_partial_runs_for_optimization_query(tmp_path):
+    """Verify the test_memory_successful_runs_rank_above_error_partial_runs_for_optimization_query contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.promote_to_long_term(
         "success_dense",
@@ -384,6 +591,16 @@ def test_memory_successful_runs_rank_above_error_partial_runs_for_optimization_q
 
 
 def test_memory_save_skill(tmp_path):
+    """Verify the test_memory_save_skill contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     result = manager.save_skill("fallback_template_skill", ["Generate fallback"], {"op_type": "Dense"}, {"generated": True})
     assert result["status"] == "success"

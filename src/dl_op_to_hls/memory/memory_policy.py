@@ -1,9 +1,28 @@
+"""memory layer implementation for memory_policy.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 
 class MemoryPolicy:
+    """Coordinate MemoryPolicy within the memory_policy boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     @staticmethod
     def _has_real_synthesis_evidence(value: dict) -> bool:
+        """Implement the internal _has_real_synthesis_evidence helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(value, dict):
             return False
         report = value.get("report") if isinstance(value.get("report"), dict) else {}
@@ -16,6 +35,16 @@ class MemoryPolicy:
         )
 
     def _is_functionally_verified(self, verification: dict) -> bool:
+        """Implement the internal _is_functionally_verified helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            verification: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(verification, dict):
             return False
         mode = verification.get("mode")
@@ -25,6 +54,16 @@ class MemoryPolicy:
         return verification.get("passed") is True and comparison.get("passed") is True
 
     def classify(self, candidate: dict) -> str:
+        """Execute classify at the memory_policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if candidate.get("kind") == "verified_implementation":
             return "verified_implementation"
         if candidate.get("kind") == "parameter_experience":
@@ -44,6 +83,16 @@ class MemoryPolicy:
         return "implementation"
 
     def should_promote(self, candidate: dict) -> bool:
+        """Execute should_promote at the memory_policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = " ".join(str(candidate.get(key, "")) for key in ("summary", "fact", "key")).lower()
         if any(marker in text for marker in ("raw log", "stdout", "temporary path", "uncompressed report")):
             return False
@@ -77,6 +126,16 @@ class MemoryPolicy:
         return False
 
     def score_importance(self, candidate: dict) -> int:
+        """Execute score_importance at the memory_policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         score = 1
         if candidate.get("kind") == "skill":
             score += 2
@@ -91,6 +150,16 @@ class MemoryPolicy:
         return score
 
     def should_index_to_rag(self, memory_item: dict) -> bool:
+        """Execute should_index_to_rag at the memory_policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         memory_type = memory_item.get("memory_type") or memory_item.get("kind")
         return memory_type in {
             "episodic",

@@ -1,3 +1,8 @@
+"""core layer implementation for design_objectives.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -6,6 +11,10 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ObjectiveMode:
+    """Coordinate ObjectiveMode within the design_objectives boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     aliases: tuple[str, ...]
     description: str
@@ -18,6 +27,13 @@ class ObjectiveMode:
     specialist_effect: str
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the design_objectives boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return asdict(self)
 
 
@@ -103,6 +119,18 @@ _ALIASES: dict[str, str] = {
 
 
 def normalize_objective_mode(value: Any, default: str = "latency", *, strict: bool = False) -> str:
+    """Execute normalize_objective_mode at the design_objectives boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+        strict: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(value or default).strip().lower().replace("-", "_")
     normalized = _ALIASES.get(text)
     if normalized:
@@ -114,6 +142,17 @@ def normalize_objective_mode(value: Any, default: str = "latency", *, strict: bo
 
 
 def get_objective_mode(value: Any, default: str = "latency") -> ObjectiveMode:
+    """Execute get_objective_mode at the design_objectives boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = normalize_objective_mode(value, default=default, strict=False)
     if normalized not in OBJECTIVE_MODES:
         normalized = default if default in OBJECTIVE_MODES else "latency"
@@ -121,9 +160,26 @@ def get_objective_mode(value: Any, default: str = "latency") -> ObjectiveMode:
 
 
 def list_objective_modes() -> list[dict[str, Any]]:
+    """Execute list_objective_modes at the design_objectives boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return [mode.to_dict() for mode in OBJECTIVE_MODES.values()]
 
 
 def objective_requires_llm_search(value: Any) -> bool:
+    """Execute objective_requires_llm_search at the design_objectives boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     mode = normalize_objective_mode(value, default="latency")
     return mode in {"resource", "latency", "throughput", "performance", "balanced"}

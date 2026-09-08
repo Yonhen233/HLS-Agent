@@ -1,3 +1,8 @@
+"""core layer implementation for agent_messages.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -12,11 +17,22 @@ from ..db.database import Database
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 @dataclass(frozen=True)
 class AgentMessage:
+    """Coordinate AgentMessage within the agent_messages boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     message_id: str
     message_type: str
     sender: str
@@ -27,6 +43,13 @@ class AgentMessage:
     parent_message_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the agent_messages boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return asdict(self)
 
 
@@ -42,6 +65,20 @@ class AgentMessageBus:
         run_id: str | None = None,
         session_id: str | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            hooks: Value supplied by the caller and validated by the surrounding schema.
+            database: Value supplied by the caller and validated by the surrounding schema.
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path = Path(path)
         self.hooks = hooks
         self.run_id = run_id or self.path.parent.name or f"run_{uuid.uuid4().hex[:12]}"
@@ -62,6 +99,21 @@ class AgentMessageBus:
         correlation_id: str | None = None,
         parent_message_id: str | None = None,
     ) -> AgentMessage:
+        """Execute publish at the agent_messages boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            message_type: Value supplied by the caller and validated by the surrounding schema.
+            sender: Value supplied by the caller and validated by the surrounding schema.
+            recipient: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            correlation_id: Value supplied by the caller and validated by the surrounding schema.
+            parent_message_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         message = AgentMessage(
             message_id=f"msg_{uuid.uuid4().hex[:16]}",
             message_type=message_type,
@@ -119,6 +171,17 @@ class AgentMessageBus:
         recipient: str | None = None,
         correlation_id: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Execute history at the agent_messages boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            recipient: Value supplied by the caller and validated by the surrounding schema.
+            correlation_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         clauses = ["run_id=?"]
         parameters: list[Any] = [self.run_id]
         if recipient:
@@ -137,6 +200,13 @@ class AgentMessageBus:
         return [self._row(item) for item in rows]
 
     def _project(self) -> None:
+        """Implement the internal _project helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             messages = self.history()
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +224,16 @@ class AgentMessageBus:
 
     @staticmethod
     def _row(row) -> dict[str, Any]:
+        """Implement the internal _row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "message_id": row["message_id"],
             "message_type": row["message_type"],

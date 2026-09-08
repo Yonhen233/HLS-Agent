@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_agent_interview_benchmark.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +21,13 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_open_task_expectation_matching() -> None:
+    """Verify the test_open_task_expectation_matching contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "op_type": "Dense", "objective": "latency"}
     case = {"expected_task_type": "operator", "expected_op_type": "Dense", "expected_objective": "latency"}
     assert _matches_expected_task(task, case)
@@ -23,6 +35,13 @@ def test_open_task_expectation_matching() -> None:
 
 
 def test_interview_rag_ablation_uses_fixed_scoped_corpus() -> None:
+    """Verify the test_interview_rag_ablation_uses_fixed_scoped_corpus contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = run_rag_ablation(WORKSPACE_ROOT)
     assert report["corpus_size"] == 12
     assert report["query_count"] == 9
@@ -33,6 +52,13 @@ def test_interview_rag_ablation_uses_fixed_scoped_corpus() -> None:
 
 
 def test_guard_ablation_blocks_known_unsafe_candidates() -> None:
+    """Verify the test_guard_ablation_blocks_known_unsafe_candidates contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = run_guard_ablation(WORKSPACE_ROOT)
     assert report["case_count"] >= 1
     assert report["guard_enabled"]["unsafe_candidate_acceptance_rate"] == 0.0
@@ -40,6 +66,16 @@ def test_guard_ablation_blocks_known_unsafe_candidates() -> None:
 
 
 def test_context_ablation_measures_specialist_isolation(temp_workspace: Path) -> None:
+    """Verify the test_context_ablation_measures_specialist_isolation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = temp_workspace / "context_run"
     run_dir.mkdir()
     state = {
@@ -62,6 +98,13 @@ def test_context_ablation_measures_specialist_isolation(temp_workspace: Path) ->
 
 
 def test_recovery_and_idempotency_probes_use_production_components() -> None:
+    """Verify the test_recovery_and_idempotency_probes_use_production_components contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = run_recovery_idempotency_probes(WORKSPACE_ROOT)
     assert report["evidence_class"] == "controlled_production_components"
     assert report["rate"]["rate"] == 1.0
@@ -75,6 +118,13 @@ def test_recovery_and_idempotency_probes_use_production_components() -> None:
 
 
 def test_interview_markdown_records_evidence_and_limitations() -> None:
+    """Verify the test_interview_markdown_records_evidence_and_limitations contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = {
         "generated_at": "2026-08-28T00:00:00Z",
         "interview_ready": False,

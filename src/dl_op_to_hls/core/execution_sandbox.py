@@ -1,3 +1,8 @@
+"""core layer implementation for execution_sandbox.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -8,6 +13,10 @@ from typing import Any
 
 @dataclass(frozen=True)
 class SandboxPolicy:
+    """Coordinate SandboxPolicy within the execution_sandbox boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     image: str = "dl-op-to-hls-runner:locked"
     cpus: float = 2.0
     memory_mb: int = 4096
@@ -22,6 +31,18 @@ class ContainerSandbox:
     """Builds a least-privilege Docker/Podman invocation for untrusted candidates."""
 
     def __init__(self, workspace_root: str | Path, policy: SandboxPolicy | None = None, *, backend: str = "docker"):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+            policy: Value supplied by the caller and validated by the surrounding schema.
+            backend: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.workspace_root = Path(workspace_root).resolve()
         self.policy = policy or SandboxPolicy()
         if backend not in {"docker", "podman"}:
@@ -29,6 +50,18 @@ class ContainerSandbox:
         self.backend = backend
 
     def build_command(self, command: list[str], run_dir: str | Path, env: dict[str, str] | None = None) -> list[str]:
+        """Execute build_command at the execution_sandbox boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            run_dir: Value supplied by the caller and validated by the surrounding schema.
+            env: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         target = Path(run_dir).resolve()
         try:
             target.relative_to(self.workspace_root)
@@ -59,6 +92,18 @@ class ContainerSandbox:
         return [*args, policy.image, *command]
 
     def plan(self, command: list[str], run_dir: str | Path, env: dict[str, str] | None = None) -> dict[str, Any]:
+        """Execute plan at the execution_sandbox boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            run_dir: Value supplied by the caller and validated by the surrounding schema.
+            env: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "backend": self.backend,
             "command": self.build_command(command, run_dir, env),

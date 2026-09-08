@@ -1,3 +1,8 @@
+"""specialists layer implementation for context.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -65,6 +70,10 @@ SPECIALIST_ALLOWED_TOOLS = {
 
 @dataclass
 class ContextEnvelope:
+    """Coordinate ContextEnvelope within the context boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     run_id: str
     todo_id: str
     specialist_name: str
@@ -79,19 +88,53 @@ class ContextEnvelope:
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return asdict(self)
 
 
 class ContextBuilder:
+    """Coordinate ContextBuilder within the context boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(
         self,
         token_budget_manager: TokenBudgetManager | None = None,
         mode_config: ContextModeConfig | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            token_budget_manager: Value supplied by the caller and validated by the surrounding schema.
+            mode_config: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.token_budget_manager = token_budget_manager or TokenBudgetManager()
         self.mode_config = mode_config or ContextModeConfig.from_env()
 
     def build_for_specialist(self, state, todo, specialist_name: str) -> ContextEnvelope:
+        """Execute build_for_specialist at the context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         max_context_tokens = int(todo.context_scope.get("max_context_tokens", 3000) if todo.context_scope else 3000)
         task = state.task
         task_summary = {
@@ -168,6 +211,18 @@ class ContextBuilder:
         return envelope
 
     def _full_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
+        """Implement the internal _full_state helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = state.to_dict() if hasattr(state, "to_dict") else asdict(state)
         return {
             **self._scoped_state(state, todo, specialist_name),
@@ -176,6 +231,16 @@ class ContextBuilder:
         }
 
     def _all_artifact_refs(self, state) -> list[dict[str, Any]]:
+        """Implement the internal _all_artifact_refs helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return [
             self._artifact_ref(artifact_type, path)
             for artifact_type, path in state.artifacts.items()
@@ -183,6 +248,18 @@ class ContextBuilder:
         ]
 
     def _scoped_state(self, state, todo, specialist_name: str) -> dict[str, Any]:
+        """Implement the internal _scoped_state helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         task = state.task
         target = task.get("target", {})
         hls4ml_cfg = task.get("hls4ml", {})
@@ -282,6 +359,17 @@ class ContextBuilder:
         return {"task": task}
 
     def _artifact_refs(self, state, specialist_name: str) -> list[dict[str, Any]]:
+        """Implement the internal _artifact_refs helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         refs: list[dict[str, Any]] = []
         for artifact_type, path in state.artifacts.items():
             if not path:
@@ -292,6 +380,17 @@ class ContextBuilder:
 
     @staticmethod
     def _artifact_ref(artifact_type: str, value: Any) -> dict[str, Any]:
+        """Implement the internal _artifact_ref helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            artifact_type: Value supplied by the caller and validated by the surrounding schema.
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = Path(str(value)).resolve()
         digest = None
         if path.is_file():
@@ -308,6 +407,17 @@ class ContextBuilder:
         }
 
     def _artifact_relevant(self, artifact_type: str, specialist_name: str) -> bool:
+        """Implement the internal _artifact_relevant helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            artifact_type: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         relevant = {
             "CodegenSpecialist": {"input_task", "normalized_task", "summary", "suggestions", "report_json", "vivado_report", "compressed_logs", "hls_cpp", "hls_header", "testbench"},
             "HLS4MLSpecialist": {"input_task", "normalized_task", "hls4ml_config"},
@@ -320,6 +430,16 @@ class ContextBuilder:
         return allowed is None or artifact_type in allowed
 
     def _run_dir_from_state(self, state) -> str:
+        """Implement the internal _run_dir_from_state helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if state.artifacts.get("run_dir"):
             return str(state.artifacts["run_dir"])
         trace_path = state.artifacts.get("trace")

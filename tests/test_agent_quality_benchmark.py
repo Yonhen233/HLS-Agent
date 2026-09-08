@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_agent_quality_benchmark.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 from pathlib import Path
 
@@ -15,6 +20,13 @@ from dl_op_to_hls.benchmarks.agent_quality_benchmark import (
 
 
 def test_wilson_interval_marks_tiny_samples_exploratory():
+    """Verify the test_wilson_interval_marks_tiny_samples_exploratory contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tiny = _wilson_interval(1, 1)
     usable = _wilson_interval(18, 20)
     assert tiny["estimate"] == 1.0
@@ -24,6 +36,13 @@ def test_wilson_interval_marks_tiny_samples_exploratory():
 
 
 def test_rag_eval_computes_standard_source_metrics():
+    """Verify the test_rag_eval_computes_standard_source_metrics contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     case = {"query": "Dense reuse", "top_k": 3, "relevant_source_ids": ["dense_doc"]}
     results = [
         {"source_id": "matmul_doc", "text": "MatMul reuse"},
@@ -43,6 +62,13 @@ def test_rag_eval_computes_standard_source_metrics():
 
 
 def test_rag_eval_reports_embedding_and_cross_encoder_usage():
+    """Verify the test_rag_eval_reports_embedding_and_cross_encoder_usage contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     case = {"query": "semantic HLS retrieval", "top_k": 2, "relevant_source_ids": ["doc-b"]}
     results = [
         {
@@ -79,6 +105,13 @@ def test_rag_eval_reports_embedding_and_cross_encoder_usage():
 
 
 def test_rag_precision_at_k_uses_fixed_k_when_fewer_results_are_returned():
+    """Verify the test_rag_precision_at_k_uses_fixed_k_when_fewer_results_are_returned contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     case = {"query": "Dense reuse", "top_k": 5, "relevant_source_ids": ["dense_doc"]}
     metrics = evaluate_rag_case(case, [{"source_id": "dense_doc", "text": "Dense reuse factor"}])
 
@@ -89,6 +122,13 @@ def test_rag_precision_at_k_uses_fixed_k_when_fewer_results_are_returned():
 
 
 def test_rag_eval_computes_term_coverage_and_pollution():
+    """Verify the test_rag_eval_computes_term_coverage_and_pollution contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     case = {
         "query": "ResNet18 boundary unsupported",
         "top_k": 2,
@@ -109,6 +149,13 @@ def test_rag_eval_computes_term_coverage_and_pollution():
 
 
 def test_rag_eval_pollution_uses_retrieved_text_not_source_id():
+    """Verify the test_rag_eval_pollution_uses_retrieved_text_not_source_id contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     case = {
         "query": "VivadoNotFoundError recoverable skipped synthesis",
         "top_k": 2,
@@ -130,6 +177,16 @@ def test_rag_eval_pollution_uses_retrieved_text_not_source_id():
 
 
 def test_collect_run_metrics_flags_unsupported_semantic_errors(tmp_path):
+    """Verify the test_collect_run_metrics_flags_unsupported_semantic_errors contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "resnet_run"
     run_dir.mkdir(parents=True)
     state = {
@@ -152,6 +209,16 @@ def test_collect_run_metrics_flags_unsupported_semantic_errors(tmp_path):
 
 
 def test_collect_run_metrics_tracks_semantic_rag_runtime_modes(tmp_path):
+    """Verify the test_collect_run_metrics_tracks_semantic_rag_runtime_modes contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "semantic-rag"
     run_dir.mkdir(parents=True)
     (run_dir / "state.json").write_text(
@@ -177,6 +244,16 @@ def test_collect_run_metrics_tracks_semantic_rag_runtime_modes(tmp_path):
 
 
 def test_compare_runs_quantifies_fix_delta(tmp_path):
+    """Verify the test_compare_runs_quantifies_fix_delta contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     before = {
         "run_id": "before",
         "runtime_s": 184.0,
@@ -207,6 +284,13 @@ def test_compare_runs_quantifies_fix_delta(tmp_path):
 
 
 def test_aggregate_metrics_reports_common_rates():
+    """Verify the test_aggregate_metrics_reports_common_rates contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     metrics = [
         {
             "run_id": "ok",
@@ -276,6 +360,13 @@ def test_aggregate_metrics_reports_common_rates():
 
 
 def test_llm_candidate_toolchain_credits_valid_composite_evidence_without_faking_direct_calls():
+    """Verify the test_llm_candidate_toolchain_credits_valid_composite_evidence_without_faking_direct_calls contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     receipt = {
         "tool_name": "verify_candidate.run",
         "valid": True,
@@ -303,6 +394,16 @@ def test_llm_candidate_toolchain_credits_valid_composite_evidence_without_faking
 
 
 def test_toolchain_quality_does_not_credit_planned_but_unexecuted_todos(tmp_path):
+    """Verify the test_toolchain_quality_does_not_credit_planned_but_unexecuted_todos contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "state.json").write_text(
@@ -325,6 +426,16 @@ def test_toolchain_quality_does_not_credit_planned_but_unexecuted_todos(tmp_path
 
 
 def test_collect_run_metrics_tracks_llm_candidate_harness(tmp_path):
+    """Verify the test_collect_run_metrics_tracks_llm_candidate_harness contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "llm_candidate_eval"
     run_dir.mkdir(parents=True)
     state = {
@@ -388,6 +499,13 @@ def test_collect_run_metrics_tracks_llm_candidate_harness(tmp_path):
 
 
 def test_default_agent_capability_suite_is_curated():
+    """Verify the test_default_agent_capability_suite_is_curated contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = load_suite_cases(Path("benchmarks/agent_capability_suite.json"))
 
     assert len(cases) >= 10
@@ -401,6 +519,16 @@ def test_default_agent_capability_suite_is_curated():
 
 
 def test_suite_expected_defaults_are_merged_and_case_values_override(tmp_path):
+    """Verify the test_suite_expected_defaults_are_merged_and_case_values_override contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(
         json.dumps(
@@ -425,6 +553,16 @@ def test_suite_expected_defaults_are_merged_and_case_values_override(tmp_path):
 
 
 def test_evaluate_suite_case_scores_expected_agent_contract(tmp_path):
+    """Verify the test_evaluate_suite_case_scores_expected_agent_contract contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "dense_eval"
     (run_dir / "memory").mkdir(parents=True)
     for artifact in [
@@ -502,6 +640,16 @@ def test_evaluate_suite_case_scores_expected_agent_contract(tmp_path):
 
 
 def test_evaluate_suite_case_scores_llm_harness_contract(tmp_path):
+    """Verify the test_evaluate_suite_case_scores_llm_harness_contract contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "llm_eval"
     run_dir.mkdir(parents=True)
     (run_dir / "state.json").write_text(
@@ -580,6 +728,16 @@ def test_evaluate_suite_case_scores_llm_harness_contract(tmp_path):
 
 
 def test_evaluate_suite_results_aggregates_category_scores(tmp_path):
+    """Verify the test_evaluate_suite_results_aggregates_category_scores contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "bad"
     run_dir.mkdir(parents=True)
     (run_dir / "benchmark_case.json").write_text(json.dumps({"case_id": "bad_case", "iteration": 1}), encoding="utf-8")

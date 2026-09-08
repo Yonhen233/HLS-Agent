@@ -1,3 +1,8 @@
+"""llm layer implementation for task_interpreter.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,7 +15,22 @@ from .trace import emit_llm_event
 
 
 class LLMTaskInterpreter:
+    """Coordinate LLMTaskInterpreter within the task_interpreter boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def interpret(self, input_data: str | dict[str, Any], client) -> dict[str, Any]:
+        """Execute interpret at the task_interpreter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            input_data: Value supplied by the caller and validated by the surrounding schema.
+            client: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if isinstance(input_data, dict):
             payload = {"task": input_data, "assumptions": [], "reason_summary": "Task input was already structured JSON."}
             emit_llm_event(client.context, "LLMTaskInterpreted", {"run_id": client.context.get("run_id"), "input_mode": "json"})

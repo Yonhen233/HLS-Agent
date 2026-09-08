@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_todo.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.core.hooks import HookManager
@@ -5,12 +10,33 @@ from dl_op_to_hls.main_agent.todo import TodoManager
 
 
 def _manager(tmp_path, hooks=None):
+    """Verify the _manager contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        hooks: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
     return TodoManager(run_dir, hooks=hooks)
 
 
 def test_todo_create_from_plan(tmp_path):
+    """Verify the test_todo_create_from_plan contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["Validate task schema", "Check hls4ml support"], {"task_type": "operator", "name": "demo"})
     assert len(todo_list.items) == 2
@@ -18,6 +44,16 @@ def test_todo_create_from_plan(tmp_path):
 
 
 def test_todo_dependency_blocked(tmp_path):
+    """Verify the test_todo_dependency_blocked contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["A", "B"], {"task_type": "operator", "name": "demo"})
     next_item = manager.get_next_ready_item(todo_list)
@@ -29,6 +65,16 @@ def test_todo_dependency_blocked(tmp_path):
 
 
 def test_todo_warning_dependency_unlocks_core_hls_step(tmp_path):
+    """Verify the test_todo_warning_dependency_unlocks_core_hls_step contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["Check hls4ml support", "Generate hls4ml config"], {"task_type": "model", "name": "demo"})
     manager.mark_completed_with_warning("todo_001", {"status": "unsupported"}, {"message": "unsupported"})
@@ -38,6 +84,16 @@ def test_todo_warning_dependency_unlocks_core_hls_step(tmp_path):
 
 
 def test_todo_warning_dependency_unlocks_recovery_step(tmp_path):
+    """Verify the test_todo_warning_dependency_unlocks_recovery_step contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["Check hls4ml support", "Try graph rewrite"], {"task_type": "model", "name": "demo"})
     manager.mark_completed_with_warning("todo_001", {"status": "unsupported"}, {"message": "unsupported"})
@@ -46,6 +102,16 @@ def test_todo_warning_dependency_unlocks_recovery_step(tmp_path):
 
 
 def test_todo_semantic_block_does_not_auto_unblock(tmp_path):
+    """Verify the test_todo_semantic_block_does_not_auto_unblock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     todo_list = manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
     manager.mark_blocked("todo_001", "Model still has unsupported operators.")
@@ -55,6 +121,16 @@ def test_todo_semantic_block_does_not_auto_unblock(tmp_path):
 
 
 def test_todo_mark_started(tmp_path):
+    """Verify the test_todo_mark_started contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
     manager.mark_started("todo_001")
@@ -62,6 +138,16 @@ def test_todo_mark_started(tmp_path):
 
 
 def test_todo_mark_completed(tmp_path):
+    """Verify the test_todo_mark_completed contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
     manager.mark_completed("todo_001", {"status": "success"})
@@ -69,6 +155,16 @@ def test_todo_mark_completed(tmp_path):
 
 
 def test_todo_mark_skipped(tmp_path):
+    """Verify the test_todo_mark_skipped contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
     manager.mark_skipped("todo_001", "skip")
@@ -76,6 +172,16 @@ def test_todo_mark_skipped(tmp_path):
 
 
 def test_todo_trace_events(tmp_path):
+    """Verify the test_todo_trace_events contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     hooks = HookManager()
     events = []
     hooks.register("*", lambda payload: events.append(payload["event"]))
@@ -89,6 +195,16 @@ def test_todo_trace_events(tmp_path):
 
 
 def test_todo_saved_to_json(tmp_path):
+    """Verify the test_todo_saved_to_json contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = _manager(tmp_path)
     manager.create_from_plan("r1", ["A"], {"task_type": "operator", "name": "demo"})
     path = manager.save("r1")

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_main_agent.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 
 from dl_op_to_hls.main_agent.agent import MainAgent
@@ -5,42 +10,112 @@ from dl_op_to_hls.main_agent.workflow import run_task
 
 
 def test_main_agent_dense_operator_fallback_path(temp_workspace):
+    """Verify the test_main_agent_dense_operator_fallback_path contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     assert state.selected_path == "fallback_template_path"
 
 
 def test_main_agent_model_hls4ml_mock_path(temp_workspace):
+    """Verify the test_main_agent_model_hls4ml_mock_path contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "mlp_onnx_example.json"), agent=agent)
     assert state.selected_path == "hls4ml_path"
 
 
 def test_main_agent_existing_hls_project_mock_path(temp_workspace):
+    """Verify the test_main_agent_existing_hls_project_mock_path contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "existing_hls_project.json"), agent=agent)
     assert state.selected_path == "existing_hls_project_path"
 
 
 def test_main_agent_writes_summary(temp_workspace):
+    """Verify the test_main_agent_writes_summary contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     assert (temp_workspace / "runs" / state.run_id / "summary.md").exists()
 
 
 def test_main_agent_writes_suggestions(temp_workspace):
+    """Verify the test_main_agent_writes_suggestions contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     assert (temp_workspace / "runs" / state.run_id / "suggestions.md").exists()
 
 
 def test_main_agent_writes_trace(temp_workspace):
+    """Verify the test_main_agent_writes_trace contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     assert (temp_workspace / "runs" / state.run_id / "trace.jsonl").exists()
 
 
 def test_main_agent_indexes_rag(temp_workspace):
+    """Verify the test_main_agent_indexes_rag contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent)
     results = agent.rag_memory.retrieve("Dense reuse factor DSP", top_k=5)
@@ -48,6 +123,17 @@ def test_main_agent_indexes_rag(temp_workspace):
 
 
 def test_main_agent_allows_only_configured_external_runs_root(temp_workspace, monkeypatch):
+    """Verify the test_main_agent_allows_only_configured_external_runs_root contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     external_runs = temp_workspace.parent / "short_execution_root"
     monkeypatch.setenv("DL_OP_TO_HLS_RUNS_ROOT", str(external_runs))
     monkeypatch.setenv("DL_OP_TO_HLS_DB_PATH", str(external_runs / "metadata.db"))
@@ -64,6 +150,17 @@ def test_main_agent_allows_only_configured_external_runs_root(temp_workspace, mo
 
 
 def test_main_agent_can_pin_explicit_llm_runtime_config_over_stale_release(temp_workspace, monkeypatch):
+    """Verify the test_main_agent_can_pin_explicit_llm_runtime_config_over_stale_release contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_MODEL", "DeepSeek-V4-Pro")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_BASE_URL", "https://llmapi.paratera.com")
     monkeypatch.setenv("DL_OP_TO_HLS_PIN_LLM_RUNTIME_CONFIG", "1")

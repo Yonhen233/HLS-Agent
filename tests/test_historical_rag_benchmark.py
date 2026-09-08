@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_historical_rag_benchmark.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +12,21 @@ from dl_op_to_hls.benchmarks.historical_rag_benchmark import _timed_evaluation, 
 
 
 def _write_run(root: Path, run_id: str, family: str, objective: str, *, real: bool = True, verified: bool = True) -> Path:
+    """Verify the _write_run contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+        run_id: Value supplied by the caller and validated by the surrounding schema.
+        family: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+        real: Value supplied by the caller and validated by the surrounding schema.
+        verified: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = root / "runs" / run_id
     run_dir.mkdir(parents=True)
     advice = run_dir / "parameter_advice.json"
@@ -40,6 +60,16 @@ def _write_run(root: Path, run_id: str, family: str, objective: str, *, real: bo
 
 
 def test_historical_rag_cases_are_evidence_gated_and_leave_one_out(tmp_path: Path) -> None:
+    """Verify the test_historical_rag_cases_are_evidence_gated_and_leave_one_out contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     first = _write_run(tmp_path, "dense_a", "Dense", "resource")
     second = _write_run(tmp_path, "dense_b", "Dense", "resource")
     mock = _write_run(tmp_path, "dense_mock", "Dense", "resource", real=False)
@@ -63,6 +93,13 @@ def test_historical_rag_cases_are_evidence_gated_and_leave_one_out(tmp_path: Pat
 
 
 def test_historical_evaluation_excludes_anchor_and_deduplicates_sources() -> None:
+    """Verify the test_historical_evaluation_excludes_anchor_and_deduplicates_sources contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = [
         {
             "case_id": "history:a",

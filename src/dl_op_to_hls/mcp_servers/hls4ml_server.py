@@ -1,3 +1,8 @@
+"""mcp_servers layer implementation for hls4ml_server.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from ..core.tool_registry import ToolRegistry, ToolSpec
@@ -5,6 +10,17 @@ from ..schemas.tool_schema import simple_schema
 
 
 def register_hls4ml_tools(registry: ToolRegistry, adapter) -> None:
+    """Execute register_hls4ml_tools at the hls4ml_server boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        registry: Value supplied by the caller and validated by the surrounding schema.
+        adapter: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry.register(
         ToolSpec(
             name="hls4ml.inspect_model",
@@ -68,6 +84,16 @@ def register_hls4ml_tools(registry: ToolRegistry, adapter) -> None:
 
 
 def build_hls4ml_registry(adapter) -> ToolRegistry:
+    """Execute build_hls4ml_registry at the hls4ml_server boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        adapter: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     register_hls4ml_tools(registry, adapter)
     return registry

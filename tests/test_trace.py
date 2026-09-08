@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_trace.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.core.hooks import HookManager
@@ -5,6 +10,16 @@ from dl_op_to_hls.core.trace import DecisionTraceHook, TraceHook, TraceReader, T
 
 
 def test_trace_jsonl_written(tmp_path):
+    """Verify the test_trace_jsonl_written contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     writer = TraceWriter(tmp_path / "trace.jsonl", "run_1")
     writer.append("RunStarted", {"status": "ok"})
     lines = (tmp_path / "trace.jsonl").read_text(encoding="utf-8").strip().splitlines()
@@ -14,6 +29,16 @@ def test_trace_jsonl_written(tmp_path):
 
 
 def test_trace_envelope_fields_cannot_be_overridden_by_payload(tmp_path):
+    """Verify the test_trace_envelope_fields_cannot_be_overridden_by_payload contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     writer = TraceWriter(tmp_path / "trace.jsonl", "trusted_run")
     writer.append(
         "DecisionRecorded",
@@ -27,6 +52,16 @@ def test_trace_envelope_fields_cannot_be_overridden_by_payload(tmp_path):
 
 
 def test_decision_ledger_is_stored_in_single_trace_file(tmp_path):
+    """Verify the test_decision_ledger_is_stored_in_single_trace_file contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     trace_path = tmp_path / "trace.jsonl"
     writer = TraceWriter(trace_path, "run_1")
     hooks = HookManager()
@@ -56,6 +91,16 @@ def test_decision_ledger_is_stored_in_single_trace_file(tmp_path):
 
 
 def test_trace_reader_returns_bounded_sanitized_latest_memory_context(tmp_path):
+    """Verify the test_trace_reader_returns_bounded_sanitized_latest_memory_context contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     trace_path = tmp_path / "trace.jsonl"
     writer = TraceWriter(trace_path, "run_1")
     for index in range(6):

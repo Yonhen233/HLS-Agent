@@ -1,3 +1,8 @@
+"""llm layer implementation for prompts.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -173,6 +178,13 @@ def resolve_prompt(context: dict | None, name: str) -> str:
 
 
 def prompt_fingerprints() -> dict[str, str]:
+    """Execute prompt_fingerprints at the prompts boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         name: hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
         for name, text in PROMPT_DEFAULTS.items()

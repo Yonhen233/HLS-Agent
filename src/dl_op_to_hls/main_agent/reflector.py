@@ -1,9 +1,24 @@
+"""main_agent layer implementation for reflector.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from ..core.errors import unresolved_errors
 
 
 def reflect_on_errors(state) -> None:
+    """Execute reflect_on_errors at the reflector boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if state.status == "interrupted":
         return
     if unresolved_errors(state.errors) and state.status not in {"partial_success", "failed"}:
@@ -11,11 +26,31 @@ def reflect_on_errors(state) -> None:
 
 
 def _is_superseded_cancellation(item) -> bool:
+    """Implement the internal _is_superseded_cancellation helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        item: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     message = ((item.error or {}).get("message") or "").lower()
     return "repair" in message or "repaired" in message or "replace the previous" in message
 
 
 def update_status_from_todos(state) -> None:
+    """Execute update_status_from_todos at the reflector boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if state.status == "interrupted":
         return
     statuses = {item.status for item in state.todos}

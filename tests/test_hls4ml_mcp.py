@@ -1,27 +1,63 @@
+"""Test contracts and regression checks for test_hls4ml_mcp.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import pytest
 
 from dl_op_to_hls.adapters.hls4ml_adapter import HLS4MLAdapter
 
 
 def test_hls4ml_inspect_model_mock():
+    """Verify the test_hls4ml_inspect_model_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     result = adapter.inspect_model("models/mlp.onnx", "onnx")
     assert result["status"] == "success"
 
 
 def test_hls4ml_check_support_supported_mock():
+    """Verify the test_hls4ml_check_support_supported_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     result = adapter.check_support({"task_type": "model", "model_path": "models/mlp.onnx"})
     assert result["status"] == "supported"
 
 
 def test_hls4ml_check_support_unsupported_mock():
+    """Verify the test_hls4ml_check_support_unsupported_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     result = adapter.check_support({"task_type": "model", "model_path": "models/unsupported.onnx"})
     assert result["status"] == "unsupported"
 
 
 def test_hls4ml_generate_config_mock(tmp_path):
+    """Verify the test_hls4ml_generate_config_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     result = adapter.generate_config(
         {
@@ -42,6 +78,13 @@ def test_hls4ml_generate_config_mock(tmp_path):
 
 
 def test_hls4ml_accumulator_precision_extension_keeps_default_precision():
+    """Verify the test_hls4ml_accumulator_precision_extension_keeps_default_precision contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     payload = {"hls_config": {"Model": {"Precision": "fixed<24,8>"}}}
 
@@ -54,6 +97,16 @@ def test_hls4ml_accumulator_precision_extension_keeps_default_precision():
 
 
 def test_hls4ml_layer_list_uses_dedicated_global_average_pooling(tmp_path):
+    """Verify the test_hls4ml_layer_list_uses_dedicated_global_average_pooling contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -77,6 +130,16 @@ def test_hls4ml_layer_list_uses_dedicated_global_average_pooling(tmp_path):
 
 
 def test_hls4ml_layer_list_maps_spatial_reduce_mean_to_global_pooling(tmp_path):
+    """Verify the test_hls4ml_layer_list_maps_spatial_reduce_mean_to_global_pooling contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -99,6 +162,16 @@ def test_hls4ml_layer_list_maps_spatial_reduce_mean_to_global_pooling(tmp_path):
 
 
 def test_hls4ml_backend_override_mock_config(tmp_path):
+    """Verify the test_hls4ml_backend_override_mock_config contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True, backend_override="Vitis")
     result = adapter.generate_config(
         {
@@ -118,6 +191,16 @@ def test_hls4ml_backend_override_mock_config(tmp_path):
 
 
 def test_hls4ml_convert_mock(tmp_path):
+    """Verify the test_hls4ml_convert_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = HLS4MLAdapter(mock_mode=True)
     result = adapter.convert({"model_path": "models/mlp.onnx", "output_dir": str(tmp_path)})
     assert result["status"] == "success"
@@ -125,6 +208,17 @@ def test_hls4ml_convert_mock(tmp_path):
 
 
 def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch):
+    """Verify the test_hls4ml_real_onnx_layer_list_adapter_supports_gemm contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -172,6 +266,16 @@ def test_hls4ml_real_onnx_layer_list_adapter_supports_gemm(tmp_path, monkeypatch
 
 
 def test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern(tmp_path):
+    """Verify the test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -199,6 +303,13 @@ def test_hls4ml_layer_list_adapter_supports_matmul_add_dense_pattern(tmp_path):
 
 
 def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
+    """Verify the test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -232,6 +343,13 @@ def test_hls4ml_layer_list_adapter_folds_batchnorm_after_conv():
 
 
 def test_hls4ml_layer_list_adapter_rewrites_onnx18_spatial_reduce_mean():
+    """Verify the test_hls4ml_layer_list_adapter_rewrites_onnx18_spatial_reduce_mean contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -269,6 +387,13 @@ def test_hls4ml_layer_list_adapter_rewrites_onnx18_spatial_reduce_mean():
 
 
 def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():
+    """Verify the test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -306,6 +431,13 @@ def test_hls4ml_layer_list_adapter_supports_static_shape_helpers_for_reshape():
 
 
 def test_hls4ml_layer_list_adapter_rejects_branching_dataflow():
+    """Verify the test_hls4ml_layer_list_adapter_rejects_branching_dataflow contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     onnx = pytest.importorskip("onnx")
     numpy = pytest.importorskip("numpy")
     from onnx import TensorProto, helper, numpy_helper
@@ -326,6 +458,16 @@ def test_hls4ml_layer_list_adapter_rejects_branching_dataflow():
 
 
 def test_hls4ml_run_csim_real_mode_does_not_mock_success(tmp_path):
+    """Verify the test_hls4ml_run_csim_real_mode_does_not_mock_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "hls_project"
     project_dir.mkdir()
     adapter = HLS4MLAdapter(mock_mode=False)
@@ -336,6 +478,17 @@ def test_hls4ml_run_csim_real_mode_does_not_mock_success(tmp_path):
 
 
 def test_hls4ml_qkeras_h5_frontend_is_structured_unsupported(tmp_path, monkeypatch):
+    """Verify the test_hls4ml_qkeras_h5_frontend_is_structured_unsupported contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     model = tmp_path / "mnist_qkeras_cnn.h5"
     model.write_bytes(b"placeholder h5")
     adapter = HLS4MLAdapter(mock_mode=False)
@@ -353,6 +506,17 @@ def test_hls4ml_qkeras_h5_frontend_is_structured_unsupported(tmp_path, monkeypat
 
 
 def test_hls4ml_qkeras_h5_convert_does_not_parse_as_onnx(tmp_path, monkeypatch):
+    """Verify the test_hls4ml_qkeras_h5_convert_does_not_parse_as_onnx contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     model = tmp_path / "mnist_qkeras_cnn.h5"
     model.write_bytes(b"placeholder h5")
     adapter = HLS4MLAdapter(mock_mode=False)

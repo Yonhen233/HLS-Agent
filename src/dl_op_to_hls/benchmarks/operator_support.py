@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_support.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -46,6 +51,17 @@ DECLARED_SUPPORT: dict[str, dict[str, Any]] = {
 
 
 def build_support_matrix(functional_cases: list[dict[str, Any]], runs_root: str | Path) -> dict[str, Any]:
+    """Execute build_support_matrix at the operator_support boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        functional_cases: Value supplied by the caller and validated by the surrounding schema.
+        runs_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     by_operator: dict[str, list[dict[str, Any]]] = {}
     for case in functional_cases:
         by_operator.setdefault(str(case["operator"]), []).append(case)
@@ -79,6 +95,16 @@ def build_support_matrix(functional_cases: list[dict[str, Any]], runs_root: str 
 
 
 def render_support_matrix_markdown(matrix: dict[str, Any]) -> str:
+    """Execute render_support_matrix_markdown at the operator_support boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        matrix: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lines = [
         "# Operator Support Matrix",
         "",
@@ -107,6 +133,16 @@ def render_support_matrix_markdown(matrix: dict[str, Any]) -> str:
 
 
 def _audit_runs(runs_root: Path) -> dict[str, dict[str, Any]]:
+    """Implement the internal _audit_runs helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        runs_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     summary: dict[str, dict[str, Any]] = {}
     if not runs_root.exists():
         return summary
@@ -160,6 +196,16 @@ def _audit_runs(runs_root: Path) -> dict[str, dict[str, Any]]:
 
 
 def _receipt_has_real_golden_csim(receipt: dict[str, Any]) -> bool:
+    """Implement the internal _receipt_has_real_golden_csim helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        receipt: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if receipt.get("mock_evidence") or receipt.get("status") not in {"success", "verified", "csim_passed"}:
         return False
     if str(receipt.get("evidence_class")) not in {"real_csim", "real_csynth"}:
@@ -173,6 +219,16 @@ def _receipt_has_real_golden_csim(receipt: dict[str, Any]) -> bool:
 
 
 def _read_json(path: Path) -> Any:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not path.exists():
         return None
     try:
@@ -182,6 +238,16 @@ def _read_json(path: Path) -> Any:
 
 
 def _unique(values: list[Any]) -> list[Any]:
+    """Implement the internal _unique helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     seen: set[str] = set()
     output: list[Any] = []
     for value in values:

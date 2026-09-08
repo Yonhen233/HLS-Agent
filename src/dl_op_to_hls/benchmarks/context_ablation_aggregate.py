@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for context_ablation_aggregate.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -14,15 +19,47 @@ from .context_ablation import MODES, _aggregate, _bootstrap_mean, _bootstrap_med
 
 
 def _load(path: Path) -> dict[str, Any]:
+    """Implement the internal _load helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _write(path: Path, payload: Any) -> None:
+    """Implement the internal _write helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 
 def _percentile(values: list[float], percentile: float) -> float | None:
+    """Implement the internal _percentile helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        percentile: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values:
         return None
     ordered = sorted(values)
@@ -34,6 +71,16 @@ def _percentile(values: list[float], percentile: float) -> float | None:
 
 
 def _distribution(values: list[float]) -> dict[str, Any]:
+    """Implement the internal _distribution helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "n": len(values),
         "mean": statistics.mean(values) if values else None,
@@ -43,6 +90,18 @@ def _distribution(values: list[float]) -> dict[str, Any]:
 
 
 def _wilson(successes: int, total: int, z: float = 1.959963984540054) -> list[float | None]:
+    """Implement the internal _wilson helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        successes: Value supplied by the caller and validated by the surrounding schema.
+        total: Value supplied by the caller and validated by the surrounding schema.
+        z: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if total <= 0:
         return [None, None]
     rate = successes / total
@@ -53,6 +112,17 @@ def _wilson(successes: int, total: int, z: float = 1.959963984540054) -> list[fl
 
 
 def _get(record: dict[str, Any], *path: str, default: float = 0.0) -> float:
+    """Implement the internal _get helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        record: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     value: Any = record
     for key in path:
         if not isinstance(value, dict):
@@ -65,6 +135,16 @@ def _get(record: dict[str, Any], *path: str, default: float = 0.0) -> float:
 
 
 def extended_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Execute extended_aggregate at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        records: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result: dict[str, Any] = {}
     for mode in MODES:
         items = [
@@ -159,10 +239,30 @@ def extended_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _trace_signature(event: dict[str, Any]) -> tuple[Any, ...]:
+    """Implement the internal _trace_signature helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        event: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return tuple(event.get(key) for key in ("event", "tool", "specialist", "status", "error_type", "decision"))
 
 
 def _read_trace(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Implement the internal _read_trace helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        record: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path = Path(str(record.get("run_dir") or "")) / "trace.jsonl"
     if not path.is_file():
         return []
@@ -176,6 +276,17 @@ def _read_trace(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _first_divergence(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] | None:
+    """Implement the internal _first_divergence helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        left: Value supplied by the caller and validated by the surrounding schema.
+        right: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     left_trace = _read_trace(left)
     right_trace = _read_trace(right)
     for index, (left_event, right_event) in enumerate(zip(left_trace, right_trace)):
@@ -191,6 +302,16 @@ def _first_divergence(left: dict[str, Any], right: dict[str, Any]) -> dict[str, 
 
 
 def _attribution(items: list[dict[str, Any]]) -> str:
+    """Implement the internal _attribution helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        items: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if any(item.get("context_overflow") for item in items):
         return "完整上下文过长或上下文预算耗尽"
     if any(int(item.get("llm_format_errors") or 0) for item in items):
@@ -210,6 +331,16 @@ def _attribution(items: list[dict[str, Any]]) -> str:
 
 
 def divergence_analysis(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Execute divergence_analysis at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        records: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     grouped: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
     for item in records:
         grouped[(str(item["case_id"]), int(item["trial_index"]))].append(item)
@@ -247,6 +378,16 @@ def divergence_analysis(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _paired_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Implement the internal _paired_records helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        records: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     paired = []
     for item in records:
         copy = dict(item)
@@ -257,18 +398,49 @@ def _paired_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _relative_change(left: float | None, right: float | None) -> float | None:
+    """Implement the internal _relative_change helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        left: Value supplied by the caller and validated by the surrounding schema.
+        right: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if left in (None, 0) or right is None:
         return None
     return (right - left) / left
 
 
 def _enrich_comparison(comparison: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _enrich_comparison helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        comparison: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for metric in comparison["continuous"].values():
         metric["relative_median_change"] = _relative_change(metric.get("left_median"), metric.get("right_median"))
     return comparison
 
 
 def aggregate_sources(source_dirs: list[Path]) -> dict[str, Any]:
+    """Execute aggregate_sources at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        source_dirs: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     all_records: list[dict[str, Any]] = []
     source_metadata = []
     for trial, directory in enumerate(source_dirs):
@@ -331,6 +503,17 @@ def aggregate_sources(source_dirs: list[Path]) -> dict[str, Any]:
 
 
 def _fmt(value: Any, digits: int = 3) -> str:
+    """Implement the internal _fmt helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        digits: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if value is None:
         return "n/a"
     if isinstance(value, float):
@@ -339,6 +522,17 @@ def _fmt(value: Any, digits: int = 3) -> str:
 
 
 def _write_report(output_dir: Path, results: dict[str, Any]) -> None:
+    """Implement the internal _write_report helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+        results: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lines = [
         "# Context Ablation Final Report",
         "",
@@ -399,6 +593,17 @@ def _write_report(output_dir: Path, results: dict[str, Any]) -> None:
 
 
 def _write_conclusion(output_dir: Path, results: dict[str, Any]) -> None:
+    """Implement the internal _write_conclusion helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+        results: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     initial_a = results["initial_aggregate"]["A"]
     initial_c = results["initial_aggregate"]["C"]
     reduction = 1 - initial_c["api_total_tokens"]["p50"] / initial_a["api_total_tokens"]["p50"]
@@ -419,6 +624,16 @@ def _write_conclusion(output_dir: Path, results: dict[str, Any]) -> None:
 
 
 def run_aggregate(args: argparse.Namespace) -> dict[str, Any]:
+    """Execute run_aggregate at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        args: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     source_dirs = [Path(item).resolve() for item in args.source_dir]
     output_dir = Path(args.output_dir).resolve()
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -443,6 +658,13 @@ def run_aggregate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Aggregate initial and repeated context-ablation runs.")
     parser.add_argument("--source-dir", action="append", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -451,6 +673,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    """Execute main at the context_ablation_aggregate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = run_aggregate(build_parser().parse_args(list(argv) if argv is not None else None))
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0

@@ -1,3 +1,8 @@
+"""adapters layer implementation for vivado_hls_adapter.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -35,6 +40,10 @@ MOCK_REPORT_BY_TOP = {
 
 
 class VivadoHLSAdapter:
+    """Coordinate VivadoHLSAdapter within the vivado_hls_adapter boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(
         self,
         mock_mode: bool = True,
@@ -42,12 +51,35 @@ class VivadoHLSAdapter:
         hls_toolchain: str = "vivado_hls",
         vitis_hls_path: str | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            mock_mode: Value supplied by the caller and validated by the surrounding schema.
+            vivado_hls_path: Value supplied by the caller and validated by the surrounding schema.
+            hls_toolchain: Value supplied by the caller and validated by the surrounding schema.
+            vitis_hls_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.mock_mode = mock_mode
         self.vivado_hls_path = self._resolve_vivado_executable(vivado_hls_path)
         self.hls_toolchain = self._normalize_toolchain(hls_toolchain)
         self.vitis_hls_path = vitis_hls_path
 
     def _bridge(self, work_dir: str) -> SeniorVivadoBridge:
+        """Implement the internal _bridge helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            work_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return SeniorVivadoBridge(self.vivado_hls_path, work_dir)
 
     @staticmethod
@@ -76,6 +108,16 @@ class VivadoHLSAdapter:
         return errors
 
     def _normalize_toolchain(self, value: str | None) -> str:
+        """Implement the internal _normalize_toolchain helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = str(value or "vivado_hls").strip().lower().replace("-", "_")
         if text in {"vivado", "vivado_hls", "legacy_vivado"}:
             return "vivado_hls"
@@ -84,6 +126,16 @@ class VivadoHLSAdapter:
         return "vivado_hls"
 
     def _resolve_vivado_executable(self, configured_path: str | None = None) -> str | None:
+        """Implement the internal _resolve_vivado_executable helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            configured_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates: list[Path] = []
         if configured_path:
             configured = Path(configured_path)
@@ -111,6 +163,13 @@ class VivadoHLSAdapter:
         return shutil.which("vivado_hls") or shutil.which("vivado_hls.bat")
 
     def _resolve_vitis_executable(self) -> str | None:
+        """Implement the internal _resolve_vitis_executable helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates: list[Path] = []
         if self.vitis_hls_path:
             configured = Path(self.vitis_hls_path)
@@ -142,23 +201,60 @@ class VivadoHLSAdapter:
         return resolved
 
     def _command_label(self) -> str:
+        """Implement the internal _command_label helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.hls_toolchain == "vitis_hls":
             executable = self._resolve_vitis_executable()
             return Path(executable).name if executable else "vitis_hls/vitis-run"
         return "vivado_hls"
 
     def _vitis_command(self, executable: str, tcl_path: str) -> list[str]:
+        """Implement the internal _vitis_command helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            executable: Value supplied by the caller and validated by the surrounding schema.
+            tcl_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         exe_name = Path(executable).name.lower()
         if "vitis-run" in exe_name:
             return [executable, "--mode", "hls", "--tcl", "--input_file", Path(tcl_path).name]
         return [executable, "-f", Path(tcl_path).name]
 
     def _binary_available(self) -> bool:
+        """Implement the internal _binary_available helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.hls_toolchain == "vitis_hls":
             return self._resolve_vitis_executable() is not None
         return self._resolve_vivado_executable(self.vivado_hls_path) is not None
 
     def _run_vitis_with_existing_tcl(self, tcl_path: str, work_dir: Path, timeout_seconds: int | None = None) -> dict[str, Any]:
+        """Implement the internal _run_vitis_with_existing_tcl helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tcl_path: Value supplied by the caller and validated by the surrounding schema.
+            work_dir: Value supplied by the caller and validated by the surrounding schema.
+            timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         executable = self._resolve_vitis_executable()
         log_path = work_dir / "csynth.log"
         if not executable:
@@ -229,6 +325,18 @@ class VivadoHLSAdapter:
         changed: list[str] = []
 
         def write_if_changed(path: Path, text: str, new_text: str) -> None:
+            """Execute write_if_changed at the vivado_hls_adapter boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                path: Value supplied by the caller and validated by the surrounding schema.
+                text: Value supplied by the caller and validated by the surrounding schema.
+                new_text: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if new_text != text:
                 path.write_text(new_text, encoding="utf-8")
                 changed.append(str(path))
@@ -314,6 +422,18 @@ class VivadoHLSAdapter:
         return changed
 
     def _copy_hls4ml_testbench(self, hls_project_dir: Path, work_dir: Path, top_function: str | None) -> Path | None:
+        """Implement the internal _copy_hls4ml_testbench helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            hls_project_dir: Value supplied by the caller and validated by the surrounding schema.
+            work_dir: Value supplied by the caller and validated by the surrounding schema.
+            top_function: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates: list[Path] = []
         if top_function:
             candidates.append(hls_project_dir / f"{top_function}_test.cpp")
@@ -333,6 +453,16 @@ class VivadoHLSAdapter:
         return destination
 
     def create_project(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute create_project at the vivado_hls_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         hls_project_dir = Path(arguments["hls_project_dir"])
         work_dir = Path(arguments["work_dir"])
         work_dir.mkdir(parents=True, exist_ok=True)
@@ -446,6 +576,16 @@ class VivadoHLSAdapter:
         }
 
     def run_csim(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute run_csim at the vivado_hls_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         work_dir = Path(arguments["work_dir"])
         log_path = work_dir / "csim.log"
         if self.mock_mode:
@@ -531,6 +671,16 @@ class VivadoHLSAdapter:
         }
 
     def run_csynth(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute run_csynth at the vivado_hls_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         work_dir = Path(arguments["work_dir"])
         top_function = arguments.get("top_function") or "myproject"
         log_path = work_dir / "csynth.log"
@@ -642,6 +792,16 @@ class VivadoHLSAdapter:
 
     @staticmethod
     def _find_host_resource_error(work_dir: Path) -> str | None:
+        """Implement the internal _find_host_resource_error helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            work_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         markers = ("not enough space", "cannot allocate memory", "out of memory")
         for path in work_dir.glob("**/autopilot.flow.log"):
             try:
@@ -653,9 +813,29 @@ class VivadoHLSAdapter:
         return None
 
     def parse_report(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute parse_report at the vivado_hls_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return parse_csynth_report_file(arguments["report_path"])
 
     def parse_log(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute parse_log at the vivado_hls_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = Path(arguments["log_path"])
         if not path.exists():
             return {"status": "success", "errors": ["Log file not found."], "warnings": [], "summary": "Log file not found."}

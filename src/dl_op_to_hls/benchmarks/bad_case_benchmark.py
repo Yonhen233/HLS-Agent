@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for bad_case_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,10 +20,35 @@ from ..rag.evidence import ClaimEvidenceVerifier, RAGEvidenceGrader
 
 
 def _record(checks: list[dict[str, Any]], name: str, passed: bool, detail: Any) -> None:
+    """Implement the internal _record helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        checks: Value supplied by the caller and validated by the surrounding schema.
+        name: Value supplied by the caller and validated by the surrounding schema.
+        passed: Value supplied by the caller and validated by the surrounding schema.
+        detail: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     checks.append({"name": name, "passed": bool(passed), "detail": detail})
 
 
 def _todo(todo_id: str, tool: str, status: str = "completed") -> TodoItem:
+    """Implement the internal _todo helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        todo_id: Value supplied by the caller and validated by the surrounding schema.
+        tool: Value supplied by the caller and validated by the surrounding schema.
+        status: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return TodoItem(
         id=todo_id,
         title=tool,
@@ -35,6 +65,17 @@ def _todo(todo_id: str, tool: str, status: str = "completed") -> TodoItem:
 
 
 def run_bad_case_benchmark(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_bad_case_benchmark at the bad_case_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     probe_dir = root / "runs" / "bad_case_probe"
     probe_dir.mkdir(parents=True, exist_ok=True)

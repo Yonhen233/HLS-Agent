@@ -1,3 +1,8 @@
+"""llm layer implementation for schemas.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -271,6 +276,18 @@ def validate_required(payload: dict[str, Any], schema: dict[str, Any]) -> None:
     """Validate the JSON-schema subset used by Agent control-plane contracts."""
 
     def validate(value: Any, node: dict[str, Any], path: str) -> None:
+        """Execute validate at the schemas boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+            node: Value supplied by the caller and validated by the surrounding schema.
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         expected = node.get("type")
         allowed_types = expected if isinstance(expected, list) else [expected] if expected else []
         type_checks = {

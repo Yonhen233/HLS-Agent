@@ -1,3 +1,8 @@
+"""skills layer implementation for skill.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,6 +11,10 @@ from typing import Any
 
 @dataclass
 class Skill:
+    """Coordinate Skill within the skill boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     description: str
     intent: str
@@ -32,6 +41,17 @@ class Skill:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], source: str = "extracted_from_legacy_workflow") -> "Skill":
+        """Execute from_dict at the skill boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            source: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return cls(
             name=str(payload["name"]),
             description=str(payload.get("description", "")),
@@ -69,6 +89,13 @@ class Skill:
         )
 
     def to_prompt_summary(self) -> dict[str, Any]:
+        """Execute to_prompt_summary at the skill boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         recommended_steps = []
         for todo in self.recommended_todos[:10]:
             tool = todo.get("assigned_tool")

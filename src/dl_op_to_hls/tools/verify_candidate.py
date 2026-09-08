@@ -1,3 +1,8 @@
+"""tools layer implementation for verify_candidate.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -21,6 +26,17 @@ Timing (ns): Target = 5.00, Estimated = 4.30
 
 
 def _use_mock_verification(arguments: dict[str, Any], context: dict[str, Any]) -> bool:
+    """Implement the internal _use_mock_verification helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     requested = arguments.get("mode") or context.get("verification_mode") or os.environ.get("DL_OP_TO_HLS_VERIFY_MODE")
     if requested:
         return str(requested).lower() in {"mock", "demo", "fixture"}
@@ -31,6 +47,16 @@ def _use_mock_verification(arguments: dict[str, Any], context: dict[str, Any]) -
 
 
 def _find_testbench(candidate_dir: Path) -> Path | None:
+    """Implement the internal _find_testbench helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     patterns = ["testbench.cpp", "*testbench*.cpp", "tb_*.cpp", "*_tb.cpp"]
     for pattern in patterns:
         for candidate in sorted(candidate_dir.glob(pattern)):
@@ -40,6 +66,18 @@ def _find_testbench(candidate_dir: Path) -> Path | None:
 
 
 def _candidate_failed(message: str, *, source: str = "verify_candidate", details: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Implement the internal _candidate_failed helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        message: Value supplied by the caller and validated by the surrounding schema.
+        source: Value supplied by the caller and validated by the surrounding schema.
+        details: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return error_result(
         build_error(
             "VerificationFailedError",
@@ -61,6 +99,20 @@ def _record_composite_phase(
     status: str,
     artifact_path: str | None = None,
 ) -> None:
+    """Implement the internal _record_composite_phase helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        context: Value supplied by the caller and validated by the surrounding schema.
+        phase: Value supplied by the caller and validated by the surrounding schema.
+        capability: Value supplied by the caller and validated by the surrounding schema.
+        status: Value supplied by the caller and validated by the surrounding schema.
+        artifact_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     hooks = context.get("hooks")
     if hooks is None:
         return
@@ -78,6 +130,17 @@ def _record_composite_phase(
 
 
 def validate_candidate_contract(candidate_dir: Path, contract: dict[str, Any] | None) -> dict[str, Any]:
+    """Execute validate_candidate_contract at the verify_candidate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+        contract: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     contract = contract or {}
     missing: list[str] = []
     for raw_path in contract.get("required_files", []):
@@ -117,6 +180,18 @@ def validate_candidate_contract(candidate_dir: Path, contract: dict[str, Any] | 
 
 
 def _mock_verify(candidate_dir: Path, report_dir: Path, context: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _mock_verify helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+        report_dir: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report_path = report_dir / f"{candidate_dir.name}_csynth.rpt"
     report_path.write_text(MOCK_REPORT, encoding="utf-8")
     artifact_manager = context.get("artifact_manager")
@@ -131,6 +206,19 @@ def _mock_verify(candidate_dir: Path, report_dir: Path, context: dict[str, Any])
 
 
 def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _real_verify helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+        report_dir: Value supplied by the caller and validated by the surrounding schema.
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not candidate_dir.exists() or not candidate_dir.is_dir():
         return _candidate_failed("Candidate directory does not exist.", details={"candidate_dir": str(candidate_dir)})
 
@@ -256,6 +344,17 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
 
 
 def verify_candidate(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute verify_candidate at the verify_candidate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     candidate_dir = Path(arguments["candidate_dir"])
     report_dir = Path(arguments["report_dir"])
     report_dir.mkdir(parents=True, exist_ok=True)

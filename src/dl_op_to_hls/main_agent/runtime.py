@@ -1,3 +1,8 @@
+"""main_agent layer implementation for runtime.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -30,10 +35,30 @@ from .todo import DONE_STATUSES, TodoItem, TodoManager
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
+    """Implement the internal _load_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
 def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _normalize_task helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     validated = load_task(task)
     if validated["task_type"] == "operator":
         return normalize_operator_task(validated)
@@ -43,7 +68,22 @@ def _normalize_task(task: dict[str, Any]) -> dict[str, Any]:
 
 
 class PlanExecuteReactRuntime:
+    """Coordinate PlanExecuteReactRuntime within the runtime boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, agent, session_id: str | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            agent: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.agent = agent
         self.session_id = session_id
         self.context: dict[str, Any] | None = None
@@ -63,6 +103,16 @@ class PlanExecuteReactRuntime:
         )
 
     def run(self, task_path: str) -> AgentState:
+        """Execute run at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state = self.initialize(task_path)
         hooks = self.context["hooks"]
         hooks.emit("RunStarted", {"run_id": state.run_id, "message": f"Starting run for {state.task.get('name')}"})
@@ -99,6 +149,16 @@ class PlanExecuteReactRuntime:
         return state
 
     def initialize(self, task_path: str) -> AgentState:
+        """Execute initialize at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         raw_task = _load_json(task_path)
         task = _normalize_task(raw_task)
         run_id = self.agent.make_run_id(task)
@@ -131,12 +191,29 @@ class PlanExecuteReactRuntime:
         return state
 
     def _record_context_modes(self) -> None:
+        """Implement the internal _record_context_modes helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = self.context_modes.to_dict()
         self.context["context_modes"] = payload
         self.context["artifact_manager"].write_json("context_modes.json", payload, "context_modes")
         self.context["hooks"].emit("ContextModesSelected", {"run_id": self.context["run_id"], **payload})
 
     def _initialize_governance(self, state: AgentState) -> None:
+        """Implement the internal _initialize_governance helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not state.goal_contract:
             state.goal_contract = self.goal_contract_builder.build(state.task)
         self.context["goal_contract"] = state.goal_contract
@@ -146,6 +223,16 @@ class PlanExecuteReactRuntime:
         state.artifacts["goal_contract"] = str(contract_path)
 
     def _update_plan_coverage(self, state: AgentState) -> dict[str, Any]:
+        """Implement the internal _update_plan_coverage helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in state.todos:
             item.requirement_ids = self.plan_coverage_validator.requirement_ids_for_tool(
                 state.goal_contract, item.assigned_tool
@@ -168,6 +255,16 @@ class PlanExecuteReactRuntime:
         return report
 
     def retrieve_initial_memory(self, state: AgentState) -> AgentState:
+        """Execute retrieve_initial_memory at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         query = f"{state.task.get('name')} {state.task.get('op_type', '')} {state.objective} reuse factor DSP Vivado HLS"
         tool_jobs = {
             "similar": lambda: self.executor.call("memory.retrieve_similar_experiences", {"query": query, "top_k": 5}),
@@ -246,6 +343,16 @@ class PlanExecuteReactRuntime:
         return state
 
     def _apply_parameter_advice(self, state: AgentState) -> None:
+        """Implement the internal _apply_parameter_advice helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         advice = state.parameter_advice or {}
         updates = advice.get("recommended_updates") or {}
         if not isinstance(updates, dict):
@@ -278,10 +385,30 @@ class PlanExecuteReactRuntime:
         }
 
     def plan(self, state: AgentState) -> AgentState:
+        """Execute plan at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state.plan = build_plan(state.task)
         return state
 
     def create_todos(self, state: AgentState) -> AgentState:
+        """Execute create_todos at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         todo_list = self.todo_manager.create_from_plan(state.run_id, state.plan, state.task)
         state.todos = todo_list.items
         self._update_plan_coverage(state)
@@ -290,6 +417,16 @@ class PlanExecuteReactRuntime:
         return state
 
     def execute_todos(self, state: AgentState) -> AgentState:
+        """Execute execute_todos at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         while self.todo_manager.has_pending_or_ready():
             if self._interrupt_if_requested(state):
                 break
@@ -329,6 +466,17 @@ class PlanExecuteReactRuntime:
 
     @staticmethod
     def _decision_snapshot(state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        """Implement the internal _decision_snapshot helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "todo_status": todo.status,
             "run_status": state.status,
@@ -345,6 +493,19 @@ class PlanExecuteReactRuntime:
         observation: dict[str, Any],
         before: dict[str, Any],
     ) -> None:
+        """Implement the internal _record_todo_decision helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+            before: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
         evidence_refs = []
         for key in ("path", "report_path", "log_path", "config_path", "hls_project_dir"):
@@ -371,6 +532,17 @@ class PlanExecuteReactRuntime:
         )
 
     def execute_todo_with_react(self, state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        """Execute execute_todo_with_react at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state.current_todo_id = todo.id
         self.todo_manager.mark_started(todo.id)
         reason = self._reason_for_todo(state, todo)
@@ -393,6 +565,18 @@ class PlanExecuteReactRuntime:
         return observation
 
     def _execute_todo_with_specialist(self, state: AgentState, todo: TodoItem, specialist) -> dict[str, Any]:
+        """Implement the internal _execute_todo_with_specialist helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            specialist: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         hooks = self.context["hooks"]
         message_bus = self.context.get("message_bus")
         delegation_message = None
@@ -507,6 +691,19 @@ class PlanExecuteReactRuntime:
         return self._apply_specialist_observation(state, todo, result)
 
     def _write_context_telemetry(self, todo_id: str, specialist_name: str, kind: str, payload: dict[str, Any]) -> None:
+        """Implement the internal _write_context_telemetry helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo_id: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+            kind: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         safe_specialist = specialist_name.replace("Specialist", "").lower() or "specialist"
         self.context["artifact_manager"].write_json(
             f"context_telemetry/{todo_id}_{safe_specialist}_{kind}.json",
@@ -515,6 +712,18 @@ class PlanExecuteReactRuntime:
         )
 
     def _apply_specialist_observation(self, state: AgentState, todo: TodoItem, result) -> dict[str, Any]:
+        """Implement the internal _apply_specialist_observation helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observation = {
             "status": self._todo_status_from_specialist(result.status),
             "action": {"specialist": result.specialist_name},
@@ -649,6 +858,16 @@ class PlanExecuteReactRuntime:
         return observation
 
     def _todo_status_from_specialist(self, status: str) -> str:
+        """Implement the internal _todo_status_from_specialist helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            status: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         mapping = {
             "success": "completed",
             "partial_success": "completed_with_warning",
@@ -659,12 +878,35 @@ class PlanExecuteReactRuntime:
         return mapping.get(status, "failed")
 
     def _first_artifact_path(self, result, artifact_type: str) -> str | None:
+        """Implement the internal _first_artifact_path helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+            artifact_type: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for artifact in result.artifacts:
             if artifact.get("type") == artifact_type:
                 return artifact.get("path")
         return None
 
     def reflect(self, state: AgentState, todo: TodoItem, observation: dict) -> AgentState:
+        """Execute reflect at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         status = observation.get("status")
         assigned_tool = todo.assigned_tool or ""
         if status == "completed":
@@ -1076,6 +1318,16 @@ class PlanExecuteReactRuntime:
         return state
 
     def finalize(self, state: AgentState) -> AgentState:
+        """Execute finalize at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not state.report:
             state.report = empty_report("missing")
         state.pipeline_status = compute_pipeline_status(state)
@@ -1191,6 +1443,16 @@ class PlanExecuteReactRuntime:
         return state
 
     def _verify_rag_claims(self, state: AgentState) -> dict[str, Any]:
+        """Implement the internal _verify_rag_claims helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         claims = [
             str(item)
             for item in state.suggestions
@@ -1220,6 +1482,16 @@ class PlanExecuteReactRuntime:
         return verification
 
     def _apply_completion_gate(self, state: AgentState) -> dict[str, Any]:
+        """Implement the internal _apply_completion_gate helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state.evidence_receipts = list(self.context.get("evidence_receipts") or [])
         evidence_path = self.context["artifact_manager"].write_json(
             "tool_evidence.json",
@@ -1248,6 +1520,17 @@ class PlanExecuteReactRuntime:
         return completion
 
     def _create_session_checkpoint(self, state: AgentState, reason: str) -> None:
+        """Implement the internal _create_session_checkpoint helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session_id = self.context.get("session_id") if self.context else None
         manager = self.context.get("session_manager") if self.context else None
         if not session_id or manager is None:
@@ -1262,6 +1545,16 @@ class PlanExecuteReactRuntime:
         )
 
     def _interrupt_if_requested(self, state: AgentState) -> bool:
+        """Implement the internal _interrupt_if_requested helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session_id = self.context.get("session_id") if self.context else None
         manager = self.context.get("session_manager") if self.context else None
         if not session_id or manager is None or not manager.pause_requested(session_id):
@@ -1284,6 +1577,16 @@ class PlanExecuteReactRuntime:
         return True
 
     def _write_memory_ready_state_snapshot(self, state: AgentState) -> Path:
+        """Implement the internal _write_memory_ready_state_snapshot helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state.todos = self.todo_manager.todo_list.items
         unfinished_non_memory_todos = [
             item
@@ -1305,6 +1608,16 @@ class PlanExecuteReactRuntime:
         return self.context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
 
     def should_stop(self, state: AgentState) -> bool:
+        """Execute should_stop at the runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if state.status == "failed":
             return True
         terminal_todos = [item for item in state.todos if item.title == "Generate unsupported report" and item.status == "completed"]
@@ -1326,6 +1639,13 @@ class PlanExecuteReactRuntime:
             return 2
 
     def _llm_candidate_repair_count(self) -> int:
+        """Implement the internal _llm_candidate_repair_count helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return sum(
             1
             for item in self.todo_manager.todo_list.items
@@ -1335,6 +1655,18 @@ class PlanExecuteReactRuntime:
         )
 
     def _is_llm_candidate_timing_not_met(self, state: AgentState, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        """Implement the internal _is_llm_candidate_timing_not_met helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if state.selected_path != "llm_candidate_path":
             return False
         if todo.assigned_tool not in {"vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"}:
@@ -1353,6 +1685,19 @@ class PlanExecuteReactRuntime:
         repair_reason: str,
         details: dict[str, Any],
     ) -> None:
+        """Implement the internal _append_llm_candidate_repair_chain helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            repair_reason: Value supplied by the caller and validated by the surrounding schema.
+            details: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         repair_count = self._llm_candidate_repair_count()
         max_attempts = self._max_candidate_repair_attempts(state)
         self._cancel_pending_tools(
@@ -1429,6 +1774,17 @@ class PlanExecuteReactRuntime:
         state.todos = self.todo_manager.todo_list.items
 
     def _is_llm_candidate_generation_failure(self, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        """Implement the internal _is_llm_candidate_generation_failure helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if todo.assigned_tool not in {"llm.generate_candidate", "llm.generate_hls_candidate"}:
             return False
         if observation.get("status") == "failed":
@@ -1437,6 +1793,17 @@ class PlanExecuteReactRuntime:
         return observed.get("status") == "failed"
 
     def _is_llm_candidate_verification_failure(self, todo: TodoItem, observation: dict[str, Any]) -> bool:
+        """Implement the internal _is_llm_candidate_verification_failure helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if todo.assigned_tool not in {"verify_candidate.run", "verify.run_csim", "verify.compare_reference"}:
             return False
         if observation.get("error_type") in {"VerificationFailedError", "VivadoSynthesisError"}:
@@ -1451,6 +1818,18 @@ class PlanExecuteReactRuntime:
         todo: TodoItem,
         observation: dict[str, Any],
     ) -> None:
+        """Implement the internal _append_llm_candidate_verification_repair_chain helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
         error = observed.get("error") or observation.get("error") or todo.error or {}
         repair_count = self._llm_candidate_repair_count()
@@ -1540,6 +1919,18 @@ class PlanExecuteReactRuntime:
         todo: TodoItem,
         observation: dict[str, Any],
     ) -> None:
+        """Implement the internal _append_llm_candidate_generation_retry helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
         error = observed.get("error") or observation.get("error") or todo.error or {}
         repair_count = self._llm_candidate_repair_count()
@@ -1602,6 +1993,17 @@ class PlanExecuteReactRuntime:
         state.todos = self.todo_manager.todo_list.items
 
     def _remove_recovered_error(self, state: AgentState, error: dict[str, Any]) -> None:
+        """Implement the internal _remove_recovered_error helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            error: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not error:
             return
         error_type = error.get("error_type")
@@ -1618,6 +2020,17 @@ class PlanExecuteReactRuntime:
         ]
 
     def _resolve_errors_after_success(self, state: AgentState, todo: TodoItem) -> None:
+        """Implement the internal _resolve_errors_after_success helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from ..core.errors import mark_errors_resolved
 
         tool_name = todo.assigned_tool or ""
@@ -1649,12 +2062,46 @@ class PlanExecuteReactRuntime:
             )
 
     def _call_tool(self, state: AgentState, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _call_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.executor.call_and_record(state, tool_name, arguments)
 
     def _reason_for_todo(self, state: AgentState, todo: TodoItem) -> str:
+        """Implement the internal _reason_for_todo helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return f"Need to execute '{todo.title}' for task {state.task.get('name')} with current path {state.selected_path or 'unselected'}."
 
     def _execute_todo_actions(self, state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        """Implement the internal _execute_todo_actions helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if todo.title == "Validate task schema" or todo.assigned_tool == "task.validate_schema":
             result = self._call_tool(state, "task.validate_schema", {"task": state.task})
             self.todo_manager.mark_completed(todo.id, result)
@@ -2049,6 +2496,18 @@ class PlanExecuteReactRuntime:
         return {"status": "skipped", "action": {"tool": None}, "observation": {"status": "skipped"}}
 
     def _decision_from_observation(self, state: AgentState, todo: TodoItem, observation: dict) -> str:
+        """Implement the internal _decision_from_observation helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         status = observation.get("status")
         if status == "completed":
             return "Mark todo as completed and continue."
@@ -2061,6 +2520,18 @@ class PlanExecuteReactRuntime:
         return "Mark todo as failed and surface the structured error."
 
     def _write_short_term_for_todo(self, state: AgentState, todo: TodoItem, observation: dict) -> None:
+        """Implement the internal _write_short_term_for_todo helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         entry = build_short_term_entry(
             todo.id,
             {
@@ -2087,6 +2558,22 @@ class PlanExecuteReactRuntime:
         inputs: dict[str, Any],
         tool_names: set[str],
     ) -> TodoItem:
+        """Implement the internal _ensure_active_todo helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            title: Value supplied by the caller and validated by the surrounding schema.
+            description: Value supplied by the caller and validated by the surrounding schema.
+            priority: Value supplied by the caller and validated by the surrounding schema.
+            assigned_tool: Value supplied by the caller and validated by the surrounding schema.
+            dependencies: Value supplied by the caller and validated by the surrounding schema.
+            inputs: Value supplied by the caller and validated by the surrounding schema.
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in self.todo_manager.todo_list.items:
             if item.assigned_tool in tool_names and item.status in {"pending", "blocked"}:
                 for dependency_id in dependencies:
@@ -2102,18 +2589,53 @@ class PlanExecuteReactRuntime:
         )
 
     def _add_dependency_to_tool(self, state: AgentState, tool_names: set[str], dependency_id: str) -> None:
+        """Implement the internal _add_dependency_to_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+            dependency_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in self.todo_manager.todo_list.items:
             if item.assigned_tool in tool_names and item.id != dependency_id and item.status in {"pending", "blocked"}:
                 self.todo_manager.add_dependency(item.id, dependency_id)
         state.todos = self.todo_manager.todo_list.items
 
     def _add_dependency_to_title(self, state: AgentState, title: str, dependency_id: str) -> None:
+        """Implement the internal _add_dependency_to_title helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            title: Value supplied by the caller and validated by the surrounding schema.
+            dependency_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in self.todo_manager.todo_list.items:
             if item.title == title and item.id != dependency_id:
                 self.todo_manager.add_dependency(item.id, dependency_id)
         state.todos = self.todo_manager.todo_list.items
 
     def _replace_dependencies(self, todo_id: str, dependency_ids: list[str]) -> None:
+        """Implement the internal _replace_dependencies helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo_id: Value supplied by the caller and validated by the surrounding schema.
+            dependency_ids: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         item = self.todo_manager._find(todo_id)
         item.dependencies = list(dict.fromkeys(dep for dep in dependency_ids if dep != todo_id))
         blocked_message = str((item.error or {}).get("message") or "")
@@ -2126,12 +2648,33 @@ class PlanExecuteReactRuntime:
         self.todo_manager.save(self.todo_manager.todo_list.run_id, self.todo_manager.todo_list)
 
     def _first_active_tool(self, tool_names: set[str]):
+        """Implement the internal _first_active_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in self.todo_manager.todo_list.items:
             if item.assigned_tool in tool_names and item.status in {"pending", "blocked"}:
                 return item
         return None
 
     def _switch_finalization_to_terminal(self, state: AgentState, terminal_id: str) -> None:
+        """Implement the internal _switch_finalization_to_terminal helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            terminal_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         suggest = self._first_active_tool({"suggestion.suggest_optimization", "suggestion.generate"})
         summary = self._first_active_tool({"summary.write_summary"})
         memory = self._first_active_tool({"memory.promote_to_long_term"})
@@ -2147,6 +2690,17 @@ class PlanExecuteReactRuntime:
         state.todos = self.todo_manager.todo_list.items
 
     def _rewire_vivado_chain_after_implementation(self, state: AgentState, implementation_todo_id: str) -> None:
+        """Implement the internal _rewire_vivado_chain_after_implementation helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            implementation_todo_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         create = self._first_active_tool({"vivado.create_project", "vivado.create_vivado_project"})
         synth = self._first_active_tool({"vivado.run_csynth"})
         parse = self._first_active_tool({"vivado.parse_report", "vivado.parse_csynth_report"})
@@ -2163,11 +2717,32 @@ class PlanExecuteReactRuntime:
         self._switch_finalization_to_terminal(state, terminal_id)
 
     def _cancel_pending_tools(self, tool_names: set[str], reason: str) -> None:
+        """Implement the internal _cancel_pending_tools helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for item in self.todo_manager.todo_list.items:
             if item.status in {"pending", "blocked"} and item.assigned_tool in tool_names:
                 self.todo_manager.mark_cancelled(item.id, reason)
 
     def _compress_outputs(self, state: AgentState) -> dict[str, Any]:
+        """Implement the internal _compress_outputs helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         compressed = {"logs": [], "reports": []}
         for item in state.tool_results:
             result = item["result"]

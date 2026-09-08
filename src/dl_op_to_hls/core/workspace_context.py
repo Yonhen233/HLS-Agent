@@ -1,3 +1,8 @@
+"""core layer implementation for workspace_context.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import ast
@@ -39,17 +44,32 @@ DEFAULT_IGNORES = {
 
 @dataclass(frozen=True)
 class SourceRange:
+    """Coordinate SourceRange within the workspace_context boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     path: str
     start_line: int
     end_line: int
 
     @property
     def citation(self) -> str:
+        """Execute citation at the workspace_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return f"{self.path}:L{self.start_line}-L{self.end_line}"
 
 
 @dataclass(frozen=True)
 class Symbol:
+    """Coordinate Symbol within the workspace_context boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     kind: str
     range: SourceRange
@@ -69,6 +89,21 @@ class WorkspaceContext:
         extensions: set[str] | None = None,
         ignored_names: set[str] | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+            index_path: Value supplied by the caller and validated by the surrounding schema.
+            max_file_bytes: Value supplied by the caller and validated by the surrounding schema.
+            extensions: Value supplied by the caller and validated by the surrounding schema.
+            ignored_names: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.workspace_root = Path(workspace_root).resolve()
         self.permission_gate = permission_gate
         self.index_path = Path(index_path or (self.workspace_root / "runs" / "workspace_index.json"))
@@ -78,6 +113,16 @@ class WorkspaceContext:
         self._manifest = self._load_manifest()
 
     def scan(self, paths: Iterable[str | Path] | None = None) -> dict[str, Any]:
+        """Execute scan at the workspace_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            paths: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         roots = list(paths or [self.workspace_root])
         previous = dict(self._manifest.get("documents", {}))
         documents: dict[str, dict[str, Any]] = {}
@@ -131,6 +176,17 @@ class WorkspaceContext:
         *,
         max_total_chars: int = 40_000,
     ) -> dict[str, Any]:
+        """Execute read_batch at the workspace_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            requests: Value supplied by the caller and validated by the surrounding schema.
+            max_total_chars: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         results: list[dict[str, Any]] = []
         remaining = max(0, int(max_total_chars))
         for request in requests:
@@ -168,6 +224,18 @@ class WorkspaceContext:
         return {"status": "success", "documents": results, "remaining_chars": remaining}
 
     def search(self, query: str, *, top_k: int = 20, context_lines: int = 2) -> dict[str, Any]:
+        """Execute search at the workspace_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            context_lines: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         terms = [item.lower() for item in re.findall(r"[A-Za-z_][A-Za-z0-9_]+|[\u4e00-\u9fff]+", query)]
         if not terms:
             return {"status": "success", "query": query, "matches": []}
@@ -201,6 +269,18 @@ class WorkspaceContext:
         return {"status": "success", "query": query, "matches": matches[: max(1, int(top_k))]}
 
     def symbol_search(self, query: str, *, top_k: int = 20, kind: str | None = None) -> dict[str, Any]:
+        """Execute symbol_search at the workspace_context boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            kind: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self._manifest.get("documents"):
             self.scan()
         needle = query.strip().lower()
@@ -218,6 +298,16 @@ class WorkspaceContext:
         return {"status": "success", "query": query, "matches": matches[: max(1, int(top_k))]}
 
     def _iter_files(self, roots: list[str | Path]):
+        """Implement the internal _iter_files helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            roots: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         seen: set[Path] = set()
         for raw in roots:
             root = self._resolve(str(raw))
@@ -237,6 +327,17 @@ class WorkspaceContext:
                 yield path.resolve()
 
     def _extract_symbols(self, path: Path, text: str) -> list[Symbol]:
+        """Implement the internal _extract_symbols helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         suffix = path.suffix.lower()
         relative = self._relative(path)
         if suffix == ".py":
@@ -273,15 +374,45 @@ class WorkspaceContext:
         return []
 
     def _check_read(self, path: Path) -> dict[str, str]:
+        """Implement the internal _check_read helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.permission_gate is None:
             return {"decision": "allow", "reason": "No permission gate configured."}
         return self.permission_gate.check_read_path(str(path))
 
     def _resolve(self, path: str) -> Path:
+        """Implement the internal _resolve helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidate = Path(path).expanduser()
         return candidate.resolve() if candidate.is_absolute() else (self.workspace_root / candidate).resolve()
 
     def _relative(self, path: Path) -> str:
+        """Implement the internal _relative helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             return path.resolve().relative_to(self.workspace_root).as_posix()
         except ValueError:
@@ -289,6 +420,16 @@ class WorkspaceContext:
 
     @staticmethod
     def _hash_file(path: Path) -> str:
+        """Implement the internal _hash_file helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         digest = hashlib.sha256()
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(65536), b""):
@@ -297,6 +438,16 @@ class WorkspaceContext:
 
     @staticmethod
     def _language(path: Path) -> str:
+        """Implement the internal _language helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             ".py": "python",
             ".c": "c",
@@ -314,6 +465,16 @@ class WorkspaceContext:
 
     @staticmethod
     def _symbol_dict(symbol: Symbol) -> dict[str, Any]:
+        """Implement the internal _symbol_dict helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            symbol: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = asdict(symbol)
         source = payload.pop("range")
         payload.update(source)
@@ -321,6 +482,13 @@ class WorkspaceContext:
         return payload
 
     def _load_manifest(self) -> dict[str, Any]:
+        """Implement the internal _load_manifest helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             payload = json.loads(self.index_path.read_text(encoding="utf-8"))
             return payload if isinstance(payload, dict) else {"documents": {}}
@@ -328,6 +496,13 @@ class WorkspaceContext:
             return {"documents": {}}
 
     def _write_manifest(self) -> None:
+        """Implement the internal _write_manifest helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.index_path.with_suffix(self.index_path.suffix + ".tmp")
         temporary.write_text(json.dumps(self._manifest, indent=2, ensure_ascii=False), encoding="utf-8")

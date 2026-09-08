@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_context_ablation.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -26,6 +31,13 @@ from dl_op_to_hls.specialists.result import SpecialistResult
 
 
 def _todo() -> TodoItem:
+    """Verify the _todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return TodoItem(
         id="todo_001",
         title="Run synthesis",
@@ -43,6 +55,13 @@ def _todo() -> TodoItem:
 
 
 def _state() -> AgentState:
+    """Verify the _state contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return AgentState(
         run_id="run_001",
         task={
@@ -60,6 +79,16 @@ def _state() -> AgentState:
 
 
 def test_context_modes_default_to_production_compressed(monkeypatch) -> None:
+    """Verify the test_context_modes_default_to_production_compressed contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.delenv("DL_OP_TO_HLS_INPUT_CONTEXT_MODE", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_RESULT_CONTEXT_MODE", raising=False)
     assert ContextModeConfig.from_env().to_dict() == {
@@ -69,6 +98,13 @@ def test_context_modes_default_to_production_compressed(monkeypatch) -> None:
 
 
 def test_full_context_contains_agent_state_and_is_not_truncated() -> None:
+    """Verify the test_full_context_contains_agent_state_and_is_not_truncated contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     builder = ContextBuilder(mode_config=ContextModeConfig("full", "raw"))
     envelope = builder.build_for_specialist(_state(), _todo(), "VivadoSpecialist")
     assert envelope.scoped_state["agent_state"]["tool_results"]
@@ -78,6 +114,13 @@ def test_full_context_contains_agent_state_and_is_not_truncated() -> None:
 
 
 def test_scoped_context_excludes_unrelated_full_state() -> None:
+    """Verify the test_scoped_context_excludes_unrelated_full_state contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     builder = ContextBuilder(mode_config=ContextModeConfig("scoped", "compressed"))
     envelope = builder.build_for_specialist(_state(), _todo(), "VivadoSpecialist")
     assert "agent_state" not in envelope.scoped_state
@@ -86,11 +129,33 @@ def test_scoped_context_excludes_unrelated_full_state() -> None:
 
 
 class _Registry:
+    """Coordinate _Registry within the test_context_ablation boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def call(self, *_args, **_kwargs):
+        """Verify the call contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {"status": "success"}
 
 
 def test_raw_result_delivers_text_artifact(monkeypatch, tmp_path: Path) -> None:
+    """Verify the test_raw_result_delivers_text_artifact contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     artifact = tmp_path / "csynth.rpt"
     artifact.write_text("LATENCY raw report", encoding="utf-8")
     monkeypatch.setenv("DL_OP_TO_HLS_RESULT_CONTEXT_MODE", "raw")
@@ -103,6 +168,17 @@ def test_raw_result_delivers_text_artifact(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_compressed_result_excludes_raw_text_artifact(monkeypatch, tmp_path: Path) -> None:
+    """Verify the test_compressed_result_excludes_raw_text_artifact contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     artifact = tmp_path / "csynth.rpt"
     artifact.write_text("LATENCY raw report", encoding="utf-8")
     monkeypatch.setenv("DL_OP_TO_HLS_RESULT_CONTEXT_MODE", "compressed")
@@ -116,22 +192,65 @@ def test_compressed_result_excludes_raw_text_artifact(monkeypatch, tmp_path: Pat
 
 
 def test_tokenizer_missing_is_hard_failure(tmp_path: Path) -> None:
+    """Verify the test_tokenizer_missing_is_hard_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(FileNotFoundError):
         DeepSeekV4Tokenizer(tmp_path / "missing")
 
 
 def test_deepseek_tokenizer_uses_real_encoder(monkeypatch, tmp_path: Path) -> None:
+    """Verify the test_deepseek_tokenizer_uses_real_encoder contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     (tmp_path / "tokenizer.json").write_text("{}", encoding="utf-8")
     (tmp_path / "tokenizer_config.json").write_text(json.dumps({"model_max_length": 1048576}), encoding="utf-8")
 
     class DummyTokenizer:
+        """Coordinate DummyTokenizer within the test_context_ablation boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         model_max_length = 1048576
 
         def encode(self, text, add_special_tokens=False):
+            """Verify the encode contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                text: Value supplied by the caller and validated by the surrounding schema.
+                add_special_tokens: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             assert add_special_tokens is False
             return text.split()
 
         def __len__(self):
+            """Verify the __len__ contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             return 100
 
     monkeypatch.setattr("transformers.AutoTokenizer.from_pretrained", lambda *_args, **_kwargs: DummyTokenizer())
@@ -140,7 +259,27 @@ def test_deepseek_tokenizer_uses_real_encoder(monkeypatch, tmp_path: Path) -> No
 
 
 def test_paired_comparison_uses_case_pairs() -> None:
+    """Verify the test_paired_comparison_uses_case_pairs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     def record(case, mode, success, tokens):
+        """Verify the record contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            case: Value supplied by the caller and validated by the surrounding schema.
+            mode: Value supplied by the caller and validated by the surrounding schema.
+            success: Value supplied by the caller and validated by the surrounding schema.
+            tokens: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "case_id": case,
             "mode": mode,
@@ -164,6 +303,13 @@ def test_paired_comparison_uses_case_pairs() -> None:
 
 
 def test_frozen_suite_separates_supported_unsupported_and_recovery_challenges() -> None:
+    """Verify the test_frozen_suite_separates_supported_unsupported_and_recovery_challenges contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     suite = json.loads(Path("benchmarks/context_ablation_suite.json").read_text(encoding="utf-8"))
     categories = {item["case_id"]: item["category"] for item in suite["cases"]}
 
@@ -174,6 +320,20 @@ def test_frozen_suite_separates_supported_unsupported_and_recovery_challenges() 
 
 
 def _aggregate_record(case: str, mode: str, completed: bool, tokens: int, run_dir: Path) -> dict:
+    """Verify the _aggregate_record contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+        mode: Value supplied by the caller and validated by the surrounding schema.
+        completed: Value supplied by the caller and validated by the surrounding schema.
+        tokens: Value supplied by the caller and validated by the surrounding schema.
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "case_id": case,
         "mode": mode,
@@ -214,6 +374,16 @@ def _aggregate_record(case: str, mode: str, completed: bool, tokens: int, run_di
 
 
 def test_extended_aggregate_reports_p50_p95_and_totals(tmp_path: Path) -> None:
+    """Verify the test_extended_aggregate_reports_p50_p95_and_totals contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     records = [
         _aggregate_record("one", "A", True, 100, tmp_path / "one_a"),
         _aggregate_record("two", "A", False, 200, tmp_path / "two_a"),
@@ -228,6 +398,16 @@ def test_extended_aggregate_reports_p50_p95_and_totals(tmp_path: Path) -> None:
 
 
 def test_aggregate_sources_preserves_repeated_trials(tmp_path: Path) -> None:
+    """Verify the test_aggregate_sources_preserves_repeated_trials contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     sources = []
     for trial in range(3):
         source = tmp_path / f"trial_{trial}"
@@ -249,12 +429,33 @@ def test_aggregate_sources_preserves_repeated_trials(tmp_path: Path) -> None:
 
 
 def _write_trace(run_dir: Path, events: list[dict]) -> list[dict]:
+    """Verify the _write_trace contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+        events: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "trace.jsonl").write_text("\n".join(json.dumps(item) for item in events) + "\n", encoding="utf-8")
     return events
 
 
 def test_csim_pass_survives_later_csynth_failure(tmp_path: Path) -> None:
+    """Verify the test_csim_pass_survives_later_csynth_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "current"
     events = _write_trace(
         run_dir,
@@ -272,6 +473,16 @@ def test_csim_pass_survives_later_csynth_failure(tmp_path: Path) -> None:
 
 
 def test_csim_failure_without_csynth(tmp_path: Path) -> None:
+    """Verify the test_csim_failure_without_csynth contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "current"
     events = _write_trace(run_dir, [{"event": "PreToolUse", "tool": "vivado.run_csim"}])
     (run_dir / "csim.log").write_text("GOLDEN_CHECK_FAILED\n", encoding="utf-8")
@@ -282,6 +493,16 @@ def test_csim_failure_without_csynth(tmp_path: Path) -> None:
 
 
 def test_current_run_csim_and_csynth_both_pass(tmp_path: Path) -> None:
+    """Verify the test_current_run_csim_and_csynth_both_pass contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "current"
     events = _write_trace(
         run_dir,
@@ -302,6 +523,16 @@ def test_current_run_csim_and_csynth_both_pass(tmp_path: Path) -> None:
 
 
 def test_golden_marker_from_old_run_is_rejected(tmp_path: Path) -> None:
+    """Verify the test_golden_marker_from_old_run_is_rejected contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     old = tmp_path / "old"
     old.mkdir()
     (old / "csim.log").write_text("GOLDEN_CHECK_PASSED\n", encoding="utf-8")
@@ -311,6 +542,16 @@ def test_golden_marker_from_old_run_is_rejected(tmp_path: Path) -> None:
 
 
 def test_csynth_success_event_without_report_is_not_completed(tmp_path: Path) -> None:
+    """Verify the test_csynth_success_event_without_report_is_not_completed contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "current"
     events = _write_trace(run_dir, [{"event": "PreToolUse", "tool": "vivado.run_csynth"}])
     result = _current_run_verification(run_dir, events)
@@ -320,6 +561,16 @@ def test_csynth_success_event_without_report_is_not_completed(tmp_path: Path) ->
 
 
 def test_csynth_timeout_is_not_completed(tmp_path: Path) -> None:
+    """Verify the test_csynth_timeout_is_not_completed contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "current"
     events = _write_trace(
         run_dir,
@@ -334,6 +585,16 @@ def test_csynth_timeout_is_not_completed(tmp_path: Path) -> None:
 
 
 def test_long_vivado_path_rejected_before_launch(tmp_path: Path) -> None:
+    """Verify the test_long_vivado_path_rejected_before_launch contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(EvaluationConfigurationError):
         validate_execution_path(tmp_path / ("nested_" * 35))
 
@@ -350,12 +611,30 @@ def test_long_vivado_path_rejected_before_launch(tmp_path: Path) -> None:
     ],
 )
 def test_external_api_failures_are_classified(message: str, failure_type: str) -> None:
+    """Verify the test_external_api_failures_are_classified contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        message: Value supplied by the caller and validated by the surrounding schema.
+        failure_type: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = classify_external_failure(message)
     assert result["external_failure"] is True
     assert result["external_failure_type"] == failure_type
 
 
 def test_benchmark_run_ids_are_unique_and_descriptive() -> None:
+    """Verify the test_benchmark_run_ids_are_unique_and_descriptive contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     left = make_benchmark_run_id("dense", "A", 0, "abc123")
     right = make_benchmark_run_id("dense", "B", 0, "def456")
     assert left == "dense_A_t0_abc123"
@@ -363,6 +642,16 @@ def test_benchmark_run_ids_are_unique_and_descriptive() -> None:
 
 
 def test_retention_scores_transport_not_final_verification(tmp_path: Path) -> None:
+    """Verify the test_retention_scores_transport_not_final_verification contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "run"
     telemetry = run_dir / "context_telemetry"
     telemetry.mkdir(parents=True)
@@ -388,6 +677,17 @@ def test_retention_scores_transport_not_final_verification(tmp_path: Path) -> No
 
 
 def _resume_fixture(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
+    """Verify the _resume_fixture contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     import dl_op_to_hls.benchmarks.context_ablation as module
 
     output_dir = tmp_path / "report"
@@ -441,6 +741,17 @@ def _resume_fixture(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
 
 
 def test_resume_accepts_only_complete_pairs_and_marks_interrupted_attempt(tmp_path: Path, monkeypatch) -> None:
+    """Verify the test_resume_accepts_only_complete_pairs_and_marks_interrupted_attempt contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
     _, records, invalid, _, completed = validate_resume_checkpoint(
         workspace=tmp_path,
@@ -461,6 +772,17 @@ def test_resume_accepts_only_complete_pairs_and_marks_interrupted_attempt(tmp_pa
 
 
 def test_resume_rejects_partial_accepted_pair(tmp_path: Path, monkeypatch) -> None:
+    """Verify the test_resume_rejects_partial_accepted_pair contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
     partial_path = output_dir / "context_ablation_results.partial.json"
     payload = json.loads(partial_path.read_text(encoding="utf-8"))
@@ -481,6 +803,17 @@ def test_resume_rejects_partial_accepted_pair(tmp_path: Path, monkeypatch) -> No
 
 
 def test_resume_rejects_changed_model_or_snapshot(tmp_path: Path, monkeypatch) -> None:
+    """Verify the test_resume_rejects_changed_model_or_snapshot contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output_dir, execution_root = _resume_fixture(tmp_path, monkeypatch)
     (output_dir / "memory_snapshot.db").write_bytes(b"mutated")
     with pytest.raises(EvaluationConfigurationError, match="model|memory_snapshot"):

@@ -1,12 +1,37 @@
+"""Test contracts and regression checks for test_report_parser.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.tools.report_parser import parse_csynth_report_file
 
 
 def test_report_parser_parses_fixture(sample_csynth_report_path):
+    """Verify the test_report_parser_parses_fixture contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        sample_csynth_report_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = parse_csynth_report_file(str(sample_csynth_report_path))
     assert result["latency"]["min_cycles"] == 45
 
 
 def test_report_parser_parses_vitis_timing_with_ns_units(tmp_path):
+    """Verify the test_report_parser_parses_vitis_timing_with_ns_units contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = tmp_path / "myproject_csynth.rpt"
     report.write_text(
         "\n".join(
@@ -36,6 +61,16 @@ def test_report_parser_parses_vitis_timing_with_ns_units(tmp_path):
 
 
 def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
+    """Verify the test_report_parser_prefers_vivado_latency_summary_interval contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = tmp_path / "myproject_csynth.rpt"
     report.write_text(
         "\n".join(
@@ -68,6 +103,16 @@ def test_report_parser_prefers_vivado_latency_summary_interval(tmp_path):
 
 
 def test_report_parser_marks_resource_infeasible(tmp_path):
+    """Verify the test_report_parser_marks_resource_infeasible contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = tmp_path / "too_large_csynth.rpt"
     report.write_text(
         "\n".join(
@@ -94,6 +139,16 @@ def test_report_parser_marks_resource_infeasible(tmp_path):
 
 
 def test_report_parser_rejects_missing_timing_section(tmp_path):
+    """Verify the test_report_parser_rejects_missing_timing_section contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = tmp_path / "missing_timing_csynth.rpt"
     report.write_text(
         "\n".join(

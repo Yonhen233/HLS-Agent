@@ -1,3 +1,8 @@
+"""tools layer implementation for graph_rewrite.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,6 +12,17 @@ from ..core.errors import build_error, error_result
 
 
 def _resolve_model_path(model_path: str, context: dict[str, Any]) -> Path:
+    """Implement the internal _resolve_model_path helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        model_path: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path = Path(model_path)
     if path.is_absolute():
         return path.resolve()
@@ -20,6 +36,17 @@ def _resolve_model_path(model_path: str, context: dict[str, Any]) -> Path:
 
 
 def _rewrite_gemm_to_matmul_add(model_path: Path, context: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _rewrite_gemm_to_matmul_add helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        model_path: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         import onnx  # type: ignore
         from onnx import TensorProto, helper, numpy_helper  # type: ignore
@@ -168,6 +195,17 @@ def _rewrite_gemm_to_matmul_add(model_path: Path, context: dict[str, Any]) -> di
 
 
 def rewrite_graph(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute rewrite_graph at the graph_rewrite boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = arguments.get("task", {})
     op_type = task.get("op_type") or task.get("name") or "unknown"
     rewrites = []

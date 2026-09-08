@@ -1,9 +1,21 @@
+"""Test contracts and regression checks for test_llm_reflection_guard.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.llm.guards import LLMGuard
 from dl_op_to_hls.main_agent.agent import MainAgent
 from dl_op_to_hls.main_agent.llm_runtime import LLMFirstRuntime
 
 
 def test_llm_reflector_adds_valid_todo():
+    """Verify the test_llm_reflector_adds_valid_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     reflection = {
         "reason_summary": "vivado missing",
         "decision": "mark_skipped_and_continue",
@@ -17,6 +29,16 @@ def test_llm_reflector_adds_valid_todo():
 
 
 def test_llm_reflection_rejects_unknown_tool_and_specialist(temp_workspace):
+    """Verify the test_llm_reflection_rejects_unknown_tool_and_specialist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = LLMFirstRuntime(agent)
     runtime.context = agent.create_run_context("reflection_guard")
@@ -36,6 +58,16 @@ def test_llm_reflection_rejects_unknown_tool_and_specialist(temp_workspace):
 
 
 def test_llm_reflection_rejects_specialist_tool_mismatch(temp_workspace):
+    """Verify the test_llm_reflection_rejects_specialist_tool_mismatch contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = LLMFirstRuntime(agent)
     runtime.context = agent.create_run_context("reflection_mismatch_guard")
@@ -54,6 +86,17 @@ def test_llm_reflection_rejects_specialist_tool_mismatch(temp_workspace):
 
 
 def test_contained_invalid_reflection_todo_does_not_pollute_run_errors(temp_workspace, monkeypatch):
+    """Verify the test_contained_invalid_reflection_todo_does_not_pollute_run_errors contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = LLMFirstRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))

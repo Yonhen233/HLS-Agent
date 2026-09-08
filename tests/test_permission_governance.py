@@ -1,8 +1,20 @@
+"""Test contracts and regression checks for test_permission_governance.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.core.permissions import PermissionGate
 from dl_op_to_hls.core.tool_registry import ToolSpec
 
 
 def _config():
+    """Verify the _config contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "filesystem": {"allowed_read_dirs": ["."], "allowed_write_dirs": ["./runs"], "denied_dirs": []},
         "commands": {"allow": ["pytest"], "ask": ["python"], "deny": ["curl"]},
@@ -17,10 +29,30 @@ def _config():
 
 
 def _tool(schema, **kwargs):
+    """Verify the _tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        schema: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return ToolSpec("test.tool", "test", schema, {"type": "object"}, "read", lambda **_: {}, **kwargs)
 
 
 def test_nested_schema_annotations_and_network_allowlist(tmp_path):
+    """Verify the test_nested_schema_annotations_and_network_allowlist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     gate = PermissionGate(_config(), tmp_path)
     schema = {
         "type": "object",
@@ -44,6 +76,16 @@ def test_nested_schema_annotations_and_network_allowlist(tmp_path):
 
 
 def test_principal_capabilities_and_risk_approval(tmp_path):
+    """Verify the test_principal_capabilities_and_risk_approval contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     gate = PermissionGate(_config(), tmp_path)
     spec = _tool({"type": "object"}, required_capabilities=["workspace.read"])
     assert gate.check_tool("test.tool", {}, tool_spec=spec, principal={"capabilities": ["memory.read"]})["decision"] == "deny"

@@ -1,3 +1,8 @@
+"""skills layer implementation for policy.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -7,7 +12,23 @@ from .schema import SkillValidator
 
 
 class SkillPolicy:
+    """Coordinate SkillPolicy within the policy boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def validate_skill(self, skill: Skill, tool_registry, specialist_router) -> dict[str, Any]:
+        """Execute validate_skill at the policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skill: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            specialist_router: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         validator = SkillValidator()
         runtime_report = validator.validate_runtime(
             skill,
@@ -25,6 +46,18 @@ class SkillPolicy:
         selected_skill: Skill | None,
         task: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute validate_llm_plan_against_skill at the policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            plan: Value supplied by the caller and validated by the surrounding schema.
+            selected_skill: Value supplied by the caller and validated by the surrounding schema.
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         todos = plan.get("todos", [])
         if not isinstance(todos, list) or not todos:
@@ -74,12 +107,33 @@ class SkillPolicy:
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
     def _task_has_report_metrics(self, task: dict[str, Any]) -> bool:
+        """Implement the internal _task_has_report_metrics helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report = task.get("report")
         if isinstance(report, dict) and report.get("status") == "success":
             return True
         return bool(task.get("report_path") or task.get("csynth_report_path") or task.get("synthesis_report_path"))
 
     def validate_skill_modification(self, modification: dict[str, Any], selected_skill: Skill) -> dict[str, Any]:
+        """Execute validate_skill_modification at the policy boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            modification: Value supplied by the caller and validated by the surrounding schema.
+            selected_skill: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         requested_tools = modification.get("add_tools", [])
         if requested_tools and not isinstance(requested_tools, list):

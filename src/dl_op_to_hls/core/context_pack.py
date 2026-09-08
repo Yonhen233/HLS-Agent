@@ -1,3 +1,8 @@
+"""core layer implementation for context_pack.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -10,6 +15,10 @@ from .trace import stable_hash
 
 @dataclass
 class ContextBlock:
+    """Coordinate ContextBlock within the context_pack boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     category: str
     content: Any
     priority: int = 50
@@ -18,17 +27,38 @@ class ContextBlock:
     block_id: str = ""
 
     def __post_init__(self) -> None:
+        """Implement the internal __post_init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.block_id:
             self.block_id = stable_hash({"category": self.category, "content": self.content})[:16]
 
 
 @dataclass
 class ContextPack:
+    """Coordinate ContextPack within the context_pack boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     blocks: list[ContextBlock] = field(default_factory=list)
     token_budget: int = 4000
     query: str = ""
 
     def compile(self, manager: TokenBudgetManager | None = None) -> dict[str, Any]:
+        """Execute compile at the context_pack boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            manager: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         manager = manager or TokenBudgetManager()
         selected: list[dict[str, Any]] = []
         dropped: list[dict[str, Any]] = []
@@ -73,6 +103,18 @@ class ContextPack:
         }
 
     def _extract(self, value: Any, max_tokens: int, manager: TokenBudgetManager) -> Any:
+        """Implement the internal _extract helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+            max_tokens: Value supplied by the caller and validated by the surrounding schema.
+            manager: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if max_tokens <= 0:
             return None
         if isinstance(value, str):

@@ -1,3 +1,8 @@
+"""rag layer implementation for evidence.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -53,6 +58,16 @@ PROMPT_INJECTION_MARKERS = (
 
 
 def _tokens(text: str) -> set[str]:
+    """Implement the internal _tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     values: set[str] = set()
     for token in TOKEN_RE.findall(text or ""):
         lowered = token.lower()
@@ -62,10 +77,30 @@ def _tokens(text: str) -> set[str]:
 
 
 def _anchors(text: str) -> set[str]:
+    """Implement the internal _anchors helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {token for token in _tokens(text) if len(token) >= 4 and token not in GENERIC_TOKENS and not token.isdigit()}
 
 
 def _entity_anchor_groups(text: str) -> list[set[str]]:
+    """Implement the internal _entity_anchor_groups helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     groups: list[set[str]] = []
     for raw_token in TOKEN_RE.findall(text or ""):
         token = raw_token.lower()
@@ -92,6 +127,18 @@ class RAGEvidenceGrader:
     """Calibrate retrieval evidence before it is allowed into an LLM context."""
 
     def grade(self, query: str, item: dict[str, Any], *, require_citation: bool = True) -> dict[str, Any]:
+        """Execute grade at the evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            item: Value supplied by the caller and validated by the surrounding schema.
+            require_citation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = str(item.get("text") or item.get("summary") or "")
         query_anchors = _anchors(query)
         text_tokens = _tokens(text)
@@ -185,6 +232,16 @@ class RAGEvidenceGrader:
 
     @staticmethod
     def _is_expired(raw_value: Any) -> bool:
+        """Implement the internal _is_expired helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            raw_value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not raw_value:
             return False
         try:
@@ -202,6 +259,18 @@ class RAGEvidenceGrader:
         *,
         require_citation: bool = True,
     ) -> dict[str, Any]:
+        """Execute grade_many at the evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            items: Value supplied by the caller and validated by the surrounding schema.
+            require_citation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         graded = [{**item, "evidence_grade": self.grade(query, item, require_citation=require_citation)} for item in items]
         self._mark_structured_contradictions(graded)
         accepted = [item for item in graded if item["evidence_grade"]["label"] == "relevant"]
@@ -217,6 +286,16 @@ class RAGEvidenceGrader:
 
     @staticmethod
     def _mark_structured_contradictions(items: list[dict[str, Any]]) -> None:
+        """Implement the internal _mark_structured_contradictions helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            items: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         facts: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
         for item in items:
             metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
@@ -237,6 +316,17 @@ class CorrectiveRetriever:
     """Retrieve, grade, rewrite once, and abstain when evidence remains weak."""
 
     def __init__(self, retrieve_fn: Callable[..., list[dict[str, Any]]], grader: RAGEvidenceGrader | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            retrieve_fn: Value supplied by the caller and validated by the surrounding schema.
+            grader: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.retrieve_fn = retrieve_fn
         self.grader = grader or RAGEvidenceGrader()
 
@@ -249,6 +339,20 @@ class CorrectiveRetriever:
         identity: dict[str, Any] | None = None,
         metadata_filter: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute retrieve at the evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            domain: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            metadata_filter: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         attempts: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []
         for candidate_query in self._query_variants(query):
@@ -296,6 +400,16 @@ class CorrectiveRetriever:
 
     @staticmethod
     def _query_variants(query: str) -> list[str]:
+        """Implement the internal _query_variants helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         anchors = sorted(_anchors(query))
         variants = [query.strip()]
         rewritten = " ".join(anchors)
@@ -305,7 +419,22 @@ class CorrectiveRetriever:
 
 
 class ClaimEvidenceVerifier:
+    """Coordinate ClaimEvidenceVerifier within the evidence boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def verify(self, claims: list[str], evidence: list[dict[str, Any]]) -> dict[str, Any]:
+        """Execute verify at the evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            claims: Value supplied by the caller and validated by the surrounding schema.
+            evidence: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         evidence_tokens = [(_tokens(str(item.get("text") or "")), item) for item in evidence]
         checks: list[dict[str, Any]] = []
         for claim in claims:

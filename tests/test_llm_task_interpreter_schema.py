@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_llm_task_interpreter_schema.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.llm.client import FakeLLMClient
 from dl_op_to_hls.llm.schemas import TASK_INTERPRETATION_SCHEMA, validate_required
 from dl_op_to_hls.llm.task_interpreter import LLMTaskInterpreter
@@ -6,6 +11,13 @@ import pytest
 
 
 def test_llm_task_interpreter_schema():
+    """Verify the test_llm_task_interpreter_schema contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     fake = FakeLLMClient(
         json_responses=[
             {
@@ -30,6 +42,13 @@ def test_llm_task_interpreter_schema():
 
 
 def test_task_interpretation_schema_rejects_string_task():
+    """Verify the test_task_interpretation_schema_rejects_string_task contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(ValueError, match="Invalid type"):
         validate_required(
             {"task": "operator JSON", "assumptions": [], "reason_summary": "bad nesting"},
@@ -38,6 +57,13 @@ def test_task_interpretation_schema_rejects_string_task():
 
 
 def test_task_interpretation_schema_rejects_invalid_nested_enum():
+    """Verify the test_task_interpretation_schema_rejects_invalid_nested_enum contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = {
         "task": {
             "task_type": "chat",
@@ -53,6 +79,13 @@ def test_task_interpretation_schema_rejects_invalid_nested_enum():
 
 
 def test_task_interpreter_canonicalizes_onnx_source_alias():
+    """Verify the test_task_interpreter_canonicalizes_onnx_source_alias contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = LLMTaskInterpreter._canonicalize_task_fields(
         {
             "task": {
@@ -74,5 +107,12 @@ def test_task_interpreter_canonicalizes_onnx_source_alias():
 
 
 def test_task_interpreter_prompt_requires_complete_fixed_point_dtype():
+    """Verify the test_task_interpreter_prompt_requires_complete_fixed_point_dtype contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     assert "Never emit a bare \"ap_fixed\"" in TASK_INTERPRETER_SYSTEM_PROMPT
     assert "ap_fixed<16,6>" in TASK_INTERPRETER_SYSTEM_PROMPT

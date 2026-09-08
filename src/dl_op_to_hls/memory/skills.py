@@ -1,7 +1,22 @@
+"""memory layer implementation for skills.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 
 def _verified(state: dict) -> bool:
+    """Implement the internal _verified helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     verification = state.get("verification") or {}
     mode = verification.get("mode")
     if verification.get("passed") is True and mode in {"golden_testbench", "hls4ml_reference_compare", "reference_compare"}:
@@ -11,6 +26,16 @@ def _verified(state: dict) -> bool:
 
 
 def build_skill_candidates(state: dict) -> list[dict]:
+    """Execute build_skill_candidates at the skills boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     skills: list[dict] = []
     selected_path = state.get("selected_path")
     verified = _verified(state)

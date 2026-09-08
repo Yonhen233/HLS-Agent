@@ -1,3 +1,8 @@
+"""rag layer implementation for vector_index.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +15,20 @@ class FaissHNSWIndex:
     """Persistent cosine ANN index with stable SQLite chunk IDs."""
 
     def __init__(self, path: str | Path, *, model_id: str, m: int = 32, ef_search: int = 96, ef_construction: int = 160):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+            m: Value supplied by the caller and validated by the surrounding schema.
+            ef_search: Value supplied by the caller and validated by the surrounding schema.
+            ef_construction: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path = Path(path)
         self.manifest_path = self.path.with_suffix(self.path.suffix + ".json")
         self.model_id = model_id
@@ -20,6 +39,16 @@ class FaissHNSWIndex:
         self._signature: str | None = None
 
     def ensure(self, records: list[dict[str, Any]]) -> dict[str, Any]:
+        """Execute ensure at the vector_index boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         signature = self._records_signature(records)
         if self._index is not None and self._signature == signature:
             return {"status": "reused", "count": int(self._index.ntotal), "signature": signature}
@@ -35,6 +64,17 @@ class FaissHNSWIndex:
         return self.rebuild(records, signature=signature)
 
     def rebuild(self, records: list[dict[str, Any]], *, signature: str | None = None) -> dict[str, Any]:
+        """Execute rebuild at the vector_index boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+            signature: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not records:
             self._index = None
             self._signature = signature or self._records_signature(records)
@@ -66,6 +106,17 @@ class FaissHNSWIndex:
         return {"status": "rebuilt", "count": len(records), "signature": signature}
 
     def search(self, query_vector: list[float], k: int) -> list[tuple[int, float]]:
+        """Execute search at the vector_index boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query_vector: Value supplied by the caller and validated by the surrounding schema.
+            k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self._index is None or not query_vector:
             return []
         import faiss  # type: ignore
@@ -77,11 +128,28 @@ class FaissHNSWIndex:
         return [(int(chunk_id), float(score)) for chunk_id, score in zip(ids[0], scores[0]) if int(chunk_id) >= 0]
 
     def _set_search_depth(self) -> None:
+        """Implement the internal _set_search_depth helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         base = getattr(self._index, "index", self._index)
         if hasattr(base, "hnsw"):
             base.hnsw.efSearch = self.ef_search
 
     def _records_signature(self, records: list[dict[str, Any]]) -> str:
+        """Implement the internal _records_signature helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         digest = hashlib.sha256(self.model_id.encode("utf-8"))
         for item in records:
             digest.update(f"{item['chunk_id']}:{item['content_hash']}:{item['dimensions']}".encode("utf-8"))
@@ -92,12 +160,35 @@ class PgVectorIndex:
     """Optional pgvector adapter; the connection factory owns pooling and credentials."""
 
     def __init__(self, connection_factory, table: str = "rag_embeddings_pg"):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection_factory: Value supplied by the caller and validated by the surrounding schema.
+            table: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not table.replace("_", "").isalnum():
             raise ValueError("Unsafe pgvector table name.")
         self.connection_factory = connection_factory
         self.table = table
 
     def search(self, model_id: str, query_vector: list[float], k: int) -> list[tuple[int, float]]:
+        """Execute search at the vector_index boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+            query_vector: Value supplied by the caller and validated by the surrounding schema.
+            k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         vector_literal = "[" + ",".join(f"{float(value):.9g}" for value in query_vector) + "]"
         sql = f"SELECT chunk_id, 1 - (embedding <=> %s::vector) AS score FROM {self.table} WHERE model_id=%s ORDER BY embedding <=> %s::vector LIMIT %s"
         with self.connection_factory() as connection:

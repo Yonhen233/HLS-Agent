@@ -1,9 +1,21 @@
+"""Test contracts and regression checks for test_token_budget.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.main_agent.state import AgentState
 from dl_op_to_hls.main_agent.todo import TodoItem
 from dl_op_to_hls.specialists.context import ContextBuilder
 
 
 def test_context_builder_enforces_token_budget():
+    """Verify the test_context_builder_enforces_token_budget contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(
         run_id="r1",
         task={

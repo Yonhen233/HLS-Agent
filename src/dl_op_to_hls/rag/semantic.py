@@ -1,3 +1,8 @@
+"""rag layer implementation for semantic.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -14,10 +19,31 @@ _MODEL_INFERENCE_LOCK = threading.RLock()
 
 
 def _content_hash(text: str) -> str:
+    """Implement the internal _content_hash helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _cosine(left: list[float], right: list[float]) -> float:
+    """Implement the internal _cosine helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        left: Value supplied by the caller and validated by the surrounding schema.
+        right: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not left or len(left) != len(right):
         return 0.0
     numerator = sum(a * b for a, b in zip(left, right))
@@ -27,6 +53,16 @@ def _cosine(left: list[float], right: list[float]) -> float:
 
 
 def _sigmoid(value: float) -> float:
+    """Implement the internal _sigmoid helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if value >= 0:
         factor = math.exp(-min(value, 60.0))
         return 1.0 / (1.0 + factor)
@@ -35,19 +71,55 @@ def _sigmoid(value: float) -> float:
 
 
 class EmbeddingBackend(Protocol):
+    """Coordinate EmbeddingBackend within the semantic boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id: str
 
-    def encode(self, texts: list[str], *, batch_size: int) -> list[list[float]]: ...
+    def encode(self, texts: list[str], *, batch_size: int) -> list[list[float]]:
+        """Execute encode at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            texts: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
+        ...
 
 
 class RerankerBackend(Protocol):
+    """Coordinate RerankerBackend within the semantic boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     model_id: str
 
-    def predict(self, pairs: list[tuple[str, str]], *, batch_size: int) -> list[float]: ...
+    def predict(self, pairs: list[tuple[str, str]], *, batch_size: int) -> list[float]:
+        """Execute predict at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            pairs: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
+        ...
 
 
 @dataclass(frozen=True)
 class SemanticRagConfig:
+    """Coordinate SemanticRagConfig within the semantic boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     enabled: bool = True
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -74,6 +146,16 @@ class SemanticRagConfig:
 
     @classmethod
     def from_mapping(cls, value: dict[str, Any] | None) -> "SemanticRagConfig":
+        """Execute from_mapping at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         value = value or {}
         fields = cls.__dataclass_fields__
         payload = {key: item for key, item in value.items() if key in fields}
@@ -86,15 +168,37 @@ class SemanticRagConfig:
 
 
 class SentenceTransformerBackend:
+    """Coordinate SentenceTransformerBackend within the semantic boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     _models: dict[tuple[str, bool], Any] = {}
     _errors: dict[tuple[str, bool], str] = {}
     _lock = threading.RLock()
 
     def __init__(self, model_id: str, *, local_files_only: bool = False):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+            local_files_only: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.model_id = model_id
         self.local_files_only = local_files_only
 
     def _model(self):
+        """Implement the internal _model helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         key = (self.model_id, self.local_files_only)
         with self._lock:
             if key in self._errors:
@@ -114,6 +218,13 @@ class SentenceTransformerBackend:
             return self._models[key]
 
     def _model_source(self) -> str:
+        """Implement the internal _model_source helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.local_files_only:
             return self.model_id
         from huggingface_hub import snapshot_download  # type: ignore
@@ -121,6 +232,17 @@ class SentenceTransformerBackend:
         return snapshot_download(self.model_id, local_files_only=True)
 
     def encode(self, texts: list[str], *, batch_size: int) -> list[list[float]]:
+        """Execute encode at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            texts: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not texts:
             return []
         with _MODEL_INFERENCE_LOCK:
@@ -135,15 +257,37 @@ class SentenceTransformerBackend:
 
 
 class CrossEncoderBackend:
+    """Coordinate CrossEncoderBackend within the semantic boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     _models: dict[tuple[str, bool], Any] = {}
     _errors: dict[tuple[str, bool], str] = {}
     _lock = threading.RLock()
 
     def __init__(self, model_id: str, *, local_files_only: bool = False):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+            local_files_only: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.model_id = model_id
         self.local_files_only = local_files_only
 
     def _model(self):
+        """Implement the internal _model helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         key = (self.model_id, self.local_files_only)
         with self._lock:
             if key in self._errors:
@@ -163,6 +307,13 @@ class CrossEncoderBackend:
             return self._models[key]
 
     def _model_source(self) -> str:
+        """Implement the internal _model_source helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.local_files_only:
             return self.model_id
         from huggingface_hub import snapshot_download  # type: ignore
@@ -170,6 +321,17 @@ class CrossEncoderBackend:
         return snapshot_download(self.model_id, local_files_only=True)
 
     def predict(self, pairs: list[tuple[str, str]], *, batch_size: int) -> list[float]:
+        """Execute predict at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            pairs: Value supplied by the caller and validated by the surrounding schema.
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not pairs:
             return []
         with _MODEL_INFERENCE_LOCK:
@@ -191,6 +353,18 @@ class SemanticRagEngine:
         embedder: EmbeddingBackend | None = None,
         reranker: RerankerBackend | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            config: Value supplied by the caller and validated by the surrounding schema.
+            embedder: Value supplied by the caller and validated by the surrounding schema.
+            reranker: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.config = config or SemanticRagConfig()
         self.embedder = embedder or SentenceTransformerBackend(
             self.config.embedding_model,
@@ -223,17 +397,49 @@ class SemanticRagEngine:
 
     @property
     def embedding_available(self) -> bool:
+        """Execute embedding_available at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.config.enabled and self._embedding_error is None
 
     @property
     def reranker_available(self) -> bool:
+        """Execute reranker_available at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.config.enabled and self._reranker_error is None
 
     @property
     def min_reranker_score(self) -> float:
+        """Execute min_reranker_score at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.calibrated_min_reranker_score if self.calibrated_min_reranker_score is not None else self.config.min_reranker_score
 
     def index_rows(self, rows: list[dict[str, Any]], repository: Any) -> dict[str, Any]:
+        """Execute index_rows at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            rows: Value supplied by the caller and validated by the surrounding schema.
+            repository: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.config.enabled or not rows:
             return {"status": "disabled", "embeddings_indexed": 0}
         chunk_ids = [int(row["id"]) for row in rows if row.get("id") is not None]
@@ -294,6 +500,18 @@ class SemanticRagEngine:
         }
 
     def recall(self, query: str, rows: list[dict[str, Any]], repository: Any) -> tuple[dict[int, float], dict[str, Any]]:
+        """Execute recall at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            rows: Value supplied by the caller and validated by the surrounding schema.
+            repository: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.config.enabled or not rows:
             return {}, self.diagnostics("disabled")
         try:
@@ -312,6 +530,18 @@ class SemanticRagEngine:
             return {}, self.diagnostics("lexical_fallback")
 
     def _ann_recall(self, query_vector: list[float], rows: list[dict[str, Any]], repository: Any):
+        """Implement the internal _ann_recall helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            query_vector: Value supplied by the caller and validated by the surrounding schema.
+            rows: Value supplied by the caller and validated by the surrounding schema.
+            repository: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.vector_index is None or len(rows) < self.config.ann_min_rows or not hasattr(repository, "list_rag_embeddings"):
             return None
         try:
@@ -359,6 +589,17 @@ class SemanticRagEngine:
             return None
 
     def rerank(self, query: str, rows: list[dict[str, Any]]) -> tuple[dict[int, float], dict[str, Any]]:
+        """Execute rerank at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            rows: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.config.enabled or not rows:
             return {}, self.diagnostics("disabled")
         scores: dict[int, float] = {}
@@ -387,6 +628,16 @@ class SemanticRagEngine:
             return {}, self.diagnostics("embedding_only")
 
     def diagnostics(self, mode: str) -> dict[str, Any]:
+        """Execute diagnostics at the semantic boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            mode: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "mode": mode,
             "embedding_model": self.embedder.model_id,
@@ -400,6 +651,13 @@ class SemanticRagEngine:
         }
 
     def _load_calibration(self) -> None:
+        """Implement the internal _load_calibration helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.config.calibration_path:
             return
         path = Path(self.config.calibration_path)
@@ -424,6 +682,17 @@ class SemanticRagEngine:
         rows: list[dict[str, Any]],
         repository: Any,
     ) -> tuple[dict[int, list[float]], dict[str, Any]]:
+        """Implement the internal _document_vectors helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            rows: Value supplied by the caller and validated by the surrounding schema.
+            repository: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         persisted: dict[int, dict[str, Any]] = {}
         chunk_ids = [int(row["id"]) for row in rows if row.get("id") is not None]
         if chunk_ids and hasattr(repository, "get_rag_embeddings"):
@@ -487,6 +756,16 @@ class SemanticRagEngine:
         }
 
     def _encode_query(self, query: str) -> list[float]:
+        """Implement the internal _encode_query helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         key = f"{self.embedder.model_id}:query:{_content_hash(query)}"
         cached = self._cache_get(self._vector_cache, key)
         if cached is not None:
@@ -496,9 +775,30 @@ class SemanticRagEngine:
         return vector
 
     def _encode_documents(self, texts: list[str]) -> list[list[float]]:
+        """Implement the internal _encode_documents helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            texts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.embedder.encode(texts, batch_size=self.config.embedding_batch_size)
 
     def _cache_get(self, cache: OrderedDict, key: str):
+        """Implement the internal _cache_get helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            cache: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self._lock:
             if key not in cache:
                 return None
@@ -507,6 +807,18 @@ class SemanticRagEngine:
             return value
 
     def _cache_put(self, cache: OrderedDict, key: str, value: Any) -> None:
+        """Implement the internal _cache_put helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            cache: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self._lock:
             if key in cache:
                 cache.pop(key)

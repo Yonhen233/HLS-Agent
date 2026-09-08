@@ -96,10 +96,30 @@ METHOD_LABELS = [
 
 
 def _normalize(value: str) -> str:
+    """Implement the internal _normalize helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return " ".join(value.lower().replace("_", " ").split())
 
 
 def _source_rows(repository) -> list[dict[str, Any]]:
+    """Implement the internal _source_rows helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        repository: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     grouped: dict[str, dict[str, Any]] = {}
     for row in repository.get_rag_chunks():
         source_id = str(row["source_id"])
@@ -165,6 +185,19 @@ def build_experience_content_cases(repository, *, per_label: int = 12) -> dict[s
 
 
 def _evaluate(repository, memory: RagMemory, cases: list[dict[str, Any]], *, use_filter: bool) -> dict[str, Any]:
+    """Implement the internal _evaluate helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        repository: Value supplied by the caller and validated by the surrounding schema.
+        memory: Value supplied by the caller and validated by the surrounding schema.
+        cases: Value supplied by the caller and validated by the surrounding schema.
+        use_filter: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     latencies: list[float] = []
     case_metrics: list[dict[str, Any]] = []
     for case in cases:
@@ -182,6 +215,16 @@ def _evaluate(repository, memory: RagMemory, cases: list[dict[str, Any]], *, use
         latencies.append((time.perf_counter() - started) * 1000.0)
 
     def mean(key: str) -> float | None:
+        """Execute mean at the experience_content_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            key: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         values = [float(item[key]) for item in case_metrics if isinstance(item.get(key), (int, float))]
         return round(statistics.fmean(values), 4) if values else None
 
@@ -203,6 +246,18 @@ def _evaluate(repository, memory: RagMemory, cases: list[dict[str, Any]], *, use
 
 
 def run_experience_content_benchmark(workspace_root: str | Path, output_path: str | Path, *, per_label: int = 12) -> dict[str, Any]:
+    """Execute run_experience_content_benchmark at the experience_content_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        per_label: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     config = AppConfig.load(root)
     repository = MetadataRepository(Database(config.db_path, root / "src" / "dl_op_to_hls" / "db" / "schema.sql"))

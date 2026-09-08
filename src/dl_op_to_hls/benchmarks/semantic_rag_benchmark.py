@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for semantic_rag_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,6 +20,17 @@ from ..rag.semantic import SemanticRagConfig
 
 
 def run_semantic_rag_benchmark(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_semantic_rag_benchmark at the semantic_rag_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     output = Path(output_path)
     if not output.is_absolute():
@@ -112,10 +128,32 @@ def run_semantic_rag_benchmark(workspace_root: str | Path, output_path: str | Pa
 
 
 def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
+    """Implement the internal _check helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+        passed: Value supplied by the caller and validated by the surrounding schema.
+        details: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {"name": name, "passed": bool(passed), "details": details}
 
 
 def _to_markdown(payload: dict[str, Any]) -> str:
+    """Implement the internal _to_markdown helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     lines = [
         "# Semantic RAG Real-model Probe",
         "",

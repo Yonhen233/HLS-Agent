@@ -1,3 +1,8 @@
+"""core layer implementation for progress.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -20,6 +25,18 @@ class ProgressSupervisor:
     )
 
     def __init__(self, *, max_steps: int = 64, replan_after: int = 2, terminate_after: int = 3):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            max_steps: Value supplied by the caller and validated by the surrounding schema.
+            replan_after: Value supplied by the caller and validated by the surrounding schema.
+            terminate_after: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.max_steps = max(1, int(max_steps))
         self.replan_after = max(1, int(replan_after))
         self.terminate_after = max(self.replan_after + 1, int(terminate_after))
@@ -40,6 +57,20 @@ class ProgressSupervisor:
         completion_gate: Any | None = None,
         goal_contract: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute observe at the progress boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+            completion_gate: Value supplied by the caller and validated by the surrounding schema.
+            goal_contract: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.step_count += 1
         state_hash = self._state_hash(state)
         if state_hash == self._last_state_hash:
@@ -128,6 +159,16 @@ class ProgressSupervisor:
 
     @staticmethod
     def _extract_error(observation: dict[str, Any]) -> dict[str, Any] | None:
+        """Implement the internal _extract_error helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         nested = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
         error = observation.get("error") or nested.get("error")
         if isinstance(error, dict):
@@ -139,6 +180,16 @@ class ProgressSupervisor:
 
     @staticmethod
     def _state_hash(state: Any) -> str:
+        """Implement the internal _state_hash helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return stable_hash(
             {
                 "selected_path": getattr(state, "selected_path", None),

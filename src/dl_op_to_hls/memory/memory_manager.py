@@ -1,3 +1,8 @@
+"""memory layer implementation for memory_manager.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -71,6 +76,16 @@ FAILURE_QUERY_TOKENS = {
 
 
 def _tokenize(text: str) -> list[str]:
+    """Implement the internal _tokenize helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tokens: list[str] = []
     for token in TOKEN_RE.findall(text or ""):
         lowered = token.lower()
@@ -80,6 +95,16 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _anchor_tokens(query: str) -> set[str]:
+    """Implement the internal _anchor_tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         token
         for token in _tokenize(query)
@@ -88,6 +113,16 @@ def _anchor_tokens(query: str) -> set[str]:
 
 
 def _is_failure_query(query: str) -> bool:
+    """Implement the internal _is_failure_query helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tokens = set(_tokenize(query))
     if tokens.intersection(FAILURE_QUERY_TOKENS):
         return True
@@ -96,6 +131,17 @@ def _is_failure_query(query: str) -> bool:
 
 
 def _matches_anchor(query_anchors: set[str], text: str) -> bool:
+    """Implement the internal _matches_anchor helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query_anchors: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not query_anchors:
         return True
     text_tokens = set(_tokenize(text))
@@ -103,6 +149,17 @@ def _matches_anchor(query_anchors: set[str], text: str) -> bool:
 
 
 def _score(query: str, text: str) -> float:
+    """Implement the internal _score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     query_tokens = Counter(_tokenize(query))
     text_tokens = Counter(_tokenize(text))
     numerator = sum(query_tokens[token] * text_tokens[token] for token in query_tokens)
@@ -114,11 +171,38 @@ def _score(query: str, text: str) -> float:
 
 
 def _is_functionally_verified(verification: dict[str, Any] | None) -> bool:
+    """Implement the internal _is_functionally_verified helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        verification: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return is_functionally_verified(verification)
 
 
 class MemoryManager:
+    """Coordinate MemoryManager within the memory_manager boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, repository, rag_memory, workspace_root: str | Path, *, runs_root: str | Path | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            repository: Value supplied by the caller and validated by the surrounding schema.
+            rag_memory: Value supplied by the caller and validated by the surrounding schema.
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+            runs_root: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.repository = repository
         self.rag_memory = rag_memory
         self.workspace_root = Path(workspace_root).resolve()
@@ -127,6 +211,17 @@ class MemoryManager:
 
     @staticmethod
     def _identity(identity: dict[str, Any] | None = None, *, default_namespace: str = "global") -> dict[str, Any]:
+        """Implement the internal _identity helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            default_namespace: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         identity = dict(identity or {})
         return {
             "namespace": str(identity.get("namespace") or default_namespace),
@@ -137,6 +232,18 @@ class MemoryManager:
 
     @staticmethod
     def _content_hash(memory_type: str, key: str, value: Any) -> str:
+        """Implement the internal _content_hash helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            memory_type: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         encoded = json.dumps(
             {"memory_type": memory_type, "key": key, "value": sanitize_memory_payload(value)},
             ensure_ascii=False,
@@ -146,6 +253,17 @@ class MemoryManager:
         return hashlib.sha256(encoded).hexdigest()
 
     def _save_governed_memory(self, payload: dict[str, Any], identity: dict[str, Any] | None = None) -> tuple[int, bool]:
+        """Implement the internal _save_governed_memory helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         merged = {**self._identity(identity, default_namespace=str(payload.get("namespace") or "global")), **payload}
         content_hash = self._content_hash(merged["memory_type"], merged["key"], merged.get("value", {}))
         merged["content_hash"] = content_hash
@@ -160,24 +278,76 @@ class MemoryManager:
         return self.repository.save_memory_item(merged), True
 
     def _run_dir(self, run_id: str) -> Path:
+        """Implement the internal _run_dir helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.runs_root / run_id
 
     def _memory_dir(self, run_id: str) -> Path:
+        """Implement the internal _memory_dir helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         directory = self._run_dir(run_id) / "memory"
         directory.mkdir(parents=True, exist_ok=True)
         return directory
 
     def _read_json(self, path: Path, default):
+        """Implement the internal _read_json helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            default: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not path.exists():
             return default
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _write_json(self, path: Path, payload: dict | list) -> str:
+        """Implement the internal _write_json helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
         return str(path)
 
     def _sanitize_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _sanitize_candidate helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         sanitized = dict(candidate)
         if "summary" in sanitized:
             sanitized["summary"] = sanitize_memory_text(str(sanitized.get("summary") or ""))
@@ -188,17 +358,47 @@ class MemoryManager:
         return sanitized
 
     def _memory_item_value(self, item: dict[str, Any]) -> Any:
+        """Implement the internal _memory_item_value helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             return json.loads(item.get("value_json") or "{}")
         except json.JSONDecodeError:
             return item.get("value_json") or ""
 
     def _memory_item_text(self, item: dict[str, Any]) -> str:
+        """Implement the internal _memory_item_text helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         value = self._memory_item_value(item)
         sanitized_value = sanitize_memory_payload(value)
         return sanitize_memory_text(f"{item['key']} {json.dumps(sanitized_value, ensure_ascii=False)}")
 
     def _memory_source_tokens(self, item: dict[str, Any]) -> set[str]:
+        """Implement the internal _memory_source_tokens helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         value = self._memory_item_value(item)
         if isinstance(value, dict):
             source_text = " ".join(
@@ -210,6 +410,19 @@ class MemoryManager:
         return set(_tokenize(f"{item.get('key', '')} {item.get('source_run_id', '')} {source_text}"))
 
     def _adjust_memory_score(self, query: str, item: dict[str, Any], text: str, score: float) -> float:
+        """Implement the internal _adjust_memory_score helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            item: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         anchors = _anchor_tokens(query)
         source_tokens = self._memory_source_tokens(item)
         adjusted = score + 0.08 * len(anchors.intersection(source_tokens))
@@ -234,6 +447,19 @@ class MemoryManager:
         return adjusted
 
     def write_short_term(self, run_id: str, key: str, value: dict, identity: dict[str, Any] | None = None) -> dict:
+        """Execute write_short_term at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+            value: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = self._memory_dir(run_id) / "short_term.json"
         payload = self._read_json(path, {"run_id": run_id, "entries": {}})
         payload["entries"][key] = value
@@ -253,6 +479,16 @@ class MemoryManager:
         return {"status": "success", "path": str(path), "short_term": payload}
 
     def compress_run_context(self, run_id: str) -> dict:
+        """Execute compress_run_context at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         memory_dir = self._memory_dir(run_id)
         short_term = self._read_json(memory_dir / "short_term.json", {"entries": {}})
         entries = short_term.get("entries", {})
@@ -273,6 +509,16 @@ class MemoryManager:
         return {"status": "success", "path": str(path), "compressed_context": compressed}
 
     def extract_memory_candidates(self, run_id: str) -> list[dict]:
+        """Execute extract_memory_candidates at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         run_dir = self._run_dir(run_id)
         state = self._read_json(run_dir / "state.json", {})
         candidates: list[dict] = []
@@ -375,6 +621,18 @@ class MemoryManager:
         candidates: list[dict],
         identity: dict[str, Any] | None = None,
     ) -> dict:
+        """Execute promote_to_long_term at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            candidates: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         promoted: list[dict[str, Any]] = []
         for raw_candidate in candidates:
             candidate = self._sanitize_candidate(raw_candidate)
@@ -444,6 +702,16 @@ class MemoryManager:
         return {"status": "success", "promoted_memories": promoted, "path": str(path)}
 
     def _domain_for_memory_type(self, memory_type: str) -> str:
+        """Implement the internal _domain_for_memory_type helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            memory_type: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if memory_type in {"parameter_experience", "verified_implementation", "synthesis_success"}:
             return "parameter"
         if memory_type == "failure":
@@ -460,6 +728,18 @@ class MemoryManager:
         top_k: int = 5,
         identity: dict[str, Any] | None = None,
     ) -> list[dict]:
+        """Execute retrieve_similar_experiences at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scope = self._identity(identity)
         items = self.repository.list_memory_items(
             ["episodic", "implementation", "optimization", "verified_implementation", "parameter_experience", "conversation"],
@@ -483,6 +763,18 @@ class MemoryManager:
         return selected
 
     def retrieve_failure_cases(self, query: str, top_k: int = 5, identity: dict[str, Any] | None = None) -> list[dict]:
+        """Execute retrieve_failure_cases at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not _is_failure_query(query):
             return []
         scored = []
@@ -513,6 +805,18 @@ class MemoryManager:
         return selected
 
     def retrieve_optimization_rules(self, query: str, top_k: int = 5, identity: dict[str, Any] | None = None) -> list[dict]:
+        """Execute retrieve_optimization_rules at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scored = []
         anchors = _anchor_tokens(query)
         for item in self.repository.list_memory_facts():
@@ -568,6 +872,20 @@ class MemoryManager:
         preferences: dict[str, Any] | None = None,
         expires_at: str | None = None,
     ) -> dict[str, Any]:
+        """Execute remember_conversation at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            summary: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+            preferences: Value supplied by the caller and validated by the surrounding schema.
+            expires_at: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scope = self._identity(identity, default_namespace="user")
         memory_id, created = self._save_governed_memory(
             {
@@ -584,9 +902,34 @@ class MemoryManager:
         return {"status": "success", "id": memory_id, "created": created}
 
     def recall_conversation(self, query: str, identity: dict[str, Any], top_k: int = 5) -> list[dict[str, Any]]:
+        """Execute recall_conversation at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.retrieve_similar_experiences(query, top_k=top_k, identity=identity)
 
     def add_feedback(self, memory_id: int, score: float, reason: str = "", user_id: str | None = None) -> dict[str, Any]:
+        """Execute add_feedback at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.add_memory_feedback(memory_id, score, reason, user_id)
 
     def submit_feedback(
@@ -597,17 +940,62 @@ class MemoryManager:
         user_id: str | None = None,
         evidence: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute submit_feedback at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            evidence: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from .feedback_governance import FeedbackGovernor
 
         return FeedbackGovernor(self.repository).submit(memory_id, score, reason, user_id, evidence)
 
     def forget(self, memory_id: int, reason: str = "user_request") -> dict[str, Any]:
+        """Execute forget at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {"status": "success" if self.repository.forget_memory(memory_id, reason=reason) else "not_found", "id": memory_id}
 
     def cleanup_expired(self) -> dict[str, Any]:
+        """Execute cleanup_expired at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {"status": "success", "expired": self.repository.cleanup_expired_memories()}
 
     def save_skill(self, name: str, steps: list[str], trigger_conditions: dict, success_criteria: dict) -> dict:
+        """Execute save_skill at the memory_manager boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            steps: Value supplied by the caller and validated by the surrounding schema.
+            trigger_conditions: Value supplied by the caller and validated by the surrounding schema.
+            success_criteria: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         skill_id = self.repository.save_procedural_memory(
             {
                 "name": name,

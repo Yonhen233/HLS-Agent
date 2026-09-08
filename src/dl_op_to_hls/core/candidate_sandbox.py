@@ -1,3 +1,8 @@
+"""core layer implementation for candidate_sandbox.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -7,6 +12,10 @@ from typing import Any
 
 @dataclass(frozen=True)
 class CandidateSandboxRule:
+    """Coordinate CandidateSandboxRule within the candidate_sandbox boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     pattern: str
     message: str
@@ -36,6 +45,17 @@ class CandidateSandbox:
     ]
 
     def scan_candidate_payload(self, candidate: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Execute scan_candidate_payload at the candidate_sandbox boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+            contract: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         violations: list[dict[str, Any]] = []
         contract = contract or {}
         for file_item in candidate.get("files", []):
@@ -46,6 +66,17 @@ class CandidateSandbox:
         return {"status": "invalid" if violations else "valid", "violations": violations}
 
     def scan_text(self, content: str, relative_path: str = "<candidate>") -> list[dict[str, Any]]:
+        """Execute scan_text at the candidate_sandbox boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            content: Value supplied by the caller and validated by the surrounding schema.
+            relative_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         violations: list[dict[str, Any]] = []
         for rule in self.RULES:
             for match in re.finditer(rule.pattern, content, flags=re.IGNORECASE):
@@ -120,6 +151,20 @@ class CandidateSandbox:
 
     @staticmethod
     def _contract_violation(rule: str, message: str, relative_path: str, content: str, offset: int) -> dict[str, Any]:
+        """Implement the internal _contract_violation helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            rule: Value supplied by the caller and validated by the surrounding schema.
+            message: Value supplied by the caller and validated by the surrounding schema.
+            relative_path: Value supplied by the caller and validated by the surrounding schema.
+            content: Value supplied by the caller and validated by the surrounding schema.
+            offset: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "rule": rule,
             "message": message,

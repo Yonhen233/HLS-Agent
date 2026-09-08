@@ -1,3 +1,8 @@
+"""tools layer implementation for parameter_advisor.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -9,10 +14,30 @@ from ..core.design_objectives import normalize_objective_mode
 
 
 def _tokens(text: str) -> set[str]:
+    """Implement the internal _tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {token.lower() for token in re.findall(r"[A-Za-z0-9_]+", text or "") if len(token) >= 3}
 
 
 def _verified(value: dict[str, Any]) -> bool:
+    """Implement the internal _verified helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     verification = value.get("verification") or {}
     if not isinstance(verification, dict):
         return False
@@ -24,6 +49,16 @@ def _verified(value: dict[str, Any]) -> bool:
 
 
 def _load_value(item: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _load_value helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        item: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     raw = item.get("value_json") or "{}"
     try:
         value = json.loads(raw)
@@ -33,6 +68,16 @@ def _load_value(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _timing_is_usable(value: dict[str, Any]) -> bool:
+    """Implement the internal _timing_is_usable helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = value.get("report") if isinstance(value.get("report"), dict) else value
     timing = report.get("timing") if isinstance(report, dict) else {}
     return not (isinstance(timing, dict) and timing.get("met") is False)
@@ -55,6 +100,16 @@ def _looks_like_sample_fixture(value: dict[str, Any]) -> bool:
 
 
 def _task_signature(task: dict[str, Any]) -> set[str]:
+    """Implement the internal _task_signature helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     shape_text = " ".join(str(item) for item in (task.get("input_shape") or task.get("output_shape") or []))
     return _tokens(
         " ".join(
@@ -67,6 +122,16 @@ def _task_signature(task: dict[str, Any]) -> set[str]:
 
 
 def _task_family(task: dict[str, Any]) -> str | None:
+    """Implement the internal _task_family helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = " ".join(str(task.get(key, "")) for key in ["name", "op_type", "frontend"]).lower()
     if "resnet" in text or "residual" in text:
         return "residual"
@@ -138,11 +203,31 @@ def _model_compatibility(task: dict[str, Any], candidate_task: dict[str, Any]) -
 
 
 def _objective(task: dict[str, Any]) -> str:
+    """Implement the internal _objective helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     optimization = task.get("optimization") if isinstance(task.get("optimization"), dict) else {}
     return normalize_objective_mode(task.get("objective") or optimization.get("objective") or "balanced", default="balanced")
 
 
 def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _params_from_task helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     hls4ml = task.get("hls4ml") or {}
     target = task.get("target") or {}
     optimization = task.get("optimization") or {}
@@ -156,6 +241,16 @@ def _params_from_task(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def _updates_from_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _updates_from_params helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        params: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     updates = {"hls4ml": {}, "target": {}, "optimization": {}}
     if params.get("precision") is not None:
         updates["hls4ml"]["precision"] = params["precision"]
@@ -172,6 +267,17 @@ def _updates_from_params(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resource_cost(report: dict[str, Any], objective: str) -> float:
+    """Implement the internal _resource_cost helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     resources = report.get("resources") if isinstance(report.get("resources"), dict) else {}
     latency = report.get("latency") if isinstance(report.get("latency"), dict) else {}
     interval = report.get("interval") if isinstance(report.get("interval"), dict) else {}
@@ -197,6 +303,18 @@ def _resource_cost(report: dict[str, Any], objective: str) -> float:
 
 
 def _recommendation_rows(params: dict[str, Any], reason: str, source: str) -> list[dict[str, Any]]:
+    """Implement the internal _recommendation_rows helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        params: Value supplied by the caller and validated by the surrounding schema.
+        reason: Value supplied by the caller and validated by the surrounding schema.
+        source: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows: list[dict[str, Any]] = []
     for key, value in params.items():
         if value is not None:
@@ -212,6 +330,16 @@ def _recommendation_rows(params: dict[str, Any], reason: str, source: str) -> li
 
 
 def _heuristic_params(task: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _heuristic_params helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     family = _task_family(task)
     if family == "mlp":
         return {"precision": "fixed<12,6>", "reuse_factor": 1024, "strategy": "Resource", "clock_period": 10}
@@ -271,6 +399,17 @@ def _activation_calibration_params(task: dict[str, Any]) -> tuple[dict[str, Any]
 
 
 def _rag_hints_for_task(task: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
+    """Implement the internal _rag_hints_for_task helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rag_memory = context.get("rag_memory")
     if rag_memory is None:
         return []
@@ -288,6 +427,17 @@ def _rag_hints_for_task(task: dict[str, Any], context: dict[str, Any]) -> list[d
 
 
 def recommend_parameters(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute recommend_parameters at the parameter_advisor boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = arguments.get("state") or {}
     task = state.get("task") or arguments.get("task") or {}
     current_run_id = state.get("run_id")

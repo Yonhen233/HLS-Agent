@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -17,10 +22,29 @@ from .operator_suite_specs import all_suite_payloads
 
 
 def _utc_now() -> str:
+    """Implement the internal _utc_now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def wilson_rate(numerator: int, denominator: int, *, minimum_usable_n: int = 20) -> dict[str, Any]:
+    """Execute wilson_rate at the operator_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        numerator: Value supplied by the caller and validated by the surrounding schema.
+        denominator: Value supplied by the caller and validated by the surrounding schema.
+        minimum_usable_n: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if denominator <= 0:
         return {
             "numerator": numerator,
@@ -49,6 +73,16 @@ def wilson_rate(numerator: int, denominator: int, *, minimum_usable_n: int = 20)
 
 
 def analyze_token_usage(runs_root: str | Path) -> dict[str, Any]:
+    """Execute analyze_token_usage at the operator_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        runs_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     events: list[dict[str, Any]] = []
     for trace_path in Path(runs_root).glob("*/trace.jsonl"):
         for line in trace_path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -165,6 +199,17 @@ def audit_llm_pass3(runs_root: str | Path) -> dict[str, Any]:
 
 
 def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_operator_benchmark at the operator_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     suite = suite_payload()
     results = [evaluate_case(case) for case in suite["cases"]]
@@ -257,6 +302,17 @@ def run_operator_benchmark(workspace_root: str | Path, output_path: str | Path) 
 
 
 def _percentile(values: list[int], quantile: float) -> float | None:
+    """Implement the internal _percentile helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        quantile: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values:
         return None
     ordered = sorted(values)
@@ -265,6 +321,16 @@ def _percentile(values: list[int], quantile: float) -> float | None:
 
 
 def _read_json(path: Path) -> Any:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
     except (OSError, json.JSONDecodeError):
@@ -272,6 +338,16 @@ def _read_json(path: Path) -> Any:
 
 
 def _receipt_has_golden_csim(receipt: Any) -> bool:
+    """Implement the internal _receipt_has_golden_csim helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        receipt: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return bool(
         isinstance(receipt, dict)
         and receipt.get("valid") is True
@@ -287,6 +363,16 @@ def _receipt_has_golden_csim(receipt: Any) -> bool:
 
 
 def _llm_usage_for_run(trace_path: Path) -> dict[str, int]:
+    """Implement the internal _llm_usage_for_run helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        trace_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     calls = input_tokens = output_tokens = 0
     if trace_path.exists():
         for line in trace_path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -308,6 +394,16 @@ def _llm_usage_for_run(trace_path: Path) -> dict[str, int]:
 
 
 def _render_release_markdown(report: dict[str, Any]) -> str:
+    """Implement the internal _render_release_markdown helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rate = report["functional"]["rate"]
     token = report["token_usage"]
     lines = [

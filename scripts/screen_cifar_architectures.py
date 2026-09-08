@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for screen_cifar_architectures.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -12,6 +17,13 @@ from dl_op_to_hls.tools.cifar_architecture_screen import (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the screen_cifar_architectures boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Screen CIFAR-10 CNN candidates before expensive HLS synthesis.")
     parser.add_argument("--output", default="runs/cifar10_architecture_screen.json")
     parser.add_argument("--margin", type=float, default=0.90, help="Resource screening utilization margin.")
@@ -26,6 +38,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _parse_candidate(raw: str) -> CifarArchitectureSpec:
+    """Implement the internal _parse_candidate helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        raw: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         name, channel_text, stage_text = raw.split(":")
         channels = tuple(int(value) for value in channel_text.split(","))
@@ -36,6 +58,13 @@ def _parse_candidate(raw: str) -> CifarArchitectureSpec:
 
 
 def main() -> int:
+    """Execute main at the screen_cifar_architectures boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     args = build_parser().parse_args()
     candidates = [_parse_candidate(raw) for raw in args.candidate] if args.candidate else default_candidates()
     results = screen_many(candidates, conservative_margin=args.margin)

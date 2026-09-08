@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_design_objectives.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from dl_op_to_hls.core.design_objectives import (
@@ -10,6 +15,13 @@ from dl_op_to_hls.tools.parameter_advisor import _resource_cost
 
 
 def test_objective_mode_aliases_are_normalized():
+    """Verify the test_objective_mode_aliases_are_normalized contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     assert normalize_objective_mode("area") == "resource"
     assert normalize_objective_mode("ii") == "throughput"
     assert normalize_objective_mode("speed") == "performance"
@@ -17,6 +29,13 @@ def test_objective_mode_aliases_are_normalized():
 
 
 def test_objective_modes_explain_agent_policy():
+    """Verify the test_objective_modes_explain_agent_policy contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     mode = get_objective_mode("throughput")
     assert mode.primary_metric == "ii_cycles"
     assert "II" in mode.acceptance_rule
@@ -24,16 +43,37 @@ def test_objective_modes_explain_agent_policy():
 
 
 def test_standard_mode_does_not_require_llm_search():
+    """Verify the test_standard_mode_does_not_require_llm_search contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     assert objective_requires_llm_search("standard") is False
     assert objective_requires_llm_search("resource") is True
 
 
 def test_list_objective_modes_contains_configurable_modes():
+    """Verify the test_list_objective_modes_contains_configurable_modes contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     names = {item["name"] for item in list_objective_modes()}
     assert {"standard", "resource", "latency", "throughput", "performance", "balanced"}.issubset(names)
 
 
 def test_parameter_advisor_objective_cost_changes_ranking_signal():
+    """Verify the test_parameter_advisor_objective_cost_changes_ranking_signal contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report_fast_high_resource = {
         "latency": {"max_cycles": 500},
         "interval": {"max_ii": 500},

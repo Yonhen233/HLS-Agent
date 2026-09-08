@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_skill_registry.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 
 from dl_op_to_hls.skills.prompt_context import SkillPromptContextBuilder
@@ -5,12 +10,26 @@ from dl_op_to_hls.skills.registry import SkillRegistry
 
 
 def test_skill_registry_loads_yaml():
+    """Verify the test_skill_registry_loads_yaml contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     assert registry.list_skills()
 
 
 def test_operator_fallback_skill_exists():
+    """Verify the test_operator_fallback_skill_exists contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     skill = registry.get("operator_fallback_flow")
@@ -18,6 +37,13 @@ def test_operator_fallback_skill_exists():
 
 
 def test_hls4ml_model_skill_exists():
+    """Verify the test_hls4ml_model_skill_exists contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     skill = registry.get("hls4ml_model_flow")
@@ -25,6 +51,13 @@ def test_hls4ml_model_skill_exists():
 
 
 def test_hls4ml_model_skill_accepts_qonnx_frontend():
+    """Verify the test_hls4ml_model_skill_accepts_qonnx_frontend contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     candidates = registry.find_candidates(
@@ -39,6 +72,13 @@ def test_hls4ml_model_skill_accepts_qonnx_frontend():
 
 
 def test_llm_candidate_verification_skill_exists():
+    """Verify the test_llm_candidate_verification_skill_exists contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     skill = registry.get("llm_candidate_verification_flow")
@@ -48,6 +88,13 @@ def test_llm_candidate_verification_skill_exists():
 
 
 def test_scale_shift_routes_to_llm_candidate_skill():
+    """Verify the test_scale_shift_routes_to_llm_candidate_skill contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     candidates = registry.find_candidates(
@@ -63,6 +110,13 @@ def test_scale_shift_routes_to_llm_candidate_skill():
 
 
 def test_llm_candidate_required_prompt_context_exposes_only_candidate_skill():
+    """Verify the test_llm_candidate_required_prompt_context_exposes_only_candidate_skill contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     context = SkillPromptContextBuilder().build(
@@ -80,6 +134,13 @@ def test_llm_candidate_required_prompt_context_exposes_only_candidate_skill():
 
 
 def test_unverifiable_capability_boundary_exposes_only_unsupported_skill():
+    """Verify the test_unverifiable_capability_boundary_exposes_only_unsupported_skill contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     context = SkillPromptContextBuilder().build(
@@ -99,6 +160,13 @@ def test_unverifiable_capability_boundary_exposes_only_unsupported_skill():
 
 
 def test_unsupported_boundary_skill_allows_schema_validation():
+    """Verify the test_unsupported_boundary_skill_allows_schema_validation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = SkillRegistry(Path("skills"))
     registry.load_all()
     skill = registry.get("unsupported_boundary_flow")

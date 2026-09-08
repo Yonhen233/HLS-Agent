@@ -1,3 +1,8 @@
+"""main_agent layer implementation for state.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +15,10 @@ from .todo import TodoItem
 
 @dataclass
 class AgentState:
+    """Coordinate AgentState within the state boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     run_id: str
     task: dict
     session_id: str | None = None
@@ -49,10 +58,27 @@ class AgentState:
     telemetry: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the state boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return asdict(self)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "AgentState":
+        """Execute from_dict at the state boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         todos = []
         for item in payload.get("todos", []):
             normalized = {
@@ -67,6 +93,16 @@ class AgentState:
         return cls(**updated)
 
     def save(self, path: str | Path) -> Path:
+        """Execute save at the state boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         target = Path(path)
         target.write_text(json.dumps(self.to_dict(), indent=2, ensure_ascii=False, default=str), encoding="utf-8")
         return target

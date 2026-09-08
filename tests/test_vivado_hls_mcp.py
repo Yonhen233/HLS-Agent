@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_vivado_hls_mcp.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -5,6 +10,16 @@ from dl_op_to_hls.adapters.vivado_hls_adapter import VivadoHLSAdapter
 
 
 def _write_design(work_dir: Path):
+    """Verify the _write_design contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     work_dir.mkdir(parents=True, exist_ok=True)
     (work_dir / "design.cpp").write_text("void demo(float input[16], float output[16]) { for (int i = 0; i < 16; ++i) output[i] = input[i]; }\n", encoding="utf-8")
     (work_dir / "design.h").write_text("void demo(float input[16], float output[16]);\n", encoding="utf-8")
@@ -12,6 +27,16 @@ def _write_design(work_dir: Path):
 
 
 def test_vivado_create_project_mock(tmp_path):
+    """Verify the test_vivado_create_project_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     adapter = VivadoHLSAdapter(mock_mode=True)
@@ -21,6 +46,16 @@ def test_vivado_create_project_mock(tmp_path):
 
 
 def test_vivado_create_project_writes_explicit_array_partition_limit(tmp_path):
+    """Verify the test_vivado_create_project_writes_explicit_array_partition_limit contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     adapter = VivadoHLSAdapter(mock_mode=True)
@@ -38,6 +73,16 @@ def test_vivado_create_project_writes_explicit_array_partition_limit(tmp_path):
 
 
 def test_vivado_create_project_copies_all_candidate_headers(tmp_path):
+    """Verify the test_vivado_create_project_copies_all_candidate_headers contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     (project_dir / "weights.h").write_text("static const int weights[1] = {1};\n", encoding="utf-8")
@@ -56,6 +101,16 @@ def test_vivado_create_project_copies_all_candidate_headers(tmp_path):
 
 
 def test_vivado_create_project_sanitizes_hls4ml_legacy_stdio_includes(tmp_path):
+    """Verify the test_vivado_create_project_sanitizes_hls4ml_legacy_stdio_includes contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     firmware = tmp_path / "hls_project" / "firmware"
     nnet_utils = firmware / "nnet_utils"
     nnet_utils.mkdir(parents=True)
@@ -82,6 +137,16 @@ def test_vivado_create_project_sanitizes_hls4ml_legacy_stdio_includes(tmp_path):
 
 
 def test_vitis_create_project_skips_legacy_sanitizer(tmp_path):
+    """Verify the test_vitis_create_project_skips_legacy_sanitizer contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     firmware = tmp_path / "hls_project" / "firmware"
     firmware.mkdir(parents=True)
     (firmware / "myproject.cpp").write_text('#include <iostream>\n#include "myproject.h"\nvoid myproject(float x[1]) {}\n', encoding="utf-8")
@@ -99,6 +164,16 @@ def test_vitis_create_project_skips_legacy_sanitizer(tmp_path):
 
 
 def test_vivado_run_csynth_mock(tmp_path):
+    """Verify the test_vivado_run_csynth_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     adapter = VivadoHLSAdapter(mock_mode=True)
@@ -109,6 +184,17 @@ def test_vivado_run_csynth_mock(tmp_path):
 
 
 def test_vivado_run_csim_real_adapter_uses_stage_tcl(tmp_path, monkeypatch):
+    """Verify the test_vivado_run_csim_real_adapter_uses_stage_tcl contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     fake_vivado = tmp_path / "vivado_hls.bat"
@@ -118,7 +204,18 @@ def test_vivado_run_csim_real_adapter_uses_stage_tcl(tmp_path, monkeypatch):
     captured = {}
 
     class FakeBridge:
+        """Coordinate FakeBridge within the test_vivado_hls_mcp boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def run_with_existing_tcl(self, **kwargs):
+            """Verify the run_with_existing_tcl contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             captured.update(kwargs)
             log_path = Path(kwargs["design_dir"]) / kwargs["log_filename"]
             log_path.write_text("Starting C simulation...\nC simulation completed\n", encoding="utf-8")
@@ -135,6 +232,17 @@ def test_vivado_run_csim_real_adapter_uses_stage_tcl(tmp_path, monkeypatch):
 
 
 def test_vivado_run_csim_rejects_compiler_error_even_when_bridge_reports_success(tmp_path, monkeypatch):
+    """Verify the test_vivado_run_csim_rejects_compiler_error_even_when_bridge_reports_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     fake_vivado = tmp_path / "vivado_hls.bat"
@@ -143,7 +251,18 @@ def test_vivado_run_csim_rejects_compiler_error_even_when_bridge_reports_success
     create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vivado")})
 
     class FakeBridge:
+        """Coordinate FakeBridge within the test_vivado_hls_mcp boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def run_with_existing_tcl(self, **kwargs):
+            """Verify the run_with_existing_tcl contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             log_path = Path(kwargs["design_dir"]) / kwargs["log_filename"]
             log_path.write_text("Starting C simulation...\ncc1plus.exe: out of memory allocating 65536 bytes\nERROR: [SIM 211-100] 'csim_design' failed\n", encoding="utf-8")
             return {"project_dir": kwargs["design_dir"], "synthesis": {"status": "success", "log_path": str(log_path)}}
@@ -158,6 +277,17 @@ def test_vivado_run_csim_rejects_compiler_error_even_when_bridge_reports_success
 
 
 def test_vivado_missing_binary_fallback(tmp_path, monkeypatch):
+    """Verify the test_vivado_missing_binary_fallback contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setattr("shutil.which", lambda name: None)
     adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path="")
     adapter.vivado_hls_path = None
@@ -168,6 +298,17 @@ def test_vivado_missing_binary_fallback(tmp_path, monkeypatch):
 
 
 def test_vitis_missing_binary_fallback(tmp_path, monkeypatch):
+    """Verify the test_vitis_missing_binary_fallback contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setattr("shutil.which", lambda name: None)
     adapter = VivadoHLSAdapter(mock_mode=False, hls_toolchain="vitis_hls", vitis_hls_path=str(tmp_path / "missing.bat"))
     monkeypatch.setattr(adapter, "_resolve_vitis_executable", lambda: None)
@@ -178,6 +319,17 @@ def test_vitis_missing_binary_fallback(tmp_path, monkeypatch):
 
 
 def test_vitis_run_csynth_uses_vitis_run_command(tmp_path, monkeypatch):
+    """Verify the test_vitis_run_csynth_uses_vitis_run_command contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     vitis_run = tmp_path / "vitis-run.bat"
@@ -187,6 +339,21 @@ def test_vitis_run_csynth_uses_vitis_run_command(tmp_path, monkeypatch):
     captured = {}
 
     def fake_run(command, cwd, capture_output, text, timeout, shell):
+        """Verify the fake_run contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            cwd: Value supplied by the caller and validated by the surrounding schema.
+            capture_output: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            timeout: Value supplied by the caller and validated by the surrounding schema.
+            shell: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del capture_output, text, timeout, shell
         captured["command"] = command
         report_dir = Path(cwd) / "solution1" / "syn" / "report"
@@ -207,6 +374,17 @@ def test_vitis_run_csynth_uses_vitis_run_command(tmp_path, monkeypatch):
 
 
 def test_vitis_run_csynth_uses_vitis_hls_legacy_command(tmp_path, monkeypatch):
+    """Verify the test_vitis_run_csynth_uses_vitis_hls_legacy_command contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     vitis_hls = tmp_path / "vitis_hls.bat"
@@ -216,6 +394,21 @@ def test_vitis_run_csynth_uses_vitis_hls_legacy_command(tmp_path, monkeypatch):
     captured = {}
 
     def fake_run(command, cwd, capture_output, text, timeout, shell):
+        """Verify the fake_run contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            cwd: Value supplied by the caller and validated by the surrounding schema.
+            capture_output: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            timeout: Value supplied by the caller and validated by the surrounding schema.
+            shell: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del capture_output, text, timeout, shell
         captured["command"] = command
         report_dir = Path(cwd) / "solution1" / "syn" / "report"
@@ -236,6 +429,17 @@ def test_vitis_run_csynth_uses_vitis_hls_legacy_command(tmp_path, monkeypatch):
 
 
 def test_vitis_log_zero_errors_is_not_synthesis_error(tmp_path, monkeypatch):
+    """Verify the test_vitis_log_zero_errors_is_not_synthesis_error contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     vitis_run = tmp_path / "vitis-run.bat"
@@ -244,6 +448,21 @@ def test_vitis_log_zero_errors_is_not_synthesis_error(tmp_path, monkeypatch):
     create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vitis")})
 
     def fake_run(command, cwd, capture_output, text, timeout, shell):
+        """Verify the fake_run contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            cwd: Value supplied by the caller and validated by the surrounding schema.
+            capture_output: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            timeout: Value supplied by the caller and validated by the surrounding schema.
+            shell: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del command, capture_output, text, timeout, shell
         report_dir = Path(cwd) / "solution1" / "syn" / "report"
         report_dir.mkdir(parents=True, exist_ok=True)
@@ -259,6 +478,17 @@ def test_vitis_log_zero_errors_is_not_synthesis_error(tmp_path, monkeypatch):
 
 
 def test_vitis_returncode_zero_with_compilation_failed_is_error(tmp_path, monkeypatch):
+    """Verify the test_vitis_returncode_zero_with_compilation_failed_is_error contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project_dir = tmp_path / "project"
     _write_design(project_dir)
     vitis_hls = tmp_path / "vitis_hls.bat"
@@ -267,6 +497,21 @@ def test_vitis_returncode_zero_with_compilation_failed_is_error(tmp_path, monkey
     create = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vitis")})
 
     def fake_run(command, cwd, capture_output, text, timeout, shell):
+        """Verify the fake_run contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            cwd: Value supplied by the caller and validated by the surrounding schema.
+            capture_output: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            timeout: Value supplied by the caller and validated by the surrounding schema.
+            shell: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del command, cwd, capture_output, text, timeout, shell
         return SimpleNamespace(returncode=0, stdout="Compilation of the preprocessed source 'demo' failed", stderr="")
 
@@ -280,18 +525,48 @@ def test_vitis_returncode_zero_with_compilation_failed_is_error(tmp_path, monkey
 
 
 def test_vivado_parse_sample_report(sample_csynth_report_path):
+    """Verify the test_vivado_parse_sample_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        sample_csynth_report_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = VivadoHLSAdapter(mock_mode=True)
     result = adapter.parse_report({"report_path": str(sample_csynth_report_path)})
     assert result["resources"]["dsp"] == 32
 
 
 def test_vivado_parse_log(sample_vivado_log_path):
+    """Verify the test_vivado_parse_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        sample_vivado_log_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = VivadoHLSAdapter(mock_mode=True)
     result = adapter.parse_log({"log_path": str(sample_vivado_log_path)})
     assert result["warnings"]
 
 
 def test_vivado_detects_host_memory_exhaustion_in_nested_autopilot_log(tmp_path):
+    """Verify the test_vivado_detects_host_memory_exhaustion_in_nested_autopilot_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     nested = tmp_path / "project" / "solution1" / ".autopilot" / "db"
     nested.mkdir(parents=True)
     log = nested / "autopilot.flow.log"

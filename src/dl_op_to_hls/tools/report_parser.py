@@ -1,3 +1,8 @@
+"""tools layer implementation for report_parser.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -16,6 +21,17 @@ RESOURCE_PATTERNS = {
 
 
 def _extract_pair(text: str, label: str) -> tuple[int | None, int | None]:
+    """Implement the internal _extract_pair helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+        label: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     patterns = [
         rf"{label}\s*\(cycles\)\s*:\s*min\s*=\s*(\d+)\s*,\s*max\s*=\s*(\d+)",
         rf"{label}\s*:\s*min\s*=\s*(\d+)\s*,\s*max\s*=\s*(\d+)",
@@ -29,6 +45,17 @@ def _extract_pair(text: str, label: str) -> tuple[int | None, int | None]:
 
 
 def _extract_resource(text: str, name: str) -> int | None:
+    """Implement the internal _extract_resource helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+        name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for pattern in RESOURCE_PATTERNS.get(name, []):
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:
@@ -37,6 +64,17 @@ def _extract_resource(text: str, name: str) -> int | None:
 
 
 def _extract_resources_from_row(text: str, row_name: str) -> dict[str, int | None]:
+    """Implement the internal _extract_resources_from_row helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+        row_name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     row = re.search(
         rf"\|\s*{re.escape(row_name)}\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|",
         text,
@@ -53,6 +91,16 @@ def _extract_resources_from_row(text: str, row_name: str) -> dict[str, int | Non
 
 
 def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
+    """Execute parse_csynth_report_file at the report_parser boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        report_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path = Path(report_path)
     if not path.exists():
         return error_result(
@@ -167,5 +215,16 @@ def parse_csynth_report_file(report_path: str) -> dict[str, Any]:
 
 
 def parse_csynth_report(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute parse_csynth_report at the report_parser boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     del context
     return parse_csynth_report_file(arguments["report_path"])

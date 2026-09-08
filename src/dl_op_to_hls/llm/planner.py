@@ -1,3 +1,8 @@
+"""llm layer implementation for planner.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -11,7 +16,18 @@ from .trace import emit_llm_event
 
 
 class LLMTodoPlanner:
+    """Coordinate LLMTodoPlanner within the planner boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.context_window = ContextWindowManager()
 
     def plan(
@@ -26,6 +42,23 @@ class LLMTodoPlanner:
         layered_tool_view: dict[str, Any] | None = None,
         goal_contract: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute plan at the planner boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+            skill_context: Value supplied by the caller and validated by the surrounding schema.
+            available_tools: Value supplied by the caller and validated by the surrounding schema.
+            available_specialists: Value supplied by the caller and validated by the surrounding schema.
+            retrieved_memories: Value supplied by the caller and validated by the surrounding schema.
+            client: Value supplied by the caller and validated by the surrounding schema.
+            layered_tool_view: Value supplied by the caller and validated by the surrounding schema.
+            goal_contract: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         layered_tool_view = layered_tool_view or {}
         candidate_skill_tools = {
             tool

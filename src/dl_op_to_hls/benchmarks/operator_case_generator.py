@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_case_generator.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import math
@@ -24,6 +29,10 @@ INPUT_FAMILIES = (
 
 @dataclass(frozen=True)
 class FixedPointSpec:
+    """Coordinate FixedPointSpec within the operator_case_generator boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     total_bits: int
     integer_bits: int
     rounding_mode: str = "AP_TRN"
@@ -31,22 +40,60 @@ class FixedPointSpec:
 
     @property
     def fractional_bits(self) -> int:
+        """Execute fractional_bits at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.total_bits - self.integer_bits
 
     @property
     def step(self) -> float:
+        """Execute step at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return 2.0 ** (-self.fractional_bits)
 
     @property
     def minimum(self) -> float:
+        """Execute minimum at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return -(2.0 ** (self.integer_bits - 1))
 
     @property
     def maximum(self) -> float:
+        """Execute maximum at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return (2.0 ** (self.integer_bits - 1)) - self.step
 
     @classmethod
     def parse(cls, value: str) -> "FixedPointSpec":
+        """Execute parse at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         match = FIXED_RE.search(value)
         if not match:
             raise ValueError(f"Unsupported fixed-point dtype: {value}")
@@ -57,6 +104,16 @@ class FixedPointSpec:
         return spec
 
     def quantize(self, value: float) -> tuple[float, bool, bool]:
+        """Execute quantize at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scaled = value / self.step
         integer = round(scaled) if self.rounding_mode == "AP_RND" else math.floor(scaled)
         minimum_int = -(2 ** (self.total_bits - 1))
@@ -80,6 +137,19 @@ def generate_operator_cases() -> list[dict[str, Any]]:
     family_index = 0
 
     def add(operator: str, shape: Any, dtype: str, params: dict[str, Any] | None = None) -> None:
+        """Execute add at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            operator: Value supplied by the caller and validated by the surrounding schema.
+            shape: Value supplied by the caller and validated by the surrounding schema.
+            dtype: Value supplied by the caller and validated by the surrounding schema.
+            params: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         nonlocal family_index
         for offset in (0, 5):
             family = INPUT_FAMILIES[(family_index + offset) % len(INPUT_FAMILIES)]
@@ -129,6 +199,16 @@ def generate_operator_cases() -> list[dict[str, Any]]:
 
 
 def validate_case_schema(case: dict[str, Any]) -> list[str]:
+    """Execute validate_case_schema at the operator_case_generator boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     required = {
         "case_id", "operator", "shape", "dtype", "input_family", "seed", "rounding_mode",
         "overflow_mode", "golden_mode", "tolerance", "expected_outcome", "objective",
@@ -153,6 +233,16 @@ def validate_case_schema(case: dict[str, Any]) -> list[str]:
 
 
 def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Execute evaluate_case at the operator_case_generator boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     errors = validate_case_schema(case)
     if errors:
         return {"case_id": case.get("case_id"), "passed": False, "errors": errors, "evidence_class": "unit"}
@@ -179,6 +269,13 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def suite_payload() -> dict[str, Any]:
+    """Execute suite_payload at the operator_case_generator boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cases = generate_operator_cases()
     return {
         "schema_version": "1.0",
@@ -191,11 +288,31 @@ def suite_payload() -> dict[str, Any]:
 
 
 def _accumulator_dtype(dtype: str) -> str:
+    """Implement the internal _accumulator_dtype helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        dtype: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     spec = FixedPointSpec.parse(dtype)
     return f"ap_fixed<{min(32, spec.total_bits + 8)},{min(16, spec.integer_bits + 4)}>"
 
 
 def _input_count(case: dict[str, Any]) -> int:
+    """Implement the internal _input_count helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     shape = case["shape"]
     if case["operator"] == "Dense":
         return int(shape[0])
@@ -209,6 +326,19 @@ def _input_count(case: dict[str, Any]) -> int:
 
 
 def _make_inputs(count: int, family: str, spec: FixedPointSpec, rng: random.Random) -> list[float]:
+    """Implement the internal _make_inputs helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        count: Value supplied by the caller and validated by the surrounding schema.
+        family: Value supplied by the caller and validated by the surrounding schema.
+        spec: Value supplied by the caller and validated by the surrounding schema.
+        rng: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     small = min(0.75, spec.maximum / 4)
     if family == "zeros":
         return [0.0] * count
@@ -235,6 +365,17 @@ def _make_inputs(count: int, family: str, spec: FixedPointSpec, rng: random.Rand
 
 
 def _quantize_many(values: list[float], spec: FixedPointSpec) -> tuple[list[float], int, int]:
+    """Implement the internal _quantize_many helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        spec: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output: list[float] = []
     overflow_count = saturation_count = 0
     for value in values:
@@ -246,11 +387,34 @@ def _quantize_many(values: list[float], spec: FixedPointSpec) -> tuple[list[floa
 
 
 def _run_operator(case: dict[str, Any], values: list[float], spec: FixedPointSpec, rng: random.Random) -> tuple[list[float], list[float], int, int]:
+    """Implement the internal _run_operator helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+        values: Value supplied by the caller and validated by the surrounding schema.
+        spec: Value supplied by the caller and validated by the surrounding schema.
+        rng: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     operator = case["operator"]
     shape = case["shape"]
     overflow_count = saturation_count = 0
 
     def q(value: float) -> float:
+        """Execute q at the operator_case_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         nonlocal overflow_count, saturation_count
         quantized, overflowed, saturated = spec.quantize(value)
         overflow_count += int(overflowed)
@@ -332,4 +496,14 @@ def _run_operator(case: dict[str, Any], values: list[float], spec: FixedPointSpe
 
 
 def case_to_dict(case: Any) -> dict[str, Any]:
+    """Execute case_to_dict at the operator_case_generator boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return asdict(case) if hasattr(case, "__dataclass_fields__") else dict(case)

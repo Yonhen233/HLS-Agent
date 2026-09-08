@@ -1,3 +1,8 @@
+"""core layer implementation for config.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -29,6 +34,16 @@ DEFAULT_PERMISSIONS = {
 
 
 def _simple_yaml_load(text: str) -> dict[str, Any]:
+    """Implement the internal _simple_yaml_load helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         import yaml  # type: ignore
 
@@ -81,6 +96,10 @@ def _simple_yaml_load(text: str) -> dict[str, Any]:
 
 @dataclass
 class AppConfig:
+    """Coordinate AppConfig within the config boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     workspace_root: Path
     runs_root: Path
     docs_root: Path
@@ -106,6 +125,16 @@ class AppConfig:
 
     @classmethod
     def load(cls, workspace_root: str | Path | None = None) -> "AppConfig":
+        """Execute load at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         root = Path(workspace_root or os.getcwd()).resolve()
         runs_root = Path(os.environ.get("DL_OP_TO_HLS_RUNS_ROOT", root / "runs")).resolve()
         db_path = Path(os.environ.get("DL_OP_TO_HLS_DB_PATH", runs_root / "metadata.db")).resolve()
@@ -206,10 +235,24 @@ class AppConfig:
         )
 
     def ensure_directories(self) -> None:
+        """Execute ensure_directories at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.runs_root.mkdir(parents=True, exist_ok=True)
         self.docs_root.mkdir(parents=True, exist_ok=True)
 
     def load_permissions(self) -> dict[str, Any]:
+        """Execute load_permissions at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.permissions_path.exists():
             return DEFAULT_PERMISSIONS
         data = _simple_yaml_load(self.permissions_path.read_text(encoding="utf-8"))
@@ -218,6 +261,13 @@ class AppConfig:
         return data
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "workspace_root": str(self.workspace_root),
             "runs_root": str(self.runs_root),
@@ -244,10 +294,30 @@ class AppConfig:
         }
 
     def write_runtime_config(self, path: str | Path) -> None:
+        """Execute write_runtime_config at the config boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         Path(path).write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
 
 
 def _normalize_hls_toolchain(value: Any) -> str:
+    """Implement the internal _normalize_hls_toolchain helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(value or "vivado_hls").strip().lower().replace("-", "_")
     aliases = {
         "vivado": "vivado_hls",

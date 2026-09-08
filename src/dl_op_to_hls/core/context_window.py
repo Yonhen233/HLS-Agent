@@ -1,3 +1,8 @@
+"""core layer implementation for context_window.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -11,6 +16,16 @@ class ContextWindowManager:
     """Builds compact, deduplicated model context with explicit priorities."""
 
     def __init__(self, token_budget: TokenBudgetManager | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            token_budget: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.token_budget = token_budget or TokenBudgetManager()
 
     def compact_records(
@@ -20,6 +35,18 @@ class ContextWindowManager:
         max_items: int = 6,
         max_tokens: int = 1200,
     ) -> list[dict[str, Any]]:
+        """Execute compact_records at the context_window boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+            max_items: Value supplied by the caller and validated by the surrounding schema.
+            max_tokens: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         selected: list[dict[str, Any]] = []
         seen: set[str] = set()
         used_tokens = 0
@@ -53,6 +80,18 @@ class ContextWindowManager:
         max_items: int = 5,
         max_tokens: int = 700,
     ) -> list[dict[str, Any]]:
+        """Execute compact_recent_observations at the context_window boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            observations: Value supplied by the caller and validated by the surrounding schema.
+            max_items: Value supplied by the caller and validated by the surrounding schema.
+            max_tokens: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         compacted: list[dict[str, Any]] = []
         used = 0
         for item in reversed(observations):
@@ -76,6 +115,16 @@ class ContextWindowManager:
         return compacted
 
     def _compact_record(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _compact_record helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = item.get("summary") or item.get("text") or item.get("fact") or ""
         return {
             "source": item.get("source_id") or item.get("source_run_id") or item.get("id"),
@@ -89,4 +138,14 @@ class ContextWindowManager:
         }
 
     def estimate_payload_tokens(self, payload: dict[str, Any]) -> int:
+        """Execute estimate_payload_tokens at the context_window boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.token_budget.estimate_tokens(json.dumps(payload, ensure_ascii=False, default=str))

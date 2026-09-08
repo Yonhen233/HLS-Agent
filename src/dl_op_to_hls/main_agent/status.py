@@ -1,3 +1,8 @@
+"""main_agent layer implementation for status.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -7,6 +12,16 @@ VERIFIED_MODES = {"golden_testbench", "hls4ml_reference_compare", "reference_com
 
 
 def is_functionally_verified(verification: dict[str, Any] | None) -> bool:
+    """Execute is_functionally_verified at the status boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        verification: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not isinstance(verification, dict):
         return False
     mode = verification.get("mode")
@@ -17,6 +32,16 @@ def is_functionally_verified(verification: dict[str, Any] | None) -> bool:
 
 
 def compute_pipeline_status(state: Any) -> dict[str, Any]:
+    """Execute compute_pipeline_status at the status boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = getattr(state, "task", {}) or {}
     report = getattr(state, "report", None) or {}
     verification = getattr(state, "verification", None) or {}

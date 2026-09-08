@@ -1,3 +1,8 @@
+"""core layer implementation for memory_hygiene.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -29,6 +34,16 @@ def sanitize_memory_text(text: str) -> str:
 
 
 def sanitize_memory_payload(value: Any) -> Any:
+    """Execute sanitize_memory_payload at the memory_hygiene boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if isinstance(value, dict):
         cleaned: dict[str, Any] = {}
         for key, item in value.items():
@@ -51,4 +66,14 @@ def sanitize_memory_payload(value: Any) -> Any:
 
 
 def _is_empty(value: Any) -> bool:
+    """Implement the internal _is_empty helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return value is None or value == "" or value == [] or value == {}

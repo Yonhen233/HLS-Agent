@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for context_ablation.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -43,12 +48,35 @@ class EvaluationConfigurationError(RuntimeError):
 
 
 def make_benchmark_run_id(case_id: str, mode: str, trial: int, suffix: str | None = None) -> str:
+    """Execute make_benchmark_run_id at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        case_id: Value supplied by the caller and validated by the surrounding schema.
+        mode: Value supplied by the caller and validated by the surrounding schema.
+        trial: Value supplied by the caller and validated by the surrounding schema.
+        suffix: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     safe_case = re.sub(r"[^A-Za-z0-9_]+", "_", case_id).strip("_").lower() or "case"
     unique = suffix or uuid.uuid4().hex[:6]
     return f"{safe_case}_{mode}_t{trial}_{unique}"
 
 
 def estimate_vivado_internal_path(run_dir: Path) -> dict[str, Any]:
+    """Execute estimate_vivado_internal_path at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     estimated = run_dir.resolve() / VIVADO_INTERNAL_SUFFIX
     return {
         "run_dir": str(run_dir.resolve()),
@@ -60,6 +88,16 @@ def estimate_vivado_internal_path(run_dir: Path) -> dict[str, Any]:
 
 
 def validate_execution_path(run_dir: Path) -> dict[str, Any]:
+    """Execute validate_execution_path at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = estimate_vivado_internal_path(run_dir)
     if not result["valid"]:
         raise EvaluationConfigurationError(
@@ -70,6 +108,16 @@ def validate_execution_path(run_dir: Path) -> dict[str, Any]:
 
 
 def classify_external_failure(text: str) -> dict[str, Any]:
+    """Execute classify_external_failure at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = text or ""
     http_match = re.search(r"(?:HTTP(?: error)?[: ]+|status(?: code)?[: ]+)(401|402|429|500|502|503|504)\b", normalized, re.I)
     if not http_match:
@@ -87,17 +135,49 @@ def classify_external_failure(text: str) -> dict[str, Any]:
 
 
 def _json_load(path: Path, default: Any = None) -> Any:
+    """Implement the internal _json_load helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not path.exists():
         return default
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _json_write(path: Path, payload: Any) -> None:
+    """Implement the internal _json_write helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 
 def _sha256(path: Path) -> str:
+    """Implement the internal _sha256 helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -109,6 +189,16 @@ class DeepSeekV4Tokenizer:
     """Strict local tokenizer loader. It never falls back to a heuristic."""
 
     def __init__(self, path: str | Path):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path = Path(path).resolve()
         if not self.path.is_dir():
             raise FileNotFoundError(f"DeepSeek V4 tokenizer directory does not exist: {self.path}")
@@ -127,10 +217,27 @@ class DeepSeekV4Tokenizer:
             raise RuntimeError("Tokenizer does not satisfy the frozen DeepSeek V4 tokenizer contract.")
 
     def count(self, value: Any) -> int:
+        """Execute count at the context_ablation boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
     def metadata(self) -> dict[str, Any]:
+        """Execute metadata at the context_ablation boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         files = []
         for path in sorted(item for item in self.path.rglob("*") if item.is_file() and ".cache" not in item.parts):
             files.append({"path": str(path.relative_to(self.path)), "bytes": path.stat().st_size, "sha256": _sha256(path)})
@@ -146,11 +253,31 @@ class DeepSeekV4Tokenizer:
 
 
 def _git(workspace: Path, *args: str) -> str:
+    """Implement the internal _git helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = subprocess.run(["git", *args], cwd=workspace, capture_output=True, text=True, check=False)
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
 def _benchmark_code_dirty(workspace: Path) -> bool:
+    """Implement the internal _benchmark_code_dirty helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if _git(workspace, "diff", "--name-only") or _git(workspace, "diff", "--cached", "--name-only"):
         return True
     relevant_untracked_prefixes = (
@@ -167,6 +294,19 @@ def _benchmark_code_dirty(workspace: Path) -> bool:
 
 
 def build_manifest(workspace: Path, suite_path: Path, output_dir: Path, smoke: bool) -> dict[str, Any]:
+    """Execute build_manifest at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace: Value supplied by the caller and validated by the surrounding schema.
+        suite_path: Value supplied by the caller and validated by the surrounding schema.
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+        smoke: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     suite = _json_load(suite_path, {})
     cases = list(suite.get("cases") or [])
     if smoke:
@@ -211,6 +351,17 @@ def build_manifest(workspace: Path, suite_path: Path, output_dir: Path, smoke: b
 
 
 def _sqlite_snapshot(source: Path, target: Path) -> None:
+    """Implement the internal _sqlite_snapshot helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        source: Value supplied by the caller and validated by the surrounding schema.
+        target: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
     if not source.exists():
         sqlite3.connect(target).close()
@@ -220,17 +371,47 @@ def _sqlite_snapshot(source: Path, target: Path) -> None:
 
 
 def _mode_order(index: int) -> list[str]:
+    """Implement the internal _mode_order helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        index: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     orders = [["A", "B", "C"], ["B", "C", "A"], ["C", "A", "B"]]
     return orders[index % len(orders)]
 
 
 def _find_run_dir(runs_root: Path) -> Path | None:
+    """Implement the internal _find_run_dir helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        runs_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     candidates = [item for item in runs_root.iterdir() if item.is_dir() and item.name not in {"sessions", "jobs"}]
     candidates = [item for item in candidates if (item / "state.json").exists()]
     return max(candidates, key=lambda item: item.stat().st_mtime) if candidates else None
 
 
 def _trace(run_dir: Path) -> list[dict[str, Any]]:
+    """Implement the internal _trace helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     events = []
     path = run_dir / "trace.jsonl"
     if not path.exists():
@@ -244,6 +425,17 @@ def _trace(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def _token_payload_metrics(run_dir: Path, tokenizer: DeepSeekV4Tokenizer) -> dict[str, Any]:
+    """Implement the internal _token_payload_metrics helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+        tokenizer: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     telemetry_dir = run_dir / "context_telemetry"
     input_files = sorted(telemetry_dir.glob("*_input_envelope.json")) if telemetry_dir.exists() else []
     raw_files = sorted(telemetry_dir.glob("*_raw_specialist_result.json")) if telemetry_dir.exists() else []
@@ -281,6 +473,16 @@ def _token_payload_metrics(run_dir: Path, tokenizer: DeepSeekV4Tokenizer) -> dic
 
 
 def _api_usage(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Implement the internal _api_usage helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        events: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     usage = [item for item in events if item.get("event") == "LLMUsageRecorded"]
     return {
         "llm_calls": len(usage),
@@ -349,6 +551,18 @@ def _current_run_verification(run_dir: Path, events: list[dict[str, Any]]) -> di
 
 
 def _contains_semantic_value(payload: Any, key: str, expected: Any) -> tuple[bool, Any]:
+    """Implement the internal _contains_semantic_value helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+        key: Value supplied by the caller and validated by the surrounding schema.
+        expected: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if isinstance(payload, dict):
         if key in payload:
             actual = payload[key]
@@ -367,6 +581,17 @@ def _contains_semantic_value(payload: Any, key: str, expected: Any) -> tuple[boo
 
 
 def _constraint_contract(task: dict[str, Any], state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Implement the internal _constraint_contract helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     target = task.get("target") or {}
     candidate = task.get("candidate_contract") or {}
     objective = state.get("objective") or task.get("objective") or (task.get("optimization") or {}).get("objective")
@@ -392,6 +617,18 @@ def _constraint_contract(task: dict[str, Any], state: dict[str, Any]) -> list[di
 
 
 def _score_constraint_payload(contract: list[dict[str, Any]], payload: Any, loss_step: str) -> dict[str, Any]:
+    """Implement the internal _score_constraint_payload helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        contract: Value supplied by the caller and validated by the surrounding schema.
+        payload: Value supplied by the caller and validated by the surrounding schema.
+        loss_step: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     details = []
     for item in contract:
         kept, transferred = _contains_semantic_value(payload, item["field"], item["value"])
@@ -414,6 +651,16 @@ def _score_constraint_payload(contract: list[dict[str, Any]], payload: Any, loss
 
 
 def _retention(run_dir: Path) -> dict[str, Any]:
+    """Implement the internal _retention helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = _json_load(run_dir / "state.json", {})
     task = state.get("task") or {}
     contract = _constraint_contract(task, state)
@@ -442,6 +689,20 @@ def _retention(run_dir: Path) -> dict[str, Any]:
 
 
 def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepSeekV4Tokenizer, wall_s: float) -> dict[str, Any]:
+    """Execute analyze_run at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+        mode: Value supplied by the caller and validated by the surrounding schema.
+        case: Value supplied by the caller and validated by the surrounding schema.
+        tokenizer: Value supplied by the caller and validated by the surrounding schema.
+        wall_s: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     base = collect_run_metrics(run_dir)
     events = _trace(run_dir)
     api = _api_usage(events)
@@ -543,6 +804,18 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
 
 
 def _bootstrap_median(values: list[float], samples: int = 4000, seed: int = 20260901) -> dict[str, Any]:
+    """Implement the internal _bootstrap_median helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        samples: Value supplied by the caller and validated by the surrounding schema.
+        seed: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values:
         return {"median": None, "ci95": [None, None], "n": 0}
     rng = random.Random(seed)
@@ -558,6 +831,18 @@ def _bootstrap_median(values: list[float], samples: int = 4000, seed: int = 2026
 
 
 def _bootstrap_mean(values: list[float], samples: int = 4000, seed: int = 20260901) -> dict[str, Any]:
+    """Implement the internal _bootstrap_mean helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        samples: Value supplied by the caller and validated by the surrounding schema.
+        seed: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values:
         return {"mean": None, "ci95": [None, None], "n": 0}
     rng = random.Random(seed)
@@ -571,6 +856,17 @@ def _bootstrap_mean(values: list[float], samples: int = 4000, seed: int = 202609
 
 
 def _mcnemar_exact(left_only: int, right_only: int) -> dict[str, Any]:
+    """Implement the internal _mcnemar_exact helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        left_only: Value supplied by the caller and validated by the surrounding schema.
+        right_only: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     discordant = left_only + right_only
     if discordant == 0:
         return {"discordant": 0, "two_sided_p": 1.0}
@@ -580,6 +876,18 @@ def _mcnemar_exact(left_only: int, right_only: int) -> dict[str, Any]:
 
 
 def paired_comparison(records: list[dict[str, Any]], left: str, right: str) -> dict[str, Any]:
+    """Execute paired_comparison at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        records: Value supplied by the caller and validated by the surrounding schema.
+        left: Value supplied by the caller and validated by the surrounding schema.
+        right: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     valid = [item for item in records if item.get("run_valid_for_comparison", True)]
     by_case = {(item["case_id"], int(item.get("trial_index") or 0), item["mode"]): item for item in valid}
     case_trials = sorted({(item["case_id"], int(item.get("trial_index") or 0)) for item in valid})
@@ -626,6 +934,16 @@ def paired_comparison(records: list[dict[str, Any]], left: str, right: str) -> d
 
 
 def _aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Implement the internal _aggregate helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        records: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     groups = {}
     for mode in MODES:
         items = [item for item in records if item["mode"] == mode and item.get("run_valid_for_comparison", True)]
@@ -679,6 +997,18 @@ def _aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _write_reports(output_dir: Path, manifest: dict[str, Any], results: dict[str, Any]) -> None:
+    """Implement the internal _write_reports helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+        manifest: Value supplied by the caller and validated by the surrounding schema.
+        results: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     aggregate = results["aggregate"]
     lines = [
         "# Context Ablation Repair And Rerun Report",
@@ -774,6 +1104,16 @@ def _write_reports(output_dir: Path, manifest: dict[str, Any], results: dict[str
 
 
 def _chat_completions_url(base_url: str) -> str:
+    """Implement the internal _chat_completions_url helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        base_url: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = base_url.rstrip("/")
     if urllib.parse.urlparse(normalized).path in {"", "/"}:
         normalized += "/v1"
@@ -781,6 +1121,18 @@ def _chat_completions_url(base_url: str) -> str:
 
 
 def api_preflight(base_url: str, api_key: str, model: str) -> dict[str, Any]:
+    """Execute api_preflight at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        base_url: Value supplied by the caller and validated by the surrounding schema.
+        api_key: Value supplied by the caller and validated by the surrounding schema.
+        model: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     body = json.dumps(
         {
             "model": model,
@@ -832,6 +1184,24 @@ def _runner_failure_record(
     *, case: dict[str, Any], mode: str, trial: int, attempt: int, run_id: str,
     run_dir: Path, wall_s: float, exit_code: int | None, output: str,
 ) -> dict[str, Any]:
+    """Implement the internal _runner_failure_record helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case: Value supplied by the caller and validated by the surrounding schema.
+        mode: Value supplied by the caller and validated by the surrounding schema.
+        trial: Value supplied by the caller and validated by the surrounding schema.
+        attempt: Value supplied by the caller and validated by the surrounding schema.
+        run_id: Value supplied by the caller and validated by the surrounding schema.
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+        wall_s: Value supplied by the caller and validated by the surrounding schema.
+        exit_code: Value supplied by the caller and validated by the surrounding schema.
+        output: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     failure = classify_external_failure(output)
     return {
         "case_id": case["case_id"],
@@ -861,6 +1231,25 @@ def validate_resume_checkpoint(
     max_pair_attempts: int,
     run_timeout_seconds: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], set[tuple[int, str]]]:
+    """Execute validate_resume_checkpoint at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace: Value supplied by the caller and validated by the surrounding schema.
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+        execution_root: Value supplied by the caller and validated by the surrounding schema.
+        trials: Value supplied by the caller and validated by the surrounding schema.
+        smoke: Value supplied by the caller and validated by the surrounding schema.
+        model: Value supplied by the caller and validated by the surrounding schema.
+        base_url: Value supplied by the caller and validated by the surrounding schema.
+        tokenizer_sha256: Value supplied by the caller and validated by the surrounding schema.
+        max_pair_attempts: Value supplied by the caller and validated by the surrounding schema.
+        run_timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manifest = _json_load(output_dir / "context_ablation_manifest.json")
     environment = _json_load(output_dir / "environment.json")
     partial = _json_load(output_dir / "context_ablation_results.partial.json", {"runs": []})
@@ -916,6 +1305,16 @@ def validate_resume_checkpoint(
 
 
 def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
+    """Execute run_benchmark at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        args: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     workspace = Path(args.workspace).resolve()
     if _benchmark_code_dirty(workspace) and not args.manifest_only:
         raise RuntimeError("Context ablation requires a clean tracked worktree so every run maps to one Git commit.")
@@ -1146,6 +1545,13 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Run real paired context compression ablations.")
     parser.add_argument("--workspace", default=".")
     parser.add_argument("--suite", default="benchmarks/context_ablation_suite.json")
@@ -1161,6 +1567,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    """Execute main at the context_ablation boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     payload = run_benchmark(args)
     print(json.dumps(payload, indent=2, ensure_ascii=False))

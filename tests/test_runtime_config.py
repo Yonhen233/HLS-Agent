@@ -1,7 +1,23 @@
+"""Test contracts and regression checks for test_runtime_config.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.core.config import AppConfig
 
 
 def test_runtime_yaml_loads_explicit_mode(tmp_path, monkeypatch):
+    """Verify the test_runtime_yaml_loads_explicit_mode contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.delenv("DL_OP_TO_HLS_RUNTIME_MODE", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_SPECIALIST_LLM_DECIDER_ENABLED", raising=False)
@@ -30,6 +46,17 @@ def test_runtime_yaml_loads_explicit_mode(tmp_path, monkeypatch):
 
 
 def test_runtime_env_overrides_yaml(tmp_path, monkeypatch):
+    """Verify the test_runtime_env_overrides_yaml contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     (tmp_path / "runtime.yaml").write_text("runtime:\n  mode: demo\n", encoding="utf-8")
     monkeypatch.setenv("DL_OP_TO_HLS_RUNTIME_MODE", "production")
     monkeypatch.setenv("DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE", "strict")
@@ -41,6 +68,17 @@ def test_runtime_env_overrides_yaml(tmp_path, monkeypatch):
 
 
 def test_runtime_vitis_toolchain_defaults_hls4ml_backend(tmp_path, monkeypatch):
+    """Verify the test_runtime_vitis_toolchain_defaults_hls4ml_backend contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_HLS_TOOLCHAIN", "vitis")
     monkeypatch.delenv("DL_OP_TO_HLS_HLS4ML_BACKEND", raising=False)
     monkeypatch.setenv("DL_OP_TO_HLS_VITIS_HLS_PATH", r"D:\vitis25.2.1\2025.2.1\Vitis\bin\vitis-run.bat")
@@ -53,6 +91,17 @@ def test_runtime_vitis_toolchain_defaults_hls4ml_backend(tmp_path, monkeypatch):
 
 
 def test_runtime_generic_mock_tools_env_controls_both_adapters(tmp_path, monkeypatch):
+    """Verify the test_runtime_generic_mock_tools_env_controls_both_adapters contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_TOOLS", "0")
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_HLS4ML", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
@@ -64,6 +113,17 @@ def test_runtime_generic_mock_tools_env_controls_both_adapters(tmp_path, monkeyp
 
 
 def test_runtime_specific_mock_env_overrides_generic(tmp_path, monkeypatch):
+    """Verify the test_runtime_specific_mock_env_overrides_generic contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_TOOLS", "0")
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_HLS4ML", "1")
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
@@ -75,6 +135,17 @@ def test_runtime_specific_mock_env_overrides_generic(tmp_path, monkeypatch):
 
 
 def test_production_runtime_defaults_to_real_tools(monkeypatch, tmp_path):
+    """Verify the test_production_runtime_defaults_to_real_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_TOOLS", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_HLS4ML", raising=False)
     monkeypatch.delenv("DL_OP_TO_HLS_MOCK_VIVADO", raising=False)
@@ -87,6 +158,17 @@ def test_production_runtime_defaults_to_real_tools(monkeypatch, tmp_path):
 
 
 def test_runtime_loads_semantic_rag_and_environment_overrides(tmp_path, monkeypatch):
+    """Verify the test_runtime_loads_semantic_rag_and_environment_overrides contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     (tmp_path / "runtime.yaml").write_text(
         "\n".join(
             [

@@ -1,3 +1,8 @@
+"""main_agent layer implementation for llm_runtime.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +28,10 @@ from .todo import TodoList
 
 
 class LLMFirstRuntime(PlanExecuteReactRuntime):
+    """Coordinate LLMFirstRuntime within the llm_runtime boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(
         self,
         agent,
@@ -31,6 +40,20 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         user_id: str = "local-user",
         project_id: str | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            agent: Value supplied by the caller and validated by the surrounding schema.
+            llm_client: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            project_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         super().__init__(agent, session_id=session_id)
         self.llm_client = llm_client or LLMClient()
         self.controller = LLMController()
@@ -44,6 +67,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self.project_id = project_id or agent.config.workspace_root.name
 
     def run(self, input_data: str | dict[str, Any]) -> AgentState:
+        """Execute run at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            input_data: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session = self.agent.session_manager.create(
             input_data,
             self.session_id,
@@ -85,6 +118,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return state
 
     def resume(self, session_id: str) -> AgentState:
+        """Execute resume at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.session_id = session_id
         session = self.agent.session_manager.get(session_id)
         if (session.get("metadata") or {}).get("replan_required"):
@@ -148,6 +191,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return state
 
     def _restore_run_budget(self, checkpoint: dict[str, Any]) -> None:
+        """Implement the internal _restore_run_budget helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            checkpoint: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         budget_payload = ((checkpoint.get("runtime") or {}).get("run_budget") or {})
         if not budget_payload:
             budget_path = self.context["run_dir"] / "run_budget.json"
@@ -180,6 +233,13 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self.context["run_budget"] = RunBudget.from_dict(budget_payload)
 
     def _ensure_llm_enabled(self) -> None:
+        """Implement the internal _ensure_llm_enabled helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.llm_client.is_enabled():
             return
         raise AgentRuntimeError(
@@ -193,6 +253,18 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         )
 
     def _close_run(self, state: AgentState, hooks, *, resumed: bool) -> None:
+        """Implement the internal _close_run helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            hooks: Value supplied by the caller and validated by the surrounding schema.
+            resumed: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         reflect_on_errors(state)
         update_status_from_todos(state)
         if state.status != "interrupted":
@@ -232,6 +304,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         )
 
     def initialize(self, input_data: str | dict[str, Any]) -> AgentState:
+        """Execute initialize at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            input_data: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         task = self._interpret_or_load_task(input_data)
         task = self._apply_generation_policy(task)
         run_id = self.agent.make_run_id(task)
@@ -313,26 +395,67 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return normalized
 
     def _build_executor(self):
+        """Implement the internal _build_executor helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from .executor import AgentExecutor
 
         return AgentExecutor(self.agent.registry, self.context)
 
     def _build_todo_manager(self):
+        """Implement the internal _build_todo_manager helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from .todo import TodoManager
 
         return TodoManager(self.context["run_dir"], hooks=self.context["hooks"], artifact_manager=self.context["artifact_manager"])
 
     def _build_compressor(self, run_id: str):
+        """Implement the internal _build_compressor helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from ..core.context import ContextCompressor
 
         return ContextCompressor(hooks=self.context["hooks"], run_id=run_id)
 
     def _build_router(self):
+        """Implement the internal _build_router helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from ..specialists.router import build_default_router
 
         return build_default_router(self.context)
 
     def _interpret_or_load_task(self, input_data: str | dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _interpret_or_load_task helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            input_data: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             interpreted = self.controller.task_interpreter.interpret(input_data, self.llm_client)
             task = load_task(interpreted["task"])
@@ -347,6 +470,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             raise
 
     def build_skill_context(self, state: AgentState) -> AgentState:
+        """Execute build_skill_context at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.skill_registry.load_all()
         skill_context = self.skill_prompt_builder.build(state.task, self.skill_registry, top_k=5)
         state.artifacts["skill_context"] = str(
@@ -363,6 +496,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return state
 
     def plan_todos(self, state: AgentState) -> AgentState:
+        """Execute plan_todos at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         layered_tool_view = build_layered_tool_view(self.agent.registry, self.specialist_router)
         available_tools = list(layered_tool_view["direct_tools"])
         available_specialists = [item["name"] for item in layered_tool_view["specialists"]]
@@ -502,6 +645,17 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
 
     @staticmethod
     def _append_skill_terminal_todos(plan: dict[str, Any], skill: Any) -> list[str]:
+        """Implement the internal _append_skill_terminal_todos helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            plan: Value supplied by the caller and validated by the surrounding schema.
+            skill: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if skill is None:
             return []
         terminal_tools = {"suggestion.suggest_optimization", "memory.promote_to_long_term"}
@@ -517,6 +671,17 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
 
     @staticmethod
     def _repair_specialist_ownership(plan: dict[str, Any], layered_tool_view: dict[str, Any]) -> list[dict[str, str]]:
+        """Implement the internal _repair_specialist_ownership helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            plan: Value supplied by the caller and validated by the surrounding schema.
+            layered_tool_view: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         owners: dict[str, list[str]] = {}
         for specialist in layered_tool_view.get("specialists", []):
             for tool_name in specialist.get("capability_tools", []):
@@ -545,6 +710,17 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return repairs
 
     def _create_todos_from_llm_plan(self, state: AgentState, plan: dict[str, Any]) -> None:
+        """Implement the internal _create_todos_from_llm_plan helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            plan: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         expanded = list(plan.get("todos", []))
         if self.selected_skill is not None and not expanded:
             expanded = self.skill_expander.expand_recommended_todos(self.selected_skill, state.task)
@@ -579,6 +755,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         state.artifacts["todos"] = str(self.context["run_dir"] / "todos.json")
 
     def _coerce_unsupported_recovery_todo(self, item) -> None:
+        """Implement the internal _coerce_unsupported_recovery_todo helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if item.assigned_tool:
             return
         inputs = item.inputs if isinstance(item.inputs, dict) else {}
@@ -602,18 +788,47 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         """
 
         def first_by_tool(*tool_names: str):
+            """Execute first_by_tool at the llm_runtime boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             for item in todo_list.items:
                 if item.assigned_tool in tool_names:
                     return item
             return None
 
         def require(item, dependency) -> None:
+            """Execute require at the llm_runtime boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                item: Value supplied by the caller and validated by the surrounding schema.
+                dependency: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if item is None or dependency is None or item.id == dependency.id:
                 return
             if dependency.id not in item.dependencies:
                 item.dependencies.append(dependency.id)
 
         def replace(item, dependencies) -> None:
+            """Execute replace at the llm_runtime boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                item: Value supplied by the caller and validated by the surrounding schema.
+                dependencies: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if item is None:
                 return
             item.dependencies = list(
@@ -670,9 +885,30 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self._remove_dependency_cycles(todo_list)
 
     def _remove_dependency_cycles(self, todo_list) -> None:
+        """Implement the internal _remove_dependency_cycles helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo_list: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         id_to_item = {item.id: item for item in todo_list.items}
 
         def visit(item, stack: set[str]) -> None:
+            """Execute visit at the llm_runtime boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                item: Value supplied by the caller and validated by the surrounding schema.
+                stack: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             clean: list[str] = []
             for dep_id in item.dependencies:
                 if dep_id not in id_to_item or dep_id == item.id:
@@ -688,6 +924,17 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             visit(item, set())
 
     def execute_todo_with_react(self, state: AgentState, todo) -> dict[str, Any]:
+        """Execute execute_todo_with_react at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state.current_todo_id = todo.id
         self.todo_manager.mark_started(todo.id)
         specialist = self.specialist_router.route(todo) if self.specialist_router else None
@@ -913,6 +1160,18 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return specialist is not None and bool(todo.assigned_specialist)
 
     def reflect(self, state: AgentState, todo, observation: dict) -> AgentState:
+        """Execute reflect at the llm_runtime boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            observation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if observation.get("status") in {"completed", "skipped"} and not observation.get("error_type"):
             return super().reflect(state, todo, observation)
         try:
@@ -1007,6 +1266,16 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         return super().reflect(state, todo, observation)
 
     def _validate_reflection_todo(self, todo_spec: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _validate_reflection_todo helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todo_spec: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         tool_name = todo_spec.get("assigned_tool")
         specialist_name = todo_spec.get("assigned_specialist")

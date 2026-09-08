@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_session_runtime.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.llm.client import FakeLLMClient
@@ -8,6 +13,16 @@ from dl_op_to_hls.main_agent.todo import TodoItem
 
 
 def test_llm_runtime_resumes_from_durable_checkpoint(temp_workspace):
+    """Verify the test_llm_runtime_resumes_from_durable_checkpoint contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     task = json.loads((temp_workspace / "examples" / "dense_operator.json").read_text(encoding="utf-8"))
     session = agent.session_manager.create("resume dense", "session_resume")

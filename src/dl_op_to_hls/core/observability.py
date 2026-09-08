@@ -1,3 +1,8 @@
+"""core layer implementation for observability.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,11 +16,26 @@ from typing import Any
 
 
 def _hex_id(value: str, length: int) -> str:
+    """Implement the internal _hex_id helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        length: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
 @dataclass(frozen=True)
 class SLOPolicy:
+    """Coordinate SLOPolicy within the observability boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     min_task_success_rate: float = 0.90
     max_false_success_rate: float = 0.01
     max_rag_pollution_rate: float = 0.05
@@ -25,10 +45,34 @@ class SLOPolicy:
 
 
 class SLOEvaluator:
+    """Coordinate SLOEvaluator within the observability boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, policy: SLOPolicy | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            policy: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.policy = policy or SLOPolicy()
 
     def evaluate(self, metrics: dict[str, Any]) -> dict[str, Any]:
+        """Execute evaluate at the observability boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            metrics: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         checks = {
             "task_success_rate": (float(metrics.get("task_success_rate", 0)), ">=", self.policy.min_task_success_rate),
             "false_success_rate": (float(metrics.get("false_success_rate", 0)), "<=", self.policy.max_false_success_rate),
@@ -50,6 +94,17 @@ class SLOEvaluator:
         }
 
     def write_report(self, path: str | Path, metrics: dict[str, Any]) -> dict[str, Any]:
+        """Execute write_report at the observability boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            metrics: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report = self.evaluate(metrics)
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -78,6 +133,17 @@ class TelemetryHook:
     }
 
     def __init__(self, path: str | Path, run_id: str):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.path = Path(path)
         self.run_id = run_id
         self.trace_id = _hex_id(run_id, 32)
@@ -89,6 +155,16 @@ class TelemetryHook:
         self._init_opentelemetry()
 
     def __call__(self, payload: dict[str, Any]) -> None:
+        """Implement the internal __call__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         event = str(payload.get("event", ""))
         with self._lock:
             if event in self.START_EVENTS:
@@ -114,6 +190,16 @@ class TelemetryHook:
                     self._otel_provider.force_flush(timeout_millis=5000)
 
     def close(self, status: str = "error") -> None:
+        """Execute close at the observability boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            status: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self._lock:
             for key, spans in list(self._active.items()):
                 kind = key.split(":", 1)[0]
@@ -122,6 +208,20 @@ class TelemetryHook:
             self._active.clear()
 
     def _write_span(self, kind: str, key: str, started: dict[str, Any], payload: dict[str, Any], status: str) -> None:
+        """Implement the internal _write_span helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            kind: Value supplied by the caller and validated by the surrounding schema.
+            key: Value supplied by the caller and validated by the surrounding schema.
+            started: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            status: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         end_ns = time.time_ns()
         attributes = {**started["attributes"], **self._attributes(payload)}
         otel_span = started.get("otel_span")
@@ -150,6 +250,17 @@ class TelemetryHook:
             handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
     def _key(self, kind: str, payload: dict[str, Any]) -> str:
+        """Implement the internal _key helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            kind: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if kind == "tool":
             return f"tool:{payload.get('tool', 'unknown')}:{payload.get('args_hash', '')}"
         if kind == "llm":
@@ -160,6 +271,16 @@ class TelemetryHook:
 
     @staticmethod
     def _attributes(payload: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _attributes helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         allowed = {
             "run_id", "session_id", "tool", "server", "status", "error_type", "duration_ms",
             "model", "phase", "purpose", "specialist", "todo_id", "args_hash", "output_hash",
@@ -168,6 +289,13 @@ class TelemetryHook:
         return {f"agent.{key}": value for key, value in payload.items() if key in allowed and value is not None}
 
     def _init_opentelemetry(self) -> None:
+        """Implement the internal _init_opentelemetry helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             from opentelemetry.sdk.resources import Resource  # type: ignore
             from opentelemetry.sdk.trace import TracerProvider  # type: ignore
@@ -197,6 +325,17 @@ class TelemetryHook:
             self._otel_tracer = None
 
     def _start_otel_span(self, name: str, payload: dict[str, Any]):
+        """Implement the internal _start_otel_span helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self._otel_tracer is None:
             return None
         attributes = {

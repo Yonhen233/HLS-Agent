@@ -1,3 +1,8 @@
+"""skills layer implementation for registry.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,7 +15,21 @@ from .schema import SkillValidator, evaluate_conditions
 
 
 class SkillRegistry:
+    """Coordinate SkillRegistry within the registry boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, skills_dir: str | Path = "skills"):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            skills_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.skills_dir = Path(skills_dir)
         self._skills: dict[str, Skill] = {}
         self._versions: dict[str, dict[str, Skill]] = {}
@@ -19,6 +38,13 @@ class SkillRegistry:
         self._pinned_versions: dict[str, str] = {}
 
     def load_all(self) -> None:
+        """Execute load_all at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._skills = {}
         self._versions = {}
         self._validation_reports = []
@@ -58,9 +84,27 @@ class SkillRegistry:
         self._validate_dependencies()
 
     def list_skills(self) -> list[Skill]:
+        """Execute list_skills at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return list(self._skills.values())
 
     def get(self, name: str, version: str | None = None) -> Skill:
+        """Execute get at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         version = version or self._pinned_versions.get(name)
         if version is not None:
             if name not in self._versions or version not in self._versions[name]:
@@ -71,6 +115,16 @@ class SkillRegistry:
         return self._skills[name]
 
     def pin_release_manifest(self, manifest: dict[str, Any]) -> None:
+        """Execute pin_release_manifest at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            manifest: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._pinned_versions = {
             key.split(":", 1)[1]: str(value["selected_version"])
             for key, value in manifest.items()
@@ -78,9 +132,28 @@ class SkillRegistry:
         }
 
     def validation_reports(self) -> list[dict[str, Any]]:
+        """Execute validation_reports at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return list(self._validation_reports)
 
     def transition(self, name: str, target_status: str, version: str | None = None) -> Skill:
+        """Execute transition at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            target_status: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if target_status not in {"approved", "deprecated"}:
             raise ValueError("Skills may only be promoted to approved or transitioned to deprecated.")
         skill = self.get(name, version)
@@ -103,6 +176,16 @@ class SkillRegistry:
         return self.get(name, skill.version)
 
     def find_candidates(self, task: dict[str, Any]) -> list[Skill]:
+        """Execute find_candidates at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates: list[tuple[int, Skill]] = []
         for skill in self._skills.values():
             if skill.status != "approved":
@@ -114,6 +197,16 @@ class SkillRegistry:
         return [item[1] for item in candidates]
 
     def to_prompt_context(self, task: dict[str, Any]) -> dict[str, Any]:
+        """Execute to_prompt_context at the registry boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates = self.find_candidates(task)
         return {
             "available_skills": [skill.to_prompt_summary() for skill in candidates[:5]],
@@ -121,6 +214,16 @@ class SkillRegistry:
         }
 
     def _load_skill_file(self, path: Path) -> dict[str, Any]:
+        """Implement the internal _load_skill_file helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         raw = path.read_text(encoding="utf-8")
         parsed: Any = None
         parse_error: str | None = None
@@ -156,6 +259,17 @@ class SkillRegistry:
         return parsed
 
     def _match_score(self, skill: Skill, task: dict[str, Any]) -> int:
+        """Implement the internal _match_score helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            skill: Value supplied by the caller and validated by the surrounding schema.
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         trigger = skill.trigger
         if not trigger:
             return 1
@@ -200,6 +314,13 @@ class SkillRegistry:
         return score
 
     def _validate_dependencies(self) -> None:
+        """Implement the internal _validate_dependencies helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for skill in [item for versions in self._versions.values() for item in versions.values()]:
             for dependency in skill.dependencies:
                 name = str(dependency.get("name") or "")
@@ -215,6 +336,16 @@ class SkillRegistry:
 
     @staticmethod
     def _version_key(value: str) -> tuple[int, int, int, str]:
+        """Implement the internal _version_key helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         core, _, suffix = value.partition("-")
         parts = [int(item) for item in core.split(".")]
         while len(parts) < 3:

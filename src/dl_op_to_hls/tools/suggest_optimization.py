@@ -1,3 +1,8 @@
+"""tools layer implementation for suggest_optimization.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -10,10 +15,32 @@ from ..llm.optimizer import LLMOptimizationEngine
 
 
 def _report_value(report: dict[str, Any], group: str, key: str) -> Any:
+    """Implement the internal _report_value helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        group: Value supplied by the caller and validated by the surrounding schema.
+        key: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return (report.get(group) or {}).get(key)
 
 
 def _current_reuse_factor(state: dict[str, Any] | None) -> int | None:
+    """Implement the internal _current_reuse_factor helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not state:
         return None
     task = state.get("task") if isinstance(state.get("task"), dict) else state
@@ -80,6 +107,19 @@ def build_suggestions(
     objective: str | None,
     state: dict[str, Any] | None = None,
 ) -> list[str]:
+    """Execute build_suggestions at the suggest_optimization boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        rag_context: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     objective_name = normalize_objective_mode(objective or "latency", default="latency")
     objective_mode = get_objective_mode(objective_name)
     suggestions: list[str] = []
@@ -154,6 +194,16 @@ def build_suggestions(
 
 
 def _is_actionable_prior_hint(summary: str) -> bool:
+    """Implement the internal _is_actionable_prior_hint helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        summary: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = " ".join((summary or "").strip().split())
     lowered = normalized.lower()
     if not normalized:
@@ -170,6 +220,17 @@ def _is_actionable_prior_hint(summary: str) -> bool:
 
 
 def _select_prior_hints(rag_context: list[dict], limit: int = 3) -> list[str]:
+    """Implement the internal _select_prior_hints helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        rag_context: Value supplied by the caller and validated by the surrounding schema.
+        limit: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     hints: list[str] = []
     seen: set[str] = set()
     for item in rag_context:
@@ -188,6 +249,19 @@ def _select_prior_hints(rag_context: list[dict], limit: int = 3) -> list[str]:
 
 
 def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict], objective: str | None, suggestions: list[str]) -> str:
+    """Execute render_suggestions_markdown at the suggest_optimization boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        rag_context: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+        suggestions: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     latency = report.get("latency", {})
     interval = report.get("interval", {})
     resources = report.get("resources", {})
@@ -213,6 +287,17 @@ def render_suggestions_markdown(report: dict[str, Any], rag_context: list[dict],
 
 
 def _write_suggestions_markdown(context: dict[str, Any], markdown: str):
+    """Implement the internal _write_suggestions_markdown helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        context: Value supplied by the caller and validated by the surrounding schema.
+        markdown: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     artifact_manager = context.get("artifact_manager")
     if artifact_manager:
         return artifact_manager.write_text("suggestions.md", markdown, "suggestions")
@@ -220,11 +305,31 @@ def _write_suggestions_markdown(context: dict[str, Any], markdown: str):
 
 
 def _is_placeholder_suggestion(text: str) -> bool:
+    """Implement the internal _is_placeholder_suggestion helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = " ".join(text.strip().lower().split())
     return normalized in {"", "suggestion", "suggestions", "suggestion:", "n/a", "none", "todo"}
 
 
 def _normalize_llm_suggestions(llm_result: dict[str, Any]) -> tuple[list[str], list[dict[str, Any]]]:
+    """Implement the internal _normalize_llm_suggestions helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        llm_result: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     suggestions: list[str] = []
     invalid: list[dict[str, Any]] = []
     for item in llm_result.get("suggestions", []):
@@ -257,6 +362,17 @@ def _normalize_llm_suggestions(llm_result: dict[str, Any]) -> tuple[list[str], l
 
 
 def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute suggest_optimization at the suggest_optimization boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = arguments["state"]
     report = arguments["report"]
     rag_context = arguments.get("rag_context", [])
@@ -292,6 +408,13 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
     allow_rule_fallback = fallback_mode == "demo"
 
     def _rule_fallback() -> dict[str, Any]:
+        """Implement the internal _rule_fallback helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "summary": "Rule-based fallback suggestions were used.",
             "suggestions": [

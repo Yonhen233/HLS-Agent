@@ -1,3 +1,8 @@
+"""llm layer implementation for actions.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,6 +18,13 @@ MAIN_AGENT_ACTIONS = [
 
 
 def main_agent_action_schema() -> dict[str, Any]:
+    """Execute main_agent_action_schema at the actions boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "actions": [
             {
@@ -50,6 +62,17 @@ def main_agent_action_schema() -> dict[str, Any]:
 
 
 def build_layered_tool_view(tool_registry, specialist_router) -> dict[str, Any]:
+    """Execute build_layered_tool_view at the actions boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        tool_registry: Value supplied by the caller and validated by the surrounding schema.
+        specialist_router: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     canonical_tools = tool_registry.list_tools(include_aliases=False)
     specialist_specs = specialist_router.list_specialists()
     specialist_private_tools = {

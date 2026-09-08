@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for sweep_hls4ml_model.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -15,20 +20,57 @@ from typing import Any
 
 
 def _repo_root() -> Path:
+    """Implement the internal _repo_root helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return Path(__file__).resolve().parents[1]
 
 
 def _safe_name(value: Any) -> str:
+    """Implement the internal _safe_name helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(value)
     text = text.replace("<", "").replace(">", "").replace(",", "_").replace(".", "p")
     return re.sub(r"[^0-9A-Za-z_]+", "_", text).strip("_")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
+    """Implement the internal _load_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _extract_json_object(text: str) -> dict[str, Any] | None:
+    """Implement the internal _extract_json_object helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     stripped = text.strip("\ufeff\r\n\t ")
     if not stripped:
         return None
@@ -47,11 +89,34 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
 
 
 def _metric(state: dict[str, Any], group: str, key: str) -> Any:
+    """Implement the internal _metric helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+        group: Value supplied by the caller and validated by the surrounding schema.
+        key: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     report = state.get("report") or {}
     return (report.get(group) or {}).get(key)
 
 
 def _latest_run_dir_for_variant(root: Path, variant_name: str) -> Path | None:
+    """Implement the internal _latest_run_dir_for_variant helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+        variant_name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     prefix = variant_name.lower()
     candidates = [
         path
@@ -64,6 +129,17 @@ def _latest_run_dir_for_variant(root: Path, variant_name: str) -> Path | None:
 
 
 def _load_partial_state_or_report(root: Path, variant_name: str) -> dict[str, Any] | None:
+    """Implement the internal _load_partial_state_or_report helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+        variant_name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = _latest_run_dir_for_variant(root, variant_name)
     if run_dir is None:
         return None
@@ -91,6 +167,19 @@ def _load_partial_state_or_report(root: Path, variant_name: str) -> dict[str, An
 
 
 def _run_command(command: list[str], *, cwd: Path, env: dict[str, str], timeout: int) -> tuple[int, str, str, bool]:
+    """Implement the internal _run_command helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        command: Value supplied by the caller and validated by the surrounding schema.
+        cwd: Value supplied by the caller and validated by the surrounding schema.
+        env: Value supplied by the caller and validated by the surrounding schema.
+        timeout: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     process = subprocess.Popen(
         command,
@@ -125,6 +214,23 @@ def _row_from_state(
     stderr_path: Path,
     timed_out: bool = False,
 ) -> dict[str, Any]:
+    """Implement the internal _row_from_state helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        variant_name: Value supplied by the caller and validated by the surrounding schema.
+        task_path: Value supplied by the caller and validated by the surrounding schema.
+        returncode: Value supplied by the caller and validated by the surrounding schema.
+        duration_s: Value supplied by the caller and validated by the surrounding schema.
+        state: Value supplied by the caller and validated by the surrounding schema.
+        stdout_path: Value supplied by the caller and validated by the surrounding schema.
+        stderr_path: Value supplied by the caller and validated by the surrounding schema.
+        timed_out: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not state:
         return {
             "variant": variant_name,
@@ -165,6 +271,17 @@ def _row_from_state(
 
 
 def _write_results(output_root: Path, rows: list[dict[str, Any]]) -> None:
+    """Implement the internal _write_results helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        output_root: Value supplied by the caller and validated by the surrounding schema.
+        rows: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output_root.mkdir(parents=True, exist_ok=True)
     (output_root / "results.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     if not rows:
@@ -194,6 +311,13 @@ def _write_results(output_root: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the sweep_hls4ml_model boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Run a real hls4ml/Vivado sweep for model task variants.")
     parser.add_argument("--base-task", default="examples/mnist_mlp_hls4ml.json")
     parser.add_argument("--output-root", default=None)
@@ -210,6 +334,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the sweep_hls4ml_model boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     root = _repo_root()

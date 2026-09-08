@@ -22,6 +22,13 @@ from ..rag.semantic import SemanticRagConfig
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -97,6 +104,17 @@ _EVIDENCE_FILTERS = {
 
 
 def _evidence_candidate_allowed(path: Path, card_id: str) -> bool:
+    """Implement the internal _evidence_candidate_allowed helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        card_id: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rule = _EVIDENCE_FILTERS.get(card_id)
     if not rule:
         return True
@@ -118,6 +136,13 @@ def _evidence_candidate_allowed(path: Path, card_id: str) -> bool:
 
 
 def build_design_experience_cases() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Execute build_design_experience_cases at the design_experience_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     cards = []
     cases = []
     for card_id, title, situation, action, tradeoff, constraints, anchors in _CARD_SEEDS:
@@ -152,6 +177,17 @@ def build_design_experience_cases() -> tuple[list[dict[str, Any]], list[dict[str
 
 
 def _metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, float]:
+    """Implement the internal _metrics helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        results: Value supplied by the caller and validated by the surrounding schema.
+        top_k: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not results:
         return {key: 0.0 for key in ("precision_at_k", "recall_at_k", "hit_at_k", "mrr", "ndcg_at_k", "r_precision", "hard_negative_pollution")}
     precision = recall = hit = mrr = ndcg = rprec = pollution = 0.0
@@ -173,6 +209,17 @@ def _metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, float]:
 
 
 def _per_card_metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, dict[str, float]]:
+    """Implement the internal _per_card_metrics helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        results: Value supplied by the caller and validated by the surrounding schema.
+        top_k: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in results:
         grouped.setdefault(str(row["relevant_card_ids"][0]), []).append(row)
@@ -183,6 +230,17 @@ def _per_card_metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, di
 
 
 def _per_difficulty_metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, dict[str, float]]:
+    """Implement the internal _per_difficulty_metrics helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        results: Value supplied by the caller and validated by the surrounding schema.
+        top_k: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in results:
         grouped.setdefault(str(row.get("difficulty") or "unknown"), []).append(row)
@@ -206,6 +264,18 @@ def _source_metrics(results: list[dict[str, Any]], top_k: int) -> dict[str, floa
 
 
 def run_design_experience_benchmark(workspace_root: str | Path, output: str = "runs/benchmarks/design_experience_benchmark.json", top_k: int = 5) -> dict[str, Any]:
+    """Execute run_design_experience_benchmark at the design_experience_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output: Value supplied by the caller and validated by the surrounding schema.
+        top_k: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     cards, cases = build_design_experience_cases()
     # Attach auditable evidence references from the real workspace.  The card

@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for train_mnist_recognition_mlp.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,6 +13,13 @@ from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the train_mnist_recognition_mlp boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(
         description="Train a small real MNIST MLP and export ONNX/reference data for the HLS recognition demo."
     )
@@ -25,6 +37,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _configure_stdio() -> None:
+    """Implement the internal _configure_stdio helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         if hasattr(stream, "reconfigure"):
@@ -32,6 +51,17 @@ def _configure_stdio() -> None:
 
 
 def _write_dat(path: Path, rows) -> None:
+    """Implement the internal _write_dat helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        rows: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "\n".join(" ".join(f"{float(value):.8g}" for value in row) for row in rows) + "\n",
@@ -40,6 +70,16 @@ def _write_dat(path: Path, rows) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the train_mnist_recognition_mlp boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     _configure_stdio()
     args = build_parser().parse_args(argv)
     random.seed(args.seed)
@@ -61,13 +101,34 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     class MnistRecognitionMLP(nn.Module):
+        """Coordinate MnistRecognitionMLP within the train_mnist_recognition_mlp boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self) -> None:
+            """Implement the internal __init__ helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             super().__init__()
             self.fc1 = nn.Linear(784, 64)
             self.fc2 = nn.Linear(64, 32)
             self.fc3 = nn.Linear(32, 10)
 
         def forward(self, x):
+            """Execute forward at the train_mnist_recognition_mlp boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                x: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             x = x.reshape(x.shape[0], 784)
             x = F.relu(self.fc1(x))
             x = F.relu(self.fc2(x))

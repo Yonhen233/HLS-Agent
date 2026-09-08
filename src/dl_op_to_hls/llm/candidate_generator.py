@@ -1,3 +1,8 @@
+"""llm layer implementation for candidate_generator.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -37,7 +42,21 @@ def candidate_generation_contract_errors(op_spec: dict[str, Any]) -> list[str]:
 
 
 class LLMCandidateGenerator:
+    """Coordinate LLMCandidateGenerator within the candidate_generator boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, guard: LLMGuard | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            guard: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.guard = guard or LLMGuard()
         self.sandbox = CandidateSandbox()
 
@@ -50,6 +69,20 @@ class LLMCandidateGenerator:
         client,
         permission_gate,
     ) -> dict[str, Any]:
+        """Execute generate at the candidate_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            op_spec: Value supplied by the caller and validated by the surrounding schema.
+            rag_context: Value supplied by the caller and validated by the surrounding schema.
+            run_dir: Value supplied by the caller and validated by the surrounding schema.
+            client: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         contract_errors = self.validate_operator_contract(op_spec)
         if contract_errors:
             raise AgentRuntimeError(
@@ -183,6 +216,16 @@ class LLMCandidateGenerator:
 
     @staticmethod
     def validate_operator_contract(op_spec: dict[str, Any]) -> list[str]:
+        """Execute validate_operator_contract at the candidate_generator boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            op_spec: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors = candidate_generation_contract_errors(op_spec)
         if str(op_spec.get("op_type")) != "Conv2D":
             return errors
@@ -208,6 +251,17 @@ class LLMCandidateGenerator:
 
     @staticmethod
     def _select_reuse_context(op_spec: dict[str, Any], rag_context: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Implement the internal _select_reuse_context helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            op_spec: Value supplied by the caller and validated by the surrounding schema.
+            rag_context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         operator = str(op_spec.get("op_type") or "").lower()
         accepted: list[dict[str, Any]] = []
         seen_sources: set[str] = set()
@@ -235,6 +289,18 @@ class LLMCandidateGenerator:
         return accepted[:3]
 
     def _write_rejected_candidate_artifact(self, candidate: dict[str, Any], sandbox_result: dict[str, Any], client) -> str | None:
+        """Implement the internal _write_rejected_candidate_artifact helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+            sandbox_result: Value supplied by the caller and validated by the surrounding schema.
+            client: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         artifact_manager = getattr(client, "context", {}).get("artifact_manager")
         if artifact_manager is None:
             return None

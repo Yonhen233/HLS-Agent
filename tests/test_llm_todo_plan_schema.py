@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_llm_todo_plan_schema.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.llm.actions import build_layered_tool_view
@@ -8,6 +13,13 @@ from dl_op_to_hls.specialists.router import build_default_router
 
 
 def test_llm_todo_plan_schema():
+    """Verify the test_llm_todo_plan_schema contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     fake = FakeLLMClient(
         json_responses=[
             {
@@ -38,10 +50,37 @@ def test_llm_todo_plan_schema():
 
 
 def test_llm_planner_receives_layered_tool_view_without_specialist_private_tools(temp_workspace):
+    """Verify the test_llm_planner_receives_layered_tool_view_without_specialist_private_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     class RecordingFakeLLMClient(FakeLLMClient):
+        """Coordinate RecordingFakeLLMClient within the test_llm_todo_plan_schema boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         user_prompt = ""
 
         def complete_json(self, system_prompt, user_prompt, schema, temperature=0.0):
+            """Verify the complete_json contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                system_prompt: Value supplied by the caller and validated by the surrounding schema.
+                user_prompt: Value supplied by the caller and validated by the surrounding schema.
+                schema: Value supplied by the caller and validated by the surrounding schema.
+                temperature: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.user_prompt = user_prompt
             return super().complete_json(system_prompt, user_prompt, schema, temperature)
 
@@ -82,10 +121,37 @@ def test_llm_planner_receives_layered_tool_view_without_specialist_private_tools
 
 
 def test_llm_planner_filters_direct_tools_to_candidate_skill_contract(temp_workspace):
+    """Verify the test_llm_planner_filters_direct_tools_to_candidate_skill_contract contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     class RecordingFakeLLMClient(FakeLLMClient):
+        """Coordinate RecordingFakeLLMClient within the test_llm_todo_plan_schema boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         user_prompt = ""
 
         def complete_json(self, system_prompt, user_prompt, schema, temperature=0.0):
+            """Verify the complete_json contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                system_prompt: Value supplied by the caller and validated by the surrounding schema.
+                user_prompt: Value supplied by the caller and validated by the surrounding schema.
+                schema: Value supplied by the caller and validated by the surrounding schema.
+                temperature: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.user_prompt = user_prompt
             return super().complete_json(system_prompt, user_prompt, schema, temperature)
 

@@ -1,3 +1,8 @@
+"""db layer implementation for repositories.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -9,14 +14,45 @@ from .database import Database
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 class MetadataRepository:
+    """Coordinate MetadataRepository within the repositories boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, database: Database):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            database: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.database = database
 
     def save_experiment(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute save_experiment at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute(
@@ -46,6 +82,16 @@ class MetadataRepository:
         return {"status": "success", "run_id": payload["run_id"]}
 
     def save_operator(self, payload: dict[str, Any]) -> int:
+        """Execute save_operator at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         spec_hash = stable_hash(payload)
         now = _now()
         with self.database.connect() as connection:
@@ -70,6 +116,16 @@ class MetadataRepository:
             return int(row["id"])
 
     def save_implementation(self, payload: dict[str, Any]) -> int:
+        """Execute save_implementation at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -94,6 +150,16 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def save_synthesis_run(self, payload: dict[str, Any]) -> int:
+        """Execute save_synthesis_run at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -127,6 +193,16 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def save_failure(self, payload: dict[str, Any]) -> int:
+        """Execute save_failure at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -148,6 +224,16 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def save_tool_call(self, payload: dict[str, Any]) -> int:
+        """Execute save_tool_call at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -171,6 +257,16 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def insert_rag_chunk(self, payload: dict[str, Any]) -> int:
+        """Execute insert_rag_chunk at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         metadata_json = json.dumps(payload.get("metadata", {}), ensure_ascii=False)
         with self.database.connect() as connection:
@@ -210,6 +306,16 @@ class MetadataRepository:
             return row_id
 
     def insert_rag_chunks(self, payloads: list[dict[str, Any]]) -> list[int]:
+        """Execute insert_rag_chunks at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payloads: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not payloads:
             return []
         now = _now()
@@ -248,6 +354,13 @@ class MetadataRepository:
         return row_ids
 
     def list_runs(self) -> list[dict[str, Any]]:
+        """Execute list_runs at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT run_id, task_type, name, objective, selected_path, status, created_at, updated_at FROM experiments ORDER BY id DESC"
@@ -255,6 +368,13 @@ class MetadataRepository:
             return [dict(row) for row in rows]
 
     def get_rag_chunks(self) -> list[dict[str, Any]]:
+        """Execute get_rag_chunks at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute("SELECT id, source_id, source_type, chunk_text, metadata_json, created_at FROM rag_chunks").fetchall()
             return [dict(row) for row in rows]
@@ -279,6 +399,17 @@ class MetadataRepository:
         return len(rows)
 
     def search_rag_fts(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Execute search_rag_fts at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            limit: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not query.strip():
             return []
         with self.database.connect() as connection:
@@ -300,6 +431,17 @@ class MetadataRepository:
                 return []
 
     def get_rag_embeddings(self, chunk_ids: list[int], model_id: str) -> dict[int, dict[str, Any]]:
+        """Execute get_rag_embeddings at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            chunk_ids: Value supplied by the caller and validated by the surrounding schema.
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not chunk_ids:
             return {}
         placeholders = ",".join("?" for _ in chunk_ids)
@@ -320,6 +462,16 @@ class MetadataRepository:
         }
 
     def upsert_rag_embeddings(self, records: list[dict[str, Any]]) -> int:
+        """Execute upsert_rag_embeddings at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            records: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not records:
             return 0
         now = _now()
@@ -349,6 +501,17 @@ class MetadataRepository:
         return len(records)
 
     def get_unembedded_rag_chunks(self, model_id: str, limit: int = 256) -> list[dict[str, Any]]:
+        """Execute get_unembedded_rag_chunks at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+            limit: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 """SELECT r.id, r.source_id, r.source_type, r.chunk_text, r.metadata_json, r.created_at
@@ -363,6 +526,16 @@ class MetadataRepository:
         return [dict(row) for row in rows]
 
     def rag_embedding_coverage(self, model_id: str) -> dict[str, Any]:
+        """Execute rag_embedding_coverage at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             total = int(connection.execute("SELECT COUNT(*) FROM rag_chunks").fetchone()[0])
             embedded = int(
@@ -380,6 +553,16 @@ class MetadataRepository:
         }
 
     def list_rag_embeddings(self, model_id: str) -> list[dict[str, Any]]:
+        """Execute list_rag_embeddings at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            model_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 """SELECT chunk_id, content_hash, dimensions, embedding_json, updated_at
@@ -398,6 +581,16 @@ class MetadataRepository:
         ]
 
     def save_memory_item(self, payload: dict[str, Any]) -> int:
+        """Execute save_memory_item at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -444,6 +637,21 @@ class MetadataRepository:
         project_id: str | None = None,
         include_shared: bool = True,
     ) -> list[dict[str, Any]]:
+        """Execute list_memory_items at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+            status: Value supplied by the caller and validated by the surrounding schema.
+            namespace: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            project_id: Value supplied by the caller and validated by the surrounding schema.
+            include_shared: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         query = "SELECT * FROM memory_items"
         clauses = []
         params: list[Any] = []
@@ -477,6 +685,16 @@ class MetadataRepository:
             return [dict(row) for row in rows]
 
     def get_memory_item(self, memory_id: int) -> dict[str, Any] | None:
+        """Execute get_memory_item at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute("SELECT * FROM memory_items WHERE id = ?", (memory_id,)).fetchone()
             return dict(row) if row else None
@@ -489,6 +707,19 @@ class MetadataRepository:
         user_id: str | None,
         project_id: str | None,
     ) -> dict[str, Any] | None:
+        """Execute find_active_memory_by_hash at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            content_hash: Value supplied by the caller and validated by the surrounding schema.
+            namespace: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            project_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute(
                 """SELECT * FROM memory_items
@@ -502,6 +733,16 @@ class MetadataRepository:
             return dict(row) if row else None
 
     def touch_memory_items(self, memory_ids: list[int]) -> None:
+        """Execute touch_memory_items at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_ids: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not memory_ids:
             return
         placeholders = ", ".join("?" for _ in memory_ids)
@@ -513,6 +754,19 @@ class MetadataRepository:
             connection.commit()
 
     def add_memory_feedback(self, memory_id: int, score: float, reason: str = "", user_id: str | None = None) -> dict[str, Any]:
+        """Execute add_memory_feedback at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         bounded = max(-1.0, min(1.0, float(score)))
         now = _now()
         with self.database.connect() as connection:
@@ -531,6 +785,17 @@ class MetadataRepository:
         return {"memory_id": memory_id, "feedback_score": aggregate}
 
     def forget_memory(self, memory_id: int, *, reason: str = "user_request") -> bool:
+        """Execute forget_memory at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -541,6 +806,17 @@ class MetadataRepository:
             return cursor.rowcount > 0
 
     def supersede_memory(self, memory_id: int, superseded_by: int) -> None:
+        """Execute supersede_memory at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            superseded_by: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             connection.execute(
                 "UPDATE memory_items SET status = 'superseded', updated_at = ? WHERE id = ?",
@@ -553,6 +829,13 @@ class MetadataRepository:
             connection.commit()
 
     def cleanup_expired_memories(self) -> int:
+        """Execute cleanup_expired_memories at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -563,6 +846,16 @@ class MetadataRepository:
             return int(cursor.rowcount)
 
     def save_memory_fact(self, payload: dict[str, Any]) -> int:
+        """Execute save_memory_fact at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -583,11 +876,28 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def list_memory_facts(self) -> list[dict[str, Any]]:
+        """Execute list_memory_facts at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute("SELECT * FROM memory_facts ORDER BY id DESC").fetchall()
             return [dict(row) for row in rows]
 
     def save_procedural_memory(self, payload: dict[str, Any]) -> int:
+        """Execute save_procedural_memory at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -612,16 +922,40 @@ class MetadataRepository:
             return int(cursor.lastrowid)
 
     def list_skills(self) -> list[dict[str, Any]]:
+        """Execute list_skills at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute("SELECT * FROM procedural_memories ORDER BY id DESC").fetchall()
             return [dict(row) for row in rows]
 
     def get_skill(self, skill_id: int) -> dict[str, Any] | None:
+        """Execute get_skill at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skill_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute("SELECT * FROM procedural_memories WHERE id = ?", (skill_id,)).fetchone()
             return dict(row) if row else None
 
     def list_failures(self) -> list[dict[str, Any]]:
+        """Execute list_failures at the repositories boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute("SELECT * FROM failures ORDER BY id DESC").fetchall()
             return [dict(row) for row in rows]

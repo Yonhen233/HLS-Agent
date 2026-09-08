@@ -25,6 +25,13 @@ class CifarArchitectureSpec:
     convs_per_stage: tuple[int, int, int] = (1, 1, 1)
 
     def validate(self) -> None:
+        """Execute validate at the cifar_architecture_screen boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if len(self.channels) != 3 or len(self.convs_per_stage) != 3:
             raise ValueError("CIFAR architecture screening requires exactly three stages.")
         if any(int(value) < 1 for value in self.channels):
@@ -35,6 +42,10 @@ class CifarArchitectureSpec:
 
 @dataclass(frozen=True)
 class ArchitectureScreenResult:
+    """Coordinate ArchitectureScreenResult within the cifar_architecture_screen boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     spec: CifarArchitectureSpec
     conv_layers: int
     macs: int
@@ -47,6 +58,13 @@ class ArchitectureScreenResult:
     confidence: str
 
     def to_dict(self) -> dict:
+        """Execute to_dict at the cifar_architecture_screen boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = asdict(self)
         payload["spec"]["channels"] = list(self.spec.channels)
         payload["spec"]["convs_per_stage"] = list(self.spec.convs_per_stage)
@@ -63,6 +81,16 @@ def _conv_cost(height: int, width: int, in_channels: int, out_channels: int) -> 
 
 
 def _analytical_cost(spec: CifarArchitectureSpec) -> tuple[int, int, int, int]:
+    """Implement the internal _analytical_cost helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        spec: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     spec.validate()
     stage_shapes = ((32, 32), (16, 16), (8, 8))
     channels = spec.channels
@@ -184,6 +212,17 @@ def default_candidates() -> list[CifarArchitectureSpec]:
 
 
 def screen_many(specs: Iterable[CifarArchitectureSpec], *, conservative_margin: float = 0.90) -> list[ArchitectureScreenResult]:
+    """Execute screen_many at the cifar_architecture_screen boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        specs: Value supplied by the caller and validated by the surrounding schema.
+        conservative_margin: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return sorted(
         (screen_architecture(spec, conservative_margin=conservative_margin) for spec in specs),
         key=lambda result: (result.decision != "synthesis_candidate", result.estimated_resources["lut"], result.estimated_resources["bram"]),

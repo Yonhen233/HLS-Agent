@@ -1,3 +1,8 @@
+"""chat layer implementation for loop.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -24,6 +29,16 @@ class ChatTurnResult:
 
     @classmethod
     def from_state(cls, state) -> "ChatTurnResult":
+        """Execute from_state at the loop boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         todos = list(getattr(state, "todos", []) or [])
         return cls(
             session_id=str(getattr(state, "session_id", None) or ""),
@@ -37,6 +52,13 @@ class ChatTurnResult:
         )
 
     def to_dict(self) -> dict:
+        """Execute to_dict at the loop boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "session_id": self.session_id,
             "run_id": self.run_id,
@@ -61,6 +83,21 @@ class InteractiveChat:
         input_fn: Callable[[str], str] = input,
         output_fn: Callable[[str], None] = print,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            agent: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            project_id: Value supplied by the caller and validated by the surrounding schema.
+            input_fn: Value supplied by the caller and validated by the surrounding schema.
+            output_fn: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.agent = agent or MainAgent()
         self.session_id = session_id
         self.user_id = user_id
@@ -69,6 +106,13 @@ class InteractiveChat:
         self.output_fn = output_fn
 
     def run(self) -> int:
+        """Execute run at the loop boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.output_fn("DL-Operator-to-HLS Agent chat. 输入 /help 查看命令，输入 /exit 退出。")
         if self.session_id:
             self._show_session("已加载会话")
@@ -95,6 +139,16 @@ class InteractiveChat:
             self._run_turn(message)
 
     def _run_turn(self, message: str) -> None:
+        """Implement the internal _run_turn helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            message: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         runtime = LLMFirstRuntime(
             self.agent,
             session_id=self.session_id,
@@ -121,6 +175,16 @@ class InteractiveChat:
             self.session_id = runtime.session_id
 
     def _show_session(self, prefix: str) -> None:
+        """Implement the internal _show_session helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            prefix: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.session_id:
             self.output_fn(f"{prefix}：尚未创建。")
             return
@@ -138,6 +202,13 @@ class InteractiveChat:
         }, ensure_ascii=False, indent=2))
 
     def _print_help(self) -> None:
+        """Implement the internal _print_help helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.output_fn(
             "可用命令：\n"
             "  /status 或 /session  查看当前持久化会话\n"

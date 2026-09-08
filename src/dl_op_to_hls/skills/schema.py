@@ -1,3 +1,8 @@
+"""skills layer implementation for schema.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -14,6 +19,10 @@ VALID_RISK_LEVELS = {"low", "medium", "high", "critical"}
 
 @dataclass
 class SkillValidationReport:
+    """Coordinate SkillValidationReport within the schema boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str
     version: str
     errors: list[str] = field(default_factory=list)
@@ -21,9 +30,23 @@ class SkillValidationReport:
 
     @property
     def valid(self) -> bool:
+        """Execute valid at the schema boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return not self.errors
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the schema boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "name": self.name,
             "version": self.version,
@@ -50,6 +73,16 @@ class SkillValidator:
     }
 
     def validate_document(self, payload: dict[str, Any]) -> SkillValidationReport:
+        """Execute validate_document at the schema boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         name = str(payload.get("name") or "<unnamed>")
         version = str(payload.get("version") or "1.0")
         report = SkillValidationReport(name=name, version=version)
@@ -83,6 +116,18 @@ class SkillValidator:
         return report
 
     def validate_runtime(self, skill, tool_names: set[str], specialist_names: set[str]) -> SkillValidationReport:
+        """Execute validate_runtime at the schema boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skill: Value supplied by the caller and validated by the surrounding schema.
+            tool_names: Value supplied by the caller and validated by the surrounding schema.
+            specialist_names: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report = SkillValidationReport(skill.name, skill.version)
         for tool in skill.allowed_tools:
             if tool not in tool_names:
@@ -100,6 +145,17 @@ class SkillValidator:
         return report
 
     def _validate_todos(self, todos: Any, report: SkillValidationReport) -> None:
+        """Implement the internal _validate_todos helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            todos: Value supplied by the caller and validated by the surrounding schema.
+            report: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(todos, list) or not todos:
             report.errors.append("recommended_todos must contain at least one todo")
             return
@@ -128,6 +184,17 @@ class SkillValidator:
             report.errors.append("Todo dependency graph contains a cycle")
 
     def _validate_policy(self, payload: dict[str, Any], report: SkillValidationReport) -> None:
+        """Implement the internal _validate_policy helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            report: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         budget = payload.get("budget_policy", {})
         concurrency = payload.get("concurrency_policy", {})
         permissions = payload.get("permissions", {})
@@ -147,6 +214,17 @@ class SkillValidator:
 
     @staticmethod
     def _validate_dependencies(dependencies: Any, report: SkillValidationReport) -> None:
+        """Implement the internal _validate_dependencies helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            dependencies: Value supplied by the caller and validated by the surrounding schema.
+            report: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(dependencies, list):
             report.errors.append("dependencies must be a list")
             return
@@ -156,10 +234,30 @@ class SkillValidator:
 
     @staticmethod
     def _has_cycle(graph: dict[str, list[str]]) -> bool:
+        """Implement the internal _has_cycle helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            graph: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         visiting: set[str] = set()
         visited: set[str] = set()
 
         def visit(node: str) -> bool:
+            """Execute visit at the schema boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if node in visiting:
                 return True
             if node in visited:
@@ -206,6 +304,17 @@ def evaluate_conditions(conditions: list[Any], task: dict[str, Any]) -> bool:
 
 
 def _evaluate_named_condition(name: str, task: dict[str, Any]) -> bool:
+    """Implement the internal _evaluate_named_condition helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     objective = str(task.get("objective") or _resolve(task, "optimization.objective") or "").lower()
     llm_candidate_required = bool(_resolve(task, "llm_candidate.required"))
     expected_path = str(_resolve(task, "demo.expected_path") or "").lower()
@@ -222,6 +331,17 @@ def _evaluate_named_condition(name: str, task: dict[str, Any]) -> bool:
 
 
 def _resolve(payload: dict[str, Any], path: str) -> Any:
+    """Implement the internal _resolve helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     value: Any = payload
     for part in path.split("."):
         if not isinstance(value, dict) or part not in value:

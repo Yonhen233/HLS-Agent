@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_llm_runtime_plan_validation.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 
 from dl_op_to_hls.llm.client import FakeLLMClient
@@ -8,6 +13,17 @@ from dl_op_to_hls.main_agent.workflow import run_task_llm
 
 
 def test_llm_plan_rejects_unknown_tool(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_rejects_unknown_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
@@ -32,6 +48,17 @@ def test_llm_plan_rejects_unknown_tool(temp_workspace, monkeypatch):
 
 
 def test_llm_plan_rejects_unknown_specialist(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_rejects_unknown_specialist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
@@ -56,6 +83,17 @@ def test_llm_plan_rejects_unknown_specialist(temp_workspace, monkeypatch):
 
 
 def test_llm_plan_rejects_tool_specialist_mismatch(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_rejects_tool_specialist_mismatch contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
@@ -80,6 +118,17 @@ def test_llm_plan_rejects_tool_specialist_mismatch(temp_workspace, monkeypatch):
 
 
 def test_llm_plan_repairs_private_tool_with_unambiguous_specialist(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_repairs_private_tool_with_unambiguous_specialist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
@@ -108,6 +157,17 @@ def test_llm_plan_repairs_private_tool_with_unambiguous_specialist(temp_workspac
 
 
 def test_llm_plan_dependencies_are_normalized_for_hls4ml_flow(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_dependencies_are_normalized_for_hls4ml_flow contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     agent = MainAgent(temp_workspace, console=False)
@@ -147,6 +207,17 @@ def test_llm_plan_dependencies_are_normalized_for_hls4ml_flow(temp_workspace, mo
 
 
 def test_llm_plan_normalization_breaks_summary_memory_cycles(temp_workspace, monkeypatch):
+    """Verify the test_llm_plan_normalization_breaks_summary_memory_cycles contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     agent = MainAgent(temp_workspace, console=False)
@@ -179,6 +250,17 @@ def test_llm_plan_normalization_breaks_summary_memory_cycles(temp_workspace, mon
 
 
 def test_llm_runtime_auto_delegates_preassigned_specialist_todo(temp_workspace, monkeypatch):
+    """Verify the test_llm_runtime_auto_delegates_preassigned_specialist_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     agent = MainAgent(temp_workspace, console=False)
@@ -213,6 +295,17 @@ def test_llm_runtime_auto_delegates_preassigned_specialist_todo(temp_workspace, 
 
 
 def test_llm_runtime_auto_executes_preassigned_atomic_tool(temp_workspace, monkeypatch):
+    """Verify the test_llm_runtime_auto_executes_preassigned_atomic_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     agent = MainAgent(temp_workspace, console=False)

@@ -1,3 +1,8 @@
+"""core layer implementation for release_governance.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,11 +13,22 @@ from typing import Any
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 @dataclass(frozen=True)
 class CanaryGates:
+    """Coordinate CanaryGates within the release_governance boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     max_success_drop: float = 0.02
     max_false_success_rate: float = 0.01
     max_rag_pollution_rate: float = 0.05
@@ -27,9 +43,32 @@ class ReleaseManager:
     COMPONENTS = {"model", "prompt", "skill"}
 
     def __init__(self, database):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            database: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.database = database
 
     def register(self, component_type: str, name: str, version: str, config: dict[str, Any]) -> dict[str, Any]:
+        """Execute register at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+            config: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._validate(component_type, name, version)
         config_json = json.dumps(config, sort_keys=True, ensure_ascii=False)
         now = _now()
@@ -50,6 +89,18 @@ class ReleaseManager:
         return {"component_type": component_type, "name": name, "version": version, "config": config}
 
     def set_baseline(self, component_type: str, name: str, version: str) -> dict[str, Any]:
+        """Execute set_baseline at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._require_release(component_type, name, version)
         now = _now()
         with self.database.connect() as connection:
@@ -75,6 +126,19 @@ class ReleaseManager:
         return self.status(component_type, name)
 
     def start_canary(self, component_type: str, name: str, candidate_version: str, percent: float = 5.0) -> dict[str, Any]:
+        """Execute start_canary at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            candidate_version: Value supplied by the caller and validated by the surrounding schema.
+            percent: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._require_release(component_type, name, candidate_version)
         percent = max(0.0, min(100.0, float(percent)))
         with self.database.connect() as connection:
@@ -98,6 +162,18 @@ class ReleaseManager:
         return self.status(component_type, name)
 
     def resolve(self, component_type: str, name: str, routing_key: str) -> dict[str, Any]:
+        """Execute resolve at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            routing_key: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         route = self.status(component_type, name)
         version = route["baseline_version"]
         cohort = int(hashlib.sha256(routing_key.encode("utf-8")).hexdigest()[:8], 16) % 10000 / 100
@@ -116,6 +192,16 @@ class ReleaseManager:
         }
 
     def resolve_bundle(self, routing_key: str) -> dict[str, Any]:
+        """Execute resolve_bundle at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            routing_key: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute("SELECT component_type, component_name FROM release_routes ORDER BY component_type, component_name").fetchall()
         return {
@@ -131,6 +217,20 @@ class ReleaseManager:
         candidate_metrics: dict[str, float],
         gates: CanaryGates | None = None,
     ) -> dict[str, Any]:
+        """Execute evaluate at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            baseline_metrics: Value supplied by the caller and validated by the surrounding schema.
+            candidate_metrics: Value supplied by the caller and validated by the surrounding schema.
+            gates: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         gates = gates or CanaryGates()
         route = self.status(component_type, name)
         candidate = route.get("candidate_version")
@@ -195,6 +295,17 @@ class ReleaseManager:
         return {"decision": decision, "reasons": reasons, "route": self.status(component_type, name)}
 
     def status(self, component_type: str, name: str) -> dict[str, Any]:
+        """Execute status at the release_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT * FROM release_routes WHERE component_type=? AND component_name=?",
@@ -205,6 +316,18 @@ class ReleaseManager:
         return dict(row)
 
     def _require_release(self, component_type: str, name: str, version: str) -> None:
+        """Implement the internal _require_release helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._validate(component_type, name, version)
         with self.database.connect() as connection:
             row = connection.execute(
@@ -216,5 +339,17 @@ class ReleaseManager:
 
     @classmethod
     def _validate(cls, component_type: str, name: str, version: str) -> None:
+        """Implement the internal _validate helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            component_type: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if component_type not in cls.COMPONENTS or not name.strip() or not version.strip():
             raise ValueError("Invalid release identity.")

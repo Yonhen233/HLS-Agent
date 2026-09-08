@@ -1,3 +1,8 @@
+"""rag layer implementation for calibration.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,15 +13,50 @@ from typing import Any
 
 
 def _sigmoid(value: float) -> float:
+    """Implement the internal _sigmoid helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     value = max(-60.0, min(60.0, value))
     return 1.0 / (1.0 + math.exp(-value))
 
 
 class HLSRerankerCalibrator:
+    """Coordinate HLSRerankerCalibrator within the calibration boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, semantic_engine):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            semantic_engine: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.engine = semantic_engine
 
     def run(self, dataset_path: str | Path, *, max_pollution_rate: float = 0.05) -> dict[str, Any]:
+        """Execute run at the calibration boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            dataset_path: Value supplied by the caller and validated by the surrounding schema.
+            max_pollution_rate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = Path(dataset_path)
         payload = json.loads(path.read_text(encoding="utf-8"))
         cases = payload.get("cases") or []
@@ -67,6 +107,17 @@ class HLSRerankerCalibrator:
 
     @staticmethod
     def save(report: dict[str, Any], output_path: str | Path) -> Path:
+        """Execute save at the calibration boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            report: Value supplied by the caller and validated by the surrounding schema.
+            output_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -74,6 +125,17 @@ class HLSRerankerCalibrator:
 
     @staticmethod
     def export_training_triples(dataset_path: str | Path, output_path: str | Path) -> Path:
+        """Execute export_training_triples at the calibration boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            dataset_path: Value supplied by the caller and validated by the surrounding schema.
+            output_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -85,6 +147,18 @@ class HLSRerankerCalibrator:
 
     @staticmethod
     def _select_threshold(scores: list[float], labels: list[int], max_pollution_rate: float) -> tuple[float, dict[str, float]]:
+        """Implement the internal _select_threshold helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            scores: Value supplied by the caller and validated by the surrounding schema.
+            labels: Value supplied by the caller and validated by the surrounding schema.
+            max_pollution_rate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidates = sorted(set([0.0, 1.0, *scores]))
         best = None
         for threshold in candidates:

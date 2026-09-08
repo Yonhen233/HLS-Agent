@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for agent_interview_benchmark.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -24,6 +29,17 @@ RAG_CORPUS = Path("benchmarks/agent_interview_rag_corpus.json")
 
 
 def _read_json(path: Path, default: Any = None) -> Any:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -31,11 +47,33 @@ def _read_json(path: Path, default: Any = None) -> Any:
 
 
 def _write_json(path: Path, payload: Any) -> None:
+    """Implement the internal _write_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        payload: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _percentile(values: list[float], quantile: float) -> float | None:
+    """Implement the internal _percentile helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        quantile: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not values:
         return None
     ordered = sorted(values)
@@ -44,6 +82,17 @@ def _percentile(values: list[float], quantile: float) -> float | None:
 
 
 def _rate(numerator: int, denominator: int) -> dict[str, Any]:
+    """Implement the internal _rate helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        numerator: Value supplied by the caller and validated by the surrounding schema.
+        denominator: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if denominator <= 0:
         return {"numerator": numerator, "denominator": denominator, "rate": None, "statistically_usable": False}
     estimate = numerator / denominator
@@ -61,6 +110,16 @@ def _rate(numerator: int, denominator: int) -> dict[str, Any]:
 
 
 def _llm_usage(events: list[dict[str, Any]]) -> dict[str, int]:
+    """Implement the internal _llm_usage helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        events: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     usage = [item for item in events if item.get("event") == "LLMUsageRecorded"]
     input_tokens = sum(int(item.get("input_tokens") or 0) for item in usage)
     output_tokens = sum(int(item.get("output_tokens") or 0) for item in usage)
@@ -73,6 +132,16 @@ def _llm_usage(events: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _trace(path: Path) -> list[dict[str, Any]]:
+    """Implement the internal _trace helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     events: list[dict[str, Any]] = []
     if not path.exists():
         return events
@@ -85,6 +154,16 @@ def _trace(path: Path) -> list[dict[str, Any]]:
 
 
 def _error_payload(exc: Exception) -> dict[str, Any]:
+    """Implement the internal _error_payload helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        exc: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     error = getattr(exc, "error", None)
     if error is not None and hasattr(error, "to_dict"):
         return error.to_dict()
@@ -92,6 +171,17 @@ def _error_payload(exc: Exception) -> dict[str, Any]:
 
 
 def _matches_expected_task(task: dict[str, Any], case: dict[str, Any]) -> bool:
+    """Implement the internal _matches_expected_task helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+        case: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     checks = [
         not case.get("expected_task_type") or task.get("task_type") == case["expected_task_type"],
         not case.get("expected_op_type") or task.get("op_type") == case["expected_op_type"],
@@ -193,10 +283,31 @@ def run_open_task_planning(workspace_root: str | Path, suite_path: str | Path = 
 
 
 class _CorpusRepository:
+    """Coordinate _CorpusRepository within the agent_interview_benchmark boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, documents: list[dict[str, Any]]):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            documents: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.documents = documents
 
     def get_rag_chunks(self) -> list[dict[str, Any]]:
+        """Execute get_rag_chunks at the agent_interview_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return [
             {
                 "id": index,
@@ -210,6 +321,17 @@ class _CorpusRepository:
         ]
 
     def search_rag_fts(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Execute search_rag_fts at the agent_interview_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            limit: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         terms = set(re.findall(r"[a-z0-9_]+", query.lower()))
         rows = self.get_rag_chunks()
         return sorted(
@@ -220,14 +342,40 @@ class _CorpusRepository:
 
     @staticmethod
     def list_memory_facts() -> list[dict[str, Any]]:
+        """Execute list_memory_facts at the agent_interview_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return []
 
     @staticmethod
     def list_skills() -> list[dict[str, Any]]:
+        """Execute list_skills at the agent_interview_benchmark boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return []
 
 
 def _naive_retrieve(documents: list[dict[str, Any]], query: str, top_k: int) -> list[dict[str, Any]]:
+    """Implement the internal _naive_retrieve helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        documents: Value supplied by the caller and validated by the surrounding schema.
+        query: Value supplied by the caller and validated by the surrounding schema.
+        top_k: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tokens = re.findall(r"[a-z0-9_]+", query.lower())
     ranked = sorted(
         documents,
@@ -238,6 +386,17 @@ def _naive_retrieve(documents: list[dict[str, Any]], query: str, top_k: int) -> 
 
 
 def run_rag_ablation(workspace_root: str | Path, corpus_path: str | Path = RAG_CORPUS) -> dict[str, Any]:
+    """Execute run_rag_ablation at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        corpus_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     payload = _read_json(root / corpus_path, {})
     documents = list(payload.get("documents", []))
@@ -268,6 +427,16 @@ def run_rag_ablation(workspace_root: str | Path, corpus_path: str | Path = RAG_C
 
 
 def run_guard_ablation(workspace_root: str | Path) -> dict[str, Any]:
+    """Execute run_guard_ablation at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = _read_json(Path(workspace_root) / "benchmarks" / "operator_bad_case_results.json", {})
     cases = [item for item in payload.get("cases", []) if item.get("failure_stage") == "candidate_guard"]
     blocked = sum(item.get("final_outcome") == "rejected" for item in cases)
@@ -288,6 +457,16 @@ def run_guard_ablation(workspace_root: str | Path) -> dict[str, Any]:
 
 
 def _frozen_run_ids(root: Path) -> list[str]:
+    """Implement the internal _frozen_run_ids helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     release = _read_json(root / "runs" / "benchmarks" / "operator_release.json", {})
     ids = [item.get("run_id") for item in (release.get("llm_pass3") or {}).get("runs", [])]
     fair = (release.get("template_vs_llm") or {}).get("results", [])
@@ -308,6 +487,16 @@ def _frozen_run_ids(root: Path) -> list[str]:
 
 
 def run_context_ablation(run_dirs: list[Path]) -> dict[str, Any]:
+    """Execute run_context_ablation at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        run_dirs: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     full_state_bytes: list[float] = []
     returned_bytes: list[float] = []
     raw_bytes: list[float] = []
@@ -341,6 +530,16 @@ def run_context_ablation(run_dirs: list[Path]) -> dict[str, Any]:
 
 
 def run_recovery_idempotency_probes(workspace_root: str | Path) -> dict[str, Any]:
+    """Execute run_recovery_idempotency_probes at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     probes: list[dict[str, Any]] = []
     schema = root / "src" / "dl_op_to_hls" / "db" / "schema.sql"
@@ -369,6 +568,17 @@ def run_recovery_idempotency_probes(workspace_root: str | Path) -> dict[str, Any
         schema_object = {"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"]}
 
         def cached_handler(arguments, context):
+            """Execute cached_handler at the agent_interview_benchmark boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+                context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             calls["cache"] += 1
             return {"status": "success"}
 
@@ -379,6 +589,17 @@ def run_recovery_idempotency_probes(workspace_root: str | Path) -> dict[str, Any
         probes.append({"name": "idempotent_tool_cache", "passed": calls["cache"] == 1})
 
         def retry_handler(arguments, context):
+            """Execute retry_handler at the agent_interview_benchmark boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+                context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             calls["retry"] += 1
             if calls["retry"] == 1:
                 raise RuntimeError("transient")
@@ -405,6 +626,17 @@ def build_interview_report(
     *,
     open_planning: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Execute build_interview_report at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        open_planning: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     run_ids = _frozen_run_ids(root)
     run_dirs = [root / "runs" / run_id for run_id in run_ids if (root / "runs" / run_id / "state.json").exists()]
@@ -471,6 +703,16 @@ def build_interview_report(
 
 
 def render_markdown(report: dict[str, Any]) -> str:
+    """Execute render_markdown at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     historical = report["historical_real_run_metrics"]
     open_tasks = report.get("open_task_generalization") or {}
     rag = report["ablations"]["rag"]
@@ -521,6 +763,18 @@ def run_interview_benchmark(
     *,
     run_open_llm: bool = False,
 ) -> dict[str, Any]:
+    """Execute run_interview_benchmark at the agent_interview_benchmark boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        run_open_llm: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     open_results = run_open_task_planning(root) if run_open_llm else None
     if open_results is not None:

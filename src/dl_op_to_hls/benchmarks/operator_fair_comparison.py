@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_fair_comparison.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +12,16 @@ from typing import Any
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
         return value if isinstance(value, dict) else {}
@@ -15,6 +30,16 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _fixed_contract(task: dict[str, Any]) -> dict[str, Any]:
+    """Implement the internal _fixed_contract helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     optimization = task.get("optimization") or {}
     return {
         "op_type": task.get("op_type"),
@@ -31,6 +56,16 @@ def _fixed_contract(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def _real_golden_evidence(run_dir: Path) -> bool:
+    """Implement the internal _real_golden_evidence helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     payload = _read_json(run_dir / "tool_evidence.json")
     receipts = payload.get("receipts") or []
     return any(
@@ -49,6 +84,16 @@ def _real_golden_evidence(run_dir: Path) -> bool:
 
 
 def _llm_usage(run_dir: Path) -> dict[str, Any]:
+    """Implement the internal _llm_usage helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     calls = input_tokens = output_tokens = anomalies = 0
     trace_path = run_dir / "trace.jsonl"
     if trace_path.exists():
@@ -73,6 +118,17 @@ def _llm_usage(run_dir: Path) -> dict[str, Any]:
 
 
 def _run_result(root: Path, run_id: str) -> dict[str, Any]:
+    """Implement the internal _run_result helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        root: Value supplied by the caller and validated by the surrounding schema.
+        run_id: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = root / "runs" / run_id
     state = _read_json(run_dir / "state.json")
     gate = _read_json(run_dir / "completion_gate.json")
@@ -118,12 +174,35 @@ def _run_result(root: Path, run_id: str) -> dict[str, Any]:
 
 
 def _delta(llm: Any, template: Any) -> Any:
+    """Implement the internal _delta helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        llm: Value supplied by the caller and validated by the surrounding schema.
+        template: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not isinstance(llm, (int, float)) or not isinstance(template, (int, float)):
         return None
     return llm - template
 
 
 def analyze_template_vs_llm(workspace_root: str | Path, manifest_path: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute analyze_template_vs_llm at the operator_fair_comparison boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        manifest_path: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     manifest = _read_json(root / manifest_path if not Path(manifest_path).is_absolute() else Path(manifest_path))
     results: list[dict[str, Any]] = []

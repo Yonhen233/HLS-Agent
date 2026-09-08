@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_cifar_architecture_screen.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from dl_op_to_hls.tools.cifar_architecture_screen import (
@@ -9,6 +14,13 @@ from dl_op_to_hls.tools.cifar_architecture_screen import (
 
 
 def test_screen_marks_measured_three_conv_shape_as_synthesis_candidate():
+    """Verify the test_screen_marks_measured_three_conv_shape_as_synthesis_candidate contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = screen_architecture(CifarArchitectureSpec("gap", (16, 32, 64), (1, 1, 1)))
 
     assert result.macs == 2_802_304
@@ -18,6 +30,13 @@ def test_screen_marks_measured_three_conv_shape_as_synthesis_candidate():
 
 
 def test_screen_rejects_measured_vgg_shape_before_synthesis():
+    """Verify the test_screen_rejects_measured_vgg_shape_before_synthesis contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = screen_architecture(CifarArchitectureSpec("vgg", (12, 24, 48), (2, 2, 2)))
 
     assert result.estimated_resources["bram"] > 280
@@ -26,6 +45,13 @@ def test_screen_rejects_measured_vgg_shape_before_synthesis():
 
 
 def test_screen_prioritizes_compact_depth_candidate_over_rejected_vgg():
+    """Verify the test_screen_prioritizes_compact_depth_candidate_over_rejected_vgg contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     results = screen_many(default_candidates())
     by_name = {result.spec.name: result for result in results}
 

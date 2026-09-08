@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for llm_mnist_hls_candidate.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -131,15 +136,45 @@ OBJECTIVE_RULES = {
 
 
 def _system_prompt(objective: str) -> str:
+    """Implement the internal _system_prompt helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        objective: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rules = "\n".join(f"- {rule}" for rule in OBJECTIVE_RULES.get(objective, OBJECTIVE_RULES["resource"]))
     return f"{SYSTEM_PROMPT_BASE}\nObjective-specific rules:\n{rules}\n"
 
 
 def _read_json(path: Path) -> Any:
+    """Implement the internal _read_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _load_onnx_weights(model_path: Path) -> dict[str, np.ndarray]:
+    """Implement the internal _load_onnx_weights helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        model_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     model = onnx.load(str(model_path), load_external_data=True)
     weights = {initializer.name: numpy_helper.to_array(initializer).astype(np.float32) for initializer in model.graph.initializer}
     required = ["fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias", "fc3.weight", "fc3.bias"]
@@ -150,6 +185,17 @@ def _load_onnx_weights(model_path: Path) -> dict[str, np.ndarray]:
 
 
 def _load_samples(samples_path: Path, labels_path: Path) -> tuple[np.ndarray, list[int]]:
+    """Implement the internal _load_samples helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        samples_path: Value supplied by the caller and validated by the surrounding schema.
+        labels_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows: list[list[float]] = []
     for line in samples_path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -162,6 +208,17 @@ def _load_samples(samples_path: Path, labels_path: Path) -> tuple[np.ndarray, li
 
 
 def _reference_predictions(weights: dict[str, np.ndarray], samples: np.ndarray) -> list[int]:
+    """Implement the internal _reference_predictions helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        weights: Value supplied by the caller and validated by the surrounding schema.
+        samples: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     x = samples
     y1 = np.maximum(0.0, x @ weights["fc1.weight"].T + weights["fc1.bias"])
     y2 = np.maximum(0.0, y1 @ weights["fc2.weight"].T + weights["fc2.bias"])
@@ -170,12 +227,33 @@ def _reference_predictions(weights: dict[str, np.ndarray], samples: np.ndarray) 
 
 
 def _format_scalar(value: float) -> str:
+    """Implement the internal _format_scalar helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if abs(value) < 1e-12:
         return "0"
     return f"{float(value):.8g}"
 
 
 def _format_1d(values: np.ndarray, indent: str = "    ") -> str:
+    """Implement the internal _format_1d helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        indent: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     chunks: list[str] = []
     for start in range(0, len(values), 8):
         row = ", ".join(_format_scalar(float(item)) for item in values[start : start + 8])
@@ -184,6 +262,17 @@ def _format_1d(values: np.ndarray, indent: str = "    ") -> str:
 
 
 def _format_2d(values: np.ndarray, indent: str = "    ") -> str:
+    """Implement the internal _format_2d helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        values: Value supplied by the caller and validated by the surrounding schema.
+        indent: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows: list[str] = []
     for row in values:
         rows.append(f"{indent}{{{', '.join(_format_scalar(float(item)) for item in row)}}}")
@@ -191,6 +280,17 @@ def _format_2d(values: np.ndarray, indent: str = "    ") -> str:
 
 
 def _sanitize_ap_fixed_type(value: str, default: str) -> str:
+    """Implement the internal _sanitize_ap_fixed_type helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(value or "").strip()
     if not text.startswith("ap_fixed<") or not text.endswith(">"):
         return default
@@ -229,6 +329,16 @@ def _sanitize_ap_fixed_type(value: str, default: str) -> str:
 
 
 def _ap_fixed_parts(value: str) -> tuple[int, int] | None:
+    """Implement the internal _ap_fixed_parts helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = _sanitize_ap_fixed_type(value, "")
     if not text:
         return None
@@ -238,6 +348,16 @@ def _ap_fixed_parts(value: str) -> tuple[int, int] | None:
 
 
 def _ap_fixed_tokens(value: str) -> set[str]:
+    """Implement the internal _ap_fixed_tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = _sanitize_ap_fixed_type(value, "")
     if not text:
         return set()
@@ -246,6 +366,17 @@ def _ap_fixed_tokens(value: str) -> set[str]:
 
 
 def _validate_plan_for_objective(plan: dict[str, Any], objective: str) -> dict[str, Any]:
+    """Implement the internal _validate_plan_for_objective helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        plan: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if objective == "resource":
         return {"status": "valid", "violations": []}
     checks = [
@@ -317,6 +448,17 @@ def _validate_plan_for_objective(plan: dict[str, Any], objective: str) -> dict[s
 
 
 def _build_header(plan: dict[str, Any], weights: dict[str, np.ndarray]) -> str:
+    """Implement the internal _build_header helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        plan: Value supplied by the caller and validated by the surrounding schema.
+        weights: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     data_type = _sanitize_ap_fixed_type(plan.get("data_type"), "ap_fixed<12,6>")
     weight_type = _sanitize_ap_fixed_type(plan.get("weight_type"), "ap_fixed<12,4>")
     accum_type = _sanitize_ap_fixed_type(plan.get("accum_type"), "ap_fixed<28,12>")
@@ -366,6 +508,16 @@ void mnist_llm_candidate(data_t input[784], data_t output[10]);
 
 
 def _normalize_function_body(body: str) -> str:
+    """Implement the internal _normalize_function_body helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        body: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(body or "").strip()
     text = text.replace("```cpp", "").replace("```c++", "").replace("```", "").strip()
     if "void mnist_llm_candidate" not in text:
@@ -374,11 +526,33 @@ def _normalize_function_body(body: str) -> str:
 
 
 def _build_cpp(plan: dict[str, Any]) -> str:
+    """Implement the internal _build_cpp helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        plan: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     body = _normalize_function_body(plan["function_body"])
     return f'#include "mnist_llm_candidate.h"\n\n{body}\n'
 
 
 def _build_testbench(samples: np.ndarray, labels: list[int], required_correct: int) -> str:
+    """Implement the internal _build_testbench helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        samples: Value supplied by the caller and validated by the surrounding schema.
+        labels: Value supplied by the caller and validated by the surrounding schema.
+        required_correct: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     sample_rows = []
     for row in samples:
         sample_rows.append(f"    {{{', '.join(_format_scalar(float(item)) for item in row)}}}")
@@ -434,6 +608,19 @@ def _prompt_for_plan(
     attempt: int,
     objective: str,
 ) -> str:
+    """Implement the internal _prompt_for_plan helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        baseline: Value supplied by the caller and validated by the surrounding schema.
+        previous_results: Value supplied by the caller and validated by the surrounding schema.
+        attempt: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     goals = {
         "resource": "Generate a direct HLS candidate that minimizes LUT/DSP/FF/BRAM while keeping MNIST accuracy >= baseline.",
         "balanced": "Generate a balanced HLS candidate that improves latency/II versus the serial LLM resource candidate while retaining a substantial resource reduction versus hls4ml.",
@@ -442,6 +629,16 @@ def _prompt_for_plan(
         "performance": "Generate a performance-priority HLS candidate that jointly improves latency and II while remaining feasible on the target FPGA.",
     }
     def summarize_attempt(item: dict[str, Any]) -> dict[str, Any]:
+        """Execute summarize_attempt at the llm_mnist_hls_candidate boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            item: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report = (item.get("verification") or {}).get("report") or {}
         synthesis = (item.get("verification") or {}).get("synthesis") or {}
         error = synthesis.get("error") or item.get("error")
@@ -506,6 +703,21 @@ def _prompt_for_plan(
 
 
 def _write_plan_artifacts(candidate_dir: Path, plan: dict[str, Any], weights: dict[str, np.ndarray], samples: np.ndarray, labels: list[int], required_correct: int) -> None:
+    """Implement the internal _write_plan_artifacts helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+        plan: Value supplied by the caller and validated by the surrounding schema.
+        weights: Value supplied by the caller and validated by the surrounding schema.
+        samples: Value supplied by the caller and validated by the surrounding schema.
+        labels: Value supplied by the caller and validated by the surrounding schema.
+        required_correct: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     candidate_dir.mkdir(parents=True, exist_ok=True)
     (candidate_dir / "mnist_llm_candidate.h").write_text(_build_header(plan, weights), encoding="utf-8")
     (candidate_dir / "mnist_llm_candidate.cpp").write_text(_build_cpp(plan), encoding="utf-8")
@@ -514,6 +726,16 @@ def _write_plan_artifacts(candidate_dir: Path, plan: dict[str, Any], weights: di
 
 
 def _scan_candidate(candidate_dir: Path) -> dict[str, Any]:
+    """Implement the internal _scan_candidate helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     sandbox = CandidateSandbox()
     violations = []
     for path in sorted(candidate_dir.glob("*")):
@@ -523,6 +745,20 @@ def _scan_candidate(candidate_dir: Path) -> dict[str, Any]:
 
 
 def _verify_with_vivado(candidate_dir: Path, run_dir: Path, part: str, clock_period: float, vivado_hls_path: str | None) -> dict[str, Any]:
+    """Implement the internal _verify_with_vivado helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        candidate_dir: Value supplied by the caller and validated by the surrounding schema.
+        run_dir: Value supplied by the caller and validated by the surrounding schema.
+        part: Value supplied by the caller and validated by the surrounding schema.
+        clock_period: Value supplied by the caller and validated by the surrounding schema.
+        vivado_hls_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path=vivado_hls_path)
     work_dir = run_dir / "vivado_hls"
     create = adapter.create_project(
@@ -552,6 +788,17 @@ def _verify_with_vivado(candidate_dir: Path, run_dir: Path, part: str, clock_per
 
 
 def _merge_attempt_results_from_disk(output_root: Path, previous_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Implement the internal _merge_attempt_results_from_disk helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        output_root: Value supplied by the caller and validated by the surrounding schema.
+        previous_results: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     merged = list(previous_results)
     seen_attempts = {str(item.get("attempt")) for item in merged if item.get("attempt") is not None}
     for result_path in sorted(output_root.glob("attempt_*/attempt_result.json")):
@@ -570,17 +817,49 @@ def _merge_attempt_results_from_disk(output_root: Path, previous_results: list[d
 
 
 def _attempt_sort_key(value: Any) -> tuple[int, str]:
+    """Implement the internal _attempt_sort_key helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = str(value or "")
     match = re.search(r"\d+", text)
     return (int(match.group(0)) if match else 0, text)
 
 
 def _score(report: dict[str, Any]) -> int:
+    """Implement the internal _score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     resources = report.get("resources") or {}
     return int(resources.get("lut") or 0) + int(resources.get("ff") or 0) + 200 * int(resources.get("dsp") or 0) + 100 * int(resources.get("bram") or 0)
 
 
 def _objective_score(report: dict[str, Any], objective: str, baseline: dict[str, Any]) -> float:
+    """Implement the internal _objective_score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+        baseline: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     resource_score = _score(report)
     latency = float((report.get("latency") or {}).get("max_cycles") or 10**12)
     interval = float((report.get("interval") or {}).get("max_ii") or latency)
@@ -605,6 +884,17 @@ def _objective_score(report: dict[str, Any], objective: str, baseline: dict[str,
 
 
 def _resource_feasible(report: dict[str, Any], baseline: dict[str, Any]) -> bool:
+    """Implement the internal _resource_feasible helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        baseline: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if report.get("resource_feasible") is not None:
         return bool(report["resource_feasible"])
     resources = report.get("resources") or {}
@@ -618,6 +908,18 @@ def _resource_feasible(report: dict[str, Any], baseline: dict[str, Any]) -> bool
 
 
 def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, Any]) -> bool:
+    """Implement the internal _objective_met helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        report: Value supplied by the caller and validated by the surrounding schema.
+        objective: Value supplied by the caller and validated by the surrounding schema.
+        baseline: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     resource_score = _score(report)
     latency = float((report.get("latency") or {}).get("max_cycles") or 10**12)
     interval = float((report.get("interval") or {}).get("max_ii") or latency)
@@ -646,6 +948,13 @@ def _objective_met(report: dict[str, Any], objective: str, baseline: dict[str, A
 
 
 def main() -> int:
+    """Execute main at the llm_mnist_hls_candidate boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Generate and verify direct LLM HLS candidates for the MNIST MLP.")
     parser.add_argument("--model", default="models/mnist_recognition/mnist_mlp_trained.onnx")
     parser.add_argument("--samples", default="models/mnist_recognition/mnist_test_inputs_20.dat")

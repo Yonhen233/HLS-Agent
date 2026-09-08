@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_demo_reports_parser.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,12 +15,29 @@ REPORTS = ROOT / "tests" / "fixtures" / "reports"
 
 
 def _parse(name: str) -> dict:
+    """Verify the _parse contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = parse_csynth_report_file(str(REPORTS / name))
     assert result["status"] == "success"
     return result
 
 
 def test_parse_dense_latency_report():
+    """Verify the test_parse_dense_latency_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = _parse("dense_latency_csynth.rpt")
     assert result["latency"]["min_cycles"] == 45
     assert result["interval"]["max_ii"] == 1
@@ -24,6 +46,13 @@ def test_parse_dense_latency_report():
 
 
 def test_parse_matmul_resource_report():
+    """Verify the test_parse_matmul_resource_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = _parse("matmul_resource_csynth.rpt")
     assert result["latency"]["min_cycles"] == 900
     assert result["interval"]["max_ii"] == 2
@@ -33,6 +62,13 @@ def test_parse_matmul_resource_report():
 
 
 def test_parse_mnist_mlp_report():
+    """Verify the test_parse_mnist_mlp_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = _parse("mnist_mlp_csynth.rpt")
     assert result["latency"]["min_cycles"] == 120
     assert result["resources"]["dsp"] == 48
@@ -41,6 +77,13 @@ def test_parse_mnist_mlp_report():
 
 
 def test_parse_mnist_tiny_cnn_report():
+    """Verify the test_parse_mnist_tiny_cnn_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = _parse("mnist_tiny_cnn_csynth.rpt")
     assert result["latency"]["min_cycles"] == 2400
     assert result["interval"]["min_ii"] == 4
@@ -49,6 +92,13 @@ def test_parse_mnist_tiny_cnn_report():
 
 
 def test_parse_qkeras_cnn_resource_report():
+    """Verify the test_parse_qkeras_cnn_resource_report contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = _parse("qkeras_cnn_resource_csynth.rpt")
     assert result["latency"]["min_cycles"] == 3100
     assert result["resources"]["dsp"] == 18

@@ -1,3 +1,8 @@
+"""cli.py layer implementation for cli.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -35,6 +40,13 @@ from .mcp_servers.vivado_hls_server import build_vivado_registry
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Execute build_parser at the cli boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(prog="dl-op-to-hls")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -363,6 +375,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _build_agent(*, mock_tools: bool = False, real_tools: bool = False) -> MainAgent:
+    """Implement the internal _build_agent helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        mock_tools: Value supplied by the caller and validated by the surrounding schema.
+        real_tools: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if mock_tools and real_tools:
         raise ValueError("--mock-tools and --real-tools are mutually exclusive.")
     if real_tools:
@@ -385,6 +408,16 @@ def _configure_stdio() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Execute main at the cli boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        argv: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     _configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -631,6 +664,16 @@ def main(argv: list[str] | None = None) -> int:
         agent = _build_agent()
 
         def handle(payload):
+            """Execute handle at the cli boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                payload: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             state = run_task_llm(payload["task_input"], agent=agent)
             return {"run_id": state.run_id, "status": state.status, "selected_path": state.selected_path}
 

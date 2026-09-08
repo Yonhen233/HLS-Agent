@@ -1,3 +1,8 @@
+"""specialists layer implementation for codegen_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,11 +30,33 @@ class CodegenSpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the codegen_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         tool = str(getattr(todo, "assigned_tool", None) or "")
         title = str(getattr(todo, "title", "") or "").lower()
         return tool in set(self.allowed_tools) or "llm candidate" in title or "candidate generation" in title
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the codegen_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         assigned_tool = str(envelope.task_summary.get("assigned_tool") or "llm.generate_candidate")
         if assigned_tool not in self.allowed_tools:
             error = build_error(
@@ -151,6 +178,16 @@ class CodegenSpecialist(BaseSpecialist):
 
     @staticmethod
     def _compress_result(result: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _compress_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             key: value
             for key, value in result.items()

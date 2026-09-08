@@ -1,3 +1,8 @@
+"""skills layer implementation for extractor.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -7,16 +12,44 @@ from typing import Any
 
 
 class LegacyWorkflowExtractor:
+    """Coordinate LegacyWorkflowExtractor within the extractor boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, project_root: str | Path = "."):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            project_root: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.project_root = Path(project_root)
 
     def inspect_legacy_planner(self) -> dict[str, Any]:
+        """Execute inspect_legacy_planner at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         planner_path = self.project_root / "src" / "dl_op_to_hls" / "main_agent" / "planner.py"
         text = planner_path.read_text(encoding="utf-8") if planner_path.exists() else ""
         task_type_branches = re.findall(r'if task_type == "([^"]+)"', text)
         return {"path": str(planner_path), "task_type_branches": task_type_branches}
 
     def inspect_legacy_reflector(self) -> dict[str, Any]:
+        """Execute inspect_legacy_reflector at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         runtime_path = self.project_root / "src" / "dl_op_to_hls" / "main_agent" / "runtime.py"
         text = runtime_path.read_text(encoding="utf-8") if runtime_path.exists() else ""
         patterns = [
@@ -29,6 +62,13 @@ class LegacyWorkflowExtractor:
         return {"path": str(runtime_path), "failure_branches": branches}
 
     def inspect_legacy_suggestions(self) -> dict[str, Any]:
+        """Execute inspect_legacy_suggestions at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         suggest_path = self.project_root / "src" / "dl_op_to_hls" / "tools" / "suggest_optimization.py"
         text = suggest_path.read_text(encoding="utf-8") if suggest_path.exists() else ""
         rules = []
@@ -38,6 +78,13 @@ class LegacyWorkflowExtractor:
         return {"path": str(suggest_path), "rule_tokens": rules}
 
     def generate_skill_skeletons(self) -> list[dict[str, Any]]:
+        """Execute generate_skill_skeletons at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         planner = self.inspect_legacy_planner()
         reflector = self.inspect_legacy_reflector()
         suggestions = self.inspect_legacy_suggestions()
@@ -129,11 +176,32 @@ class LegacyWorkflowExtractor:
         ]
 
     def write_skill_yaml(self, skeleton: dict[str, Any], path: str | Path) -> None:
+        """Execute write_skill_yaml at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skeleton: Value supplied by the caller and validated by the surrounding schema.
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(skeleton, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def write_legacy_workflow_map(self, output_path: str | Path) -> Path:
+        """Execute write_legacy_workflow_map at the extractor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            output_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         planner = self.inspect_legacy_planner()
         reflector = self.inspect_legacy_reflector()
         suggestions = self.inspect_legacy_suggestions()

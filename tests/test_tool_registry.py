@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_tool_registry.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from dl_op_to_hls.core.tool_registry import ToolRegistry, ToolSpec
 from dl_op_to_hls.core.trace import stable_hash
 from dl_op_to_hls.core.permissions import PermissionGate
@@ -5,6 +10,13 @@ from dl_op_to_hls.core.sessions import SessionManager
 
 
 def test_tool_registry_registers_tools():
+    """Verify the test_tool_registry_registers_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
@@ -21,6 +33,13 @@ def test_tool_registry_registers_tools():
 
 
 def test_alias_is_hidden_from_model_catalog_and_inherits_governance():
+    """Verify the test_alias_is_hidden_from_model_catalog_and_inherits_governance contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
@@ -47,6 +66,13 @@ def test_alias_is_hidden_from_model_catalog_and_inherits_governance():
 
 
 def test_duplicate_tool_registration_is_rejected():
+    """Verify the test_duplicate_tool_registration_is_rejected contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     spec = ToolSpec("demo.same", "demo", {}, {}, "read", lambda arguments, context: {})
     registry.register(spec)
@@ -56,10 +82,28 @@ def test_duplicate_tool_registration_is_rejected():
 
 
 def test_alias_and_canonical_name_share_cache_identity():
+    """Verify the test_alias_and_canonical_name_share_cache_identity contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     calls = {"count": 0}
 
     def handler(arguments, context):
+        """Verify the handler contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         calls["count"] += 1
         return {"status": "success"}
 
@@ -72,6 +116,13 @@ def test_alias_and_canonical_name_share_cache_identity():
 
 
 def test_tool_registry_calls_tool():
+    """Verify the test_tool_registry_calls_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
@@ -88,6 +139,13 @@ def test_tool_registry_calls_tool():
 
 
 def test_tool_registry_enforces_input_and_output_contracts():
+    """Verify the test_tool_registry_enforces_input_and_output_contracts contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
@@ -108,10 +166,28 @@ def test_tool_registry_enforces_input_and_output_contracts():
 
 
 def test_tool_registry_caches_only_explicitly_cacheable_tools():
+    """Verify the test_tool_registry_caches_only_explicitly_cacheable_tools contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     calls = {"count": 0}
 
     def handler(arguments, context):
+        """Verify the handler contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         calls["count"] += 1
         return {"status": "success", "value": arguments["value"]}
 
@@ -135,10 +211,31 @@ def test_tool_registry_caches_only_explicitly_cacheable_tools():
 
 
 def test_tool_registry_pauses_for_session_approval(tmp_path):
+    """Verify the test_tool_registry_pauses_for_session_approval contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     calls = {"count": 0}
 
     def handler(arguments, context):
+        """Verify the handler contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         calls["count"] += 1
         return {"status": "success"}
 

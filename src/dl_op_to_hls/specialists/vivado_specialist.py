@@ -1,3 +1,8 @@
+"""specialists layer implementation for vivado_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,6 +16,10 @@ from .result import SpecialistResult
 
 
 class VivadoSpecialist(BaseSpecialist):
+    """Coordinate VivadoSpecialist within the vivado_specialist boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name = "VivadoSpecialist"
     description = "Handles Vivado HLS project creation, csim/csynth, report parsing, and log summaries."
     allowed_tools = [
@@ -25,9 +34,31 @@ class VivadoSpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the vivado_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("vivado."))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the vivado_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         title = (envelope.task_summary.get("todo_title") or "").lower()
         assigned_tool = envelope.task_summary.get("assigned_tool") or envelope.scoped_state.get("assigned_tool")
         if assigned_tool in {"vivado.create_project", "vivado.create_vivado_project"}:
@@ -39,6 +70,16 @@ class VivadoSpecialist(BaseSpecialist):
         return self._handle_synthesis(envelope, tool_registry, permission_gate)
 
     def _create_project_args(self, envelope: ContextEnvelope) -> dict[str, Any]:
+        """Implement the internal _create_project_args helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scoped = envelope.scoped_state
         run_dir = Path(self.runtime_context.get("run_dir", "."))
         work_dir = scoped.get("work_dir") or str(run_dir / "vivado_hls")
@@ -57,6 +98,18 @@ class VivadoSpecialist(BaseSpecialist):
         return arguments
 
     def _handle_create_project(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Implement the internal _handle_create_project helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observations: list[dict[str, Any]] = []
         artifacts: list[dict[str, Any]] = []
         create_args = self._create_project_args(envelope)
@@ -111,6 +164,18 @@ class VivadoSpecialist(BaseSpecialist):
         )
 
     def _handle_synthesis(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Implement the internal _handle_synthesis helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scoped = envelope.scoped_state
         observations: list[dict[str, Any]] = []
         artifacts: list[dict[str, Any]] = []
@@ -307,6 +372,18 @@ class VivadoSpecialist(BaseSpecialist):
         return self._finalize_result(envelope, result)
 
     def _handle_parse_report(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Implement the internal _handle_parse_report helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report = envelope.scoped_state.get("current_report")
         if report and report.get("status") == "success":
             result = SpecialistResult(
@@ -326,6 +403,18 @@ class VivadoSpecialist(BaseSpecialist):
         return self._finalize_result(envelope, result)
 
     def _handle_parse_log(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Implement the internal _handle_parse_log helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         log_path = self._artifact_path(envelope, "vivado_log")
         if not log_path:
             work_dir = envelope.scoped_state.get("work_dir")
@@ -371,10 +460,31 @@ class VivadoSpecialist(BaseSpecialist):
         )
 
     def _artifact_path(self, envelope: ContextEnvelope, artifact_type: str) -> str | None:
+        """Implement the internal _artifact_path helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            artifact_type: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for ref in envelope.artifact_refs:
             if ref.get("type") == artifact_type and ref.get("path"):
                 return ref["path"]
         return None
 
     def _compress_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _compress_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {key: value for key, value in result.items() if key not in {"stdout", "stderr", "raw_log", "content"}}

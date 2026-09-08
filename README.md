@@ -276,6 +276,7 @@ dl-op-to-hls bad-case-benchmark --output runs\benchmarks\bad_case.json
 
 详细指标口径见：
 
+- [仓库结构与代码导览](docs/repository_guide.md)
 - [Agent 架构](docs/mature_llm_agent_architecture.md)
 - [MCP 设计](docs/mcp_tools.md)
 - [Agent Benchmark](docs/agent_interview_benchmark.md)

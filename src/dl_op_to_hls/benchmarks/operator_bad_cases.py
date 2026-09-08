@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_bad_cases.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +28,17 @@ from .operator_suite_specs import bad_case_suite
 
 
 def run_operator_bad_cases(workspace_root: str | Path, output_path: str | Path) -> dict[str, Any]:
+    """Execute run_operator_bad_cases at the operator_bad_cases boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        workspace_root: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     root = Path(workspace_root).resolve()
     work = root / "runs" / "operator_bad_case_probe"
     work.mkdir(parents=True, exist_ok=True)
@@ -72,10 +88,32 @@ def run_operator_bad_cases(workspace_root: str | Path, output_path: str | Path) 
 
 
 def _error(error_type: str, detail: Any = None, **extra: Any) -> dict[str, Any]:
+    """Implement the internal _error helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        error_type: Value supplied by the caller and validated by the surrounding schema.
+        detail: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {"error_type": error_type, "recoverable": True, "detail": detail, **extra}
 
 
 def _sandbox(payload: str, *, contract: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Implement the internal _sandbox helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        payload: Value supplied by the caller and validated by the surrounding schema.
+        contract: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = CandidateSandbox().scan_candidate_payload(
         {"files": [{"relative_path": "candidate/top.cpp", "content": payload}]}, contract
     )
@@ -83,11 +121,43 @@ def _sandbox(payload: str, *, contract: dict[str, Any] | None = None) -> dict[st
 
 
 def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
+    """Implement the internal _build_probes helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        work: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     def schema(task: dict[str, Any]) -> dict[str, Any]:
+        """Execute schema at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         normalize_operator_task(task)
         return {"accepted": True}
 
     def contract(required: list[str], source: str, signature: str | None = None) -> dict[str, Any]:
+        """Execute contract at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            required: Value supplied by the caller and validated by the surrounding schema.
+            source: Value supplied by the caller and validated by the surrounding schema.
+            signature: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidate = work / ("contract_" + str(len(list(work.glob("contract_*")))))
         candidate.mkdir(exist_ok=True)
         (candidate / "top.cpp").write_text(source, encoding="utf-8")
@@ -95,24 +165,56 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
         return result.get("error") or {"accepted": True}
 
     def csim(name: str, text: str) -> dict[str, Any]:
+        """Execute csim at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = work / name
         path.write_text(text, encoding="utf-8")
         result = parse_csim_verification(path)
         return _error("VerificationFailedError", result, artifact_evidence=str(path)) if result.get("passed") is not True else {"accepted": True}
 
     def compiler_error() -> dict[str, Any]:
+        """Execute compiler_error at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = work / "compiler_error.log"
         path.write_text("INFO: command returned 0\nERROR: compilation failed\n", encoding="utf-8")
         parsed = VivadoHLSAdapter(mock_mode=False).parse_log({"log_path": str(path)})
         return _error("VivadoSynthesisError", parsed, artifact_evidence=str(path)) if parsed["errors"] else {"accepted": True}
 
     def missing_timing() -> dict[str, Any]:
+        """Execute missing_timing at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = work / "missing_timing.rpt"
         path.write_text("| 10 | 10 | 1 | 1 | none |\n|Total | 0 | 1 | 10 | 20 |\n", encoding="utf-8")
         result = parse_csynth_report_file(str(path))
         return result.get("error") or {"accepted": True}
 
     def stale() -> dict[str, Any]:
+        """Execute stale at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         current, old = work / "current", work / "old"
         current.mkdir(exist_ok=True); old.mkdir(exist_ok=True)
         report = old / "stale.rpt"; report.write_text("stale", encoding="utf-8")
@@ -120,6 +222,13 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
         return _error("ToolPostconditionError", assessment.to_dict()) if not assessment.valid else {"accepted": True}
 
     def missing_vivado() -> dict[str, Any]:
+        """Execute missing_vivado at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         adapter = VivadoHLSAdapter(mock_mode=False, vivado_hls_path=str(work / "missing_vivado_hls.bat"))
         adapter._binary_available = lambda: False  # Isolate the missing-binary branch from host auto-discovery.
         tcl = work / "missing.tcl"
@@ -128,12 +237,26 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
         return result.get("error") or {"accepted": True}
 
     def timeout() -> dict[str, Any]:
+        """Execute timeout at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         registry = ToolRegistry()
         registry.register(ToolSpec("probe.timeout", "timeout", {}, {}, "read", lambda arguments, context: (time.sleep(0.02) or {"status": "success"}), timeout_seconds=0.001))
         result = registry.call("probe.timeout", {}, {"run_id": "bad_17"})
         return result.get("error") or {"accepted": True}
 
     def timing_failure() -> dict[str, Any]:
+        """Execute timing_failure at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         task = {"task_type": "operator", "name": "timing", "op_type": "Dense"}
         state = AgentState("timing", task, status="success")
         state.selected_path = "llm_candidate_path"; state.hls_project_dir = str(work)
@@ -143,6 +266,13 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
         return _error("VivadoSynthesisError", gate) if gate["recommended_status"] != "success" else {"accepted": True}
 
     def max_repairs() -> dict[str, Any]:
+        """Execute max_repairs at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         supervisor = ProgressSupervisor(replan_after=2, terminate_after=3)
         state = AgentState("repair", {"task_type": "operator", "op_type": "Dense"})
         todo = TodoItem(id="t", title="verify", description="verify", status="failed", priority=1, dependencies=[], assigned_tool="verify_candidate.run", assigned_specialist=None, inputs={}, outputs=None, error={"error_type": "VerificationFailedError"})
@@ -151,6 +281,13 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
         return _error("VerificationFailedError", decisions, attempt_count=3) if decisions[-1] == "terminate" else {"accepted": True}
 
     def fake_metrics() -> dict[str, Any]:
+        """Execute fake_metrics at the operator_bad_cases boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result = {"status": "success", "latency": {}, "resources": {}, "timing": {}}
         receipt = ToolPostconditionRegistry().verify("vivado.parse_report", {"report_path": str(work / "missing.rpt")}, result, {"run_dir": work})
         return _error("ToolPostconditionError", receipt) if not receipt["valid"] else {"accepted": True}
@@ -180,5 +317,15 @@ def _build_probes(work: Path) -> dict[str, Callable[[], dict[str, Any]]]:
 
 
 def _stage(case_id: str) -> str:
+    """Implement the internal _stage helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        case_id: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     number = int(case_id.split("_")[1])
     return "task_validation" if number <= 3 else "candidate_guard" if number <= 9 else "verification" if number <= 12 else "synthesis_or_evidence"

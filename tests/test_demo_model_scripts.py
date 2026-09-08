@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_demo_model_scripts.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import builtins
@@ -21,6 +26,16 @@ SCRIPT_CASES = [
 
 
 def _load_script_module(script_path: Path):
+    """Verify the _load_script_module contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        script_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     spec = importlib.util.spec_from_file_location(f"script_{script_path.stem}", script_path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -29,11 +44,25 @@ def _load_script_module(script_path: Path):
 
 
 def test_demo_model_scripts_exist():
+    """Verify the test_demo_model_scripts_exist contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for filename, _ in SCRIPT_CASES:
         assert (SCRIPTS / filename).exists()
 
 
 def test_demo_model_scripts_support_help():
+    """Verify the test_demo_model_scripts_support_help contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for filename, _ in SCRIPT_CASES:
         script = SCRIPTS / filename
         completed = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True, check=False)
@@ -42,12 +71,37 @@ def test_demo_model_scripts_support_help():
 
 
 def test_demo_model_scripts_graceful_skip_missing_deps(monkeypatch, tmp_path):
+    """Verify the test_demo_model_scripts_graceful_skip_missing_deps contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     for filename, missing_root in SCRIPT_CASES:
         script = SCRIPTS / filename
         module = _load_script_module(script)
         original_import = builtins.__import__
 
         def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            """Verify the fake_import contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                name: Value supplied by the caller and validated by the surrounding schema.
+                globals: Value supplied by the caller and validated by the surrounding schema.
+                locals: Value supplied by the caller and validated by the surrounding schema.
+                fromlist: Value supplied by the caller and validated by the surrounding schema.
+                level: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if name == missing_root or name.startswith(f"{missing_root}."):
                 raise ImportError(f"mock missing dependency: {missing_root}")
             return original_import(name, globals, locals, fromlist, level)

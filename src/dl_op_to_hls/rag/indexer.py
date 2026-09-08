@@ -1,3 +1,8 @@
+"""rag layer implementation for indexer.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,16 +13,54 @@ from .chunker import chunk_records
 
 
 class RagIndexer:
+    """Coordinate RagIndexer within the indexer boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, repository, semantic_engine=None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            repository: Value supplied by the caller and validated by the surrounding schema.
+            semantic_engine: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.repository = repository
         self.semantic_engine = semantic_engine
 
     def index_text(self, source_id: str, text: str, metadata: dict[str, Any] | None = None, source_type: str = "text") -> dict[str, Any]:
+        """Execute index_text at the indexer boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            source_id: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            metadata: Value supplied by the caller and validated by the surrounding schema.
+            source_type: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.index_documents(
             [{"source_id": source_id, "source_type": source_type, "text": text, "metadata": metadata or {}}]
         )
 
     def index_documents(self, documents: list[dict[str, Any]]) -> dict[str, Any]:
+        """Execute index_documents at the indexer boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            documents: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payloads: list[dict[str, Any]] = []
         for document in documents:
             text = sanitize_memory_text(str(document.get("text") or ""))
@@ -65,6 +108,17 @@ class RagIndexer:
         }
 
     def index_paths(self, paths: list[str], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Execute index_paths at the indexer boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            paths: Value supplied by the caller and validated by the surrounding schema.
+            metadata: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         documents: list[dict[str, Any]] = []
         for raw_path in paths:
             path = Path(raw_path)

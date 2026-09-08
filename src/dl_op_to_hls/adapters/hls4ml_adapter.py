@@ -1,3 +1,8 @@
+"""adapters layer implementation for hls4ml_adapter.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,11 +20,33 @@ from ..tools.functional_verification import write_onnx_reference_data
 
 
 class HLS4MLAdapter:
+    """Coordinate HLS4MLAdapter within the hls4ml_adapter boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, mock_mode: bool = True, backend_override: str | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            mock_mode: Value supplied by the caller and validated by the surrounding schema.
+            backend_override: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.mock_mode = mock_mode
         self.backend_override = backend_override
 
     def _installed(self) -> bool:
+        """Implement the internal _installed helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return (
             shutil.which("python") is not None
             and importlib.util.find_spec("hls4ml") is not None
@@ -27,6 +54,16 @@ class HLS4MLAdapter:
         )
 
     def _is_placeholder_model(self, model_path: str) -> bool:
+        """Implement the internal _is_placeholder_model helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = Path(model_path)
         if not path.exists() or not path.is_file():
             return False
@@ -42,6 +79,16 @@ class HLS4MLAdapter:
         return False
 
     def _parse_onnx_config(self, config_path: str | None) -> dict[str, Any]:
+        """Implement the internal _parse_onnx_config helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            config_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not config_path:
             return {}
         path = Path(config_path)
@@ -62,6 +109,16 @@ class HLS4MLAdapter:
             return {}
 
     def _normalize_layer_overrides(self, value: Any) -> dict[str, Any]:
+        """Implement the internal _normalize_layer_overrides helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(value, dict):
             return {}
         normalized: dict[str, Any] = {}
@@ -83,6 +140,16 @@ class HLS4MLAdapter:
         return normalized
 
     def _normalize_model_overrides(self, value: Any) -> dict[str, Any]:
+        """Implement the internal _normalize_model_overrides helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not isinstance(value, dict):
             return {}
         key_map = {
@@ -111,6 +178,17 @@ class HLS4MLAdapter:
         return normalized
 
     def _apply_hls4ml_config_extensions(self, payload: dict[str, Any], arguments: dict[str, Any]) -> None:
+        """Implement the internal _apply_hls4ml_config_extensions helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         io_type = arguments.get("io_type") or arguments.get("IOType")
         if io_type:
             payload["io_type"] = str(io_type)
@@ -138,9 +216,31 @@ class HLS4MLAdapter:
             hls_config["LayerName"] = layer_overrides
 
     def _is_h5_frontend(self, model_path: str, frontend: str | None = None) -> bool:
+        """Implement the internal _is_h5_frontend helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model_path: Value supplied by the caller and validated by the surrounding schema.
+            frontend: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return (frontend or "").lower() in {"keras", "qkeras", "h5"} or Path(model_path).suffix.lower() in {".h5", ".hdf5"}
 
     def _safe_layer_name(self, name: str, fallback: str) -> str:
+        """Implement the internal _safe_layer_name helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            fallback: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         value = re.sub(r"[^0-9A-Za-z_]", "_", name or fallback)
         if not value:
             value = fallback
@@ -151,6 +251,16 @@ class HLS4MLAdapter:
         return value
 
     def _resolve_backend(self, requested_backend: Any = None) -> str:
+        """Implement the internal _resolve_backend helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            requested_backend: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         backend = self.backend_override or os.environ.get("DL_OP_TO_HLS_HLS4ML_BACKEND") or requested_backend or "Vivado"
         text = str(backend)
         if text.lower() == "vitis":
@@ -160,6 +270,18 @@ class HLS4MLAdapter:
         return text
 
     def _write_reference_data_for_args(self, model_path: str, output_dir: Path, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _write_reference_data_for_args helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model_path: Value supplied by the caller and validated by the surrounding schema.
+            output_dir: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         reference_cfg = arguments.get("reference_data") if isinstance(arguments.get("reference_data"), dict) else {}
         return write_onnx_reference_data(
             model_path=model_path,
@@ -173,6 +295,16 @@ class HLS4MLAdapter:
         )
 
     def _tensor_shapes(self, model: Any) -> dict[str, list[int]]:
+        """Implement the internal _tensor_shapes helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         shapes: dict[str, list[int]] = {}
         for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]:
             dims: list[int] = []
@@ -189,6 +321,16 @@ class HLS4MLAdapter:
         return shapes
 
     def _infer_onnx_shapes(self, model: Any) -> Any:
+        """Implement the internal _infer_onnx_shapes helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             import onnx  # type: ignore
 
@@ -197,11 +339,31 @@ class HLS4MLAdapter:
             return model
 
     def _onnx_attrs(self, node: Any) -> dict[str, Any]:
+        """Implement the internal _onnx_attrs helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            node: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         from onnx import helper  # type: ignore
 
         return {attr.name: helper.get_attribute_value(attr) for attr in node.attribute}
 
     def _onnx_layer_list_supported(self, model: Any) -> tuple[bool, list[str], list[str]]:
+        """Implement the internal _onnx_layer_list_supported helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         ops = [node.op_type for node in model.graph.node]
         supported = {
             "Add",
@@ -300,6 +462,16 @@ class HLS4MLAdapter:
             raise ValueError(f"Input shape for {input_name} is missing or not static.")
 
         def nhwc(shape: list[int]) -> list[int]:
+            """Execute nhwc at the hls4ml_adapter boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                shape: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             return [shape[0], shape[2], shape[3], shape[1]] if len(shape) == 4 else shape
 
         layer_input_name = "model_input"
@@ -326,6 +498,17 @@ class HLS4MLAdapter:
         }
 
         def _owner_for_data_input(node: Any, index: int = 0) -> str:
+            """Implement the internal _owner_for_data_input helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+                index: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             if len(node.input) <= index:
                 raise ValueError(f"{node.op_type} node {node.name or node.output[0]} is missing a data input.")
             tensor_name = node.input[index]
@@ -343,26 +526,77 @@ class HLS4MLAdapter:
             return owner
 
         def _mark_outputs_as_data(node: Any, owner: str) -> None:
+            """Implement the internal _mark_outputs_as_data helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+                owner: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             for output in node.output:
                 data_owner[output] = owner
 
         def _mark_outputs_as_helper(node: Any) -> None:
+            """Implement the internal _mark_outputs_as_helper helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             for output in node.output:
                 helper_outputs.add(output)
 
         def _last_trainable_layer() -> dict[str, Any]:
+            """Implement the internal _last_trainable_layer helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             for layer in reversed(layer_list):
                 if layer.get("class_name") in {"Dense", "Conv2D"}:
                     return layer
             raise ValueError("No Dense/Conv2D layer is available for folding.")
 
         def _as_channel_vector(array: Any, channels: int, node_label: str) -> Any:
+            """Implement the internal _as_channel_vector helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                array: Value supplied by the caller and validated by the surrounding schema.
+                channels: Value supplied by the caller and validated by the surrounding schema.
+                node_label: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             values = np.asarray(array, dtype=np.float32).reshape(-1)
             if values.size != channels:
                 raise ValueError(f"{node_label} expected {channels} channel values, got {values.size}.")
             return values
 
         def _reduce_axes(node: Any, rank: int) -> list[int]:
+            """Implement the internal _reduce_axes helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+                rank: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             attrs = self._onnx_attrs(node)
             raw_axes = attrs.get("axes")
             if raw_axes is None and len(node.input) > 1 and node.input[1] in initializers:
@@ -373,6 +607,18 @@ class HLS4MLAdapter:
             return sorted({int(axis) if int(axis) >= 0 else rank + int(axis) for axis in axes})
 
         def _fold_bias_add(node: Any, data_input: str, bias_input: str) -> None:
+            """Implement the internal _fold_bias_add helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+                data_input: Value supplied by the caller and validated by the surrounding schema.
+                bias_input: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             _owner_for_data_input(node, list(node.input).index(data_input))
             layer = _last_trainable_layer()
             if layer.get("name") != prev:
@@ -394,6 +640,16 @@ class HLS4MLAdapter:
             _mark_outputs_as_data(node, prev)
 
         def _fold_batchnorm(node: Any) -> None:
+            """Implement the internal _fold_batchnorm helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             _owner_for_data_input(node)
             if len(node.input) < 5:
                 raise ValueError(f"BatchNormalization node {node.name or node.output[0]} is missing static parameters.")
@@ -428,6 +684,18 @@ class HLS4MLAdapter:
             _mark_outputs_as_data(node, prev)
 
         def _add_activation(node: Any, activation: str, name: str) -> None:
+            """Implement the internal _add_activation helper.
+
+            Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+            Args:
+                node: Value supplied by the caller and validated by the surrounding schema.
+                activation: Value supplied by the caller and validated by the surrounding schema.
+                name: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             nonlocal prev
             _owner_for_data_input(node)
             layer_list.append({"name": name, "class_name": "Activation", "activation": activation, "inputs": [prev]})
@@ -700,6 +968,23 @@ class HLS4MLAdapter:
         clock_period: Any,
         return_model_graph: bool = False,
     ) -> dict[str, Any]:
+        """Implement the internal _write_layer_list_hls_project helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            model: Value supplied by the caller and validated by the surrounding schema.
+            output_dir: Value supplied by the caller and validated by the surrounding schema.
+            project_name: Value supplied by the caller and validated by the surrounding schema.
+            backend: Value supplied by the caller and validated by the surrounding schema.
+            hls_config: Value supplied by the caller and validated by the surrounding schema.
+            part: Value supplied by the caller and validated by the surrounding schema.
+            clock_period: Value supplied by the caller and validated by the surrounding schema.
+            return_model_graph: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         import hls4ml  # type: ignore
         from hls4ml.converters import _check_hls_config, _check_model_config, create_config  # type: ignore
         from hls4ml.model.graph import ModelGraph  # type: ignore
@@ -749,6 +1034,17 @@ class HLS4MLAdapter:
         return result
 
     def _h5_frontend_result(self, task_or_path: dict[str, Any] | str, source: str) -> dict[str, Any]:
+        """Implement the internal _h5_frontend_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            task_or_path: Value supplied by the caller and validated by the surrounding schema.
+            source: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if isinstance(task_or_path, dict):
             model_path = str(task_or_path.get("model_path", ""))
             name = task_or_path.get("name", "model")
@@ -768,6 +1064,17 @@ class HLS4MLAdapter:
         }
 
     def inspect_model(self, model_path: str, frontend: str) -> dict[str, Any]:
+        """Execute inspect_model at the hls4ml_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            model_path: Value supplied by the caller and validated by the surrounding schema.
+            frontend: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.mock_mode or not self._installed():
             warnings = []
             if not Path(model_path).exists():
@@ -836,6 +1143,16 @@ class HLS4MLAdapter:
             )
 
     def check_support(self, task: dict[str, Any]) -> dict[str, Any]:
+        """Execute check_support at the hls4ml_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         name = str(task.get("name", "")).lower()
         model_path = str(task.get("model_path", "")).lower()
         if task.get("task_type") == "operator":
@@ -1015,6 +1332,16 @@ class HLS4MLAdapter:
             }
 
     def generate_config(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute generate_config at the hls4ml_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         output_dir = Path(arguments["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         config_path = output_dir / "hls4ml_config.yml"
@@ -1152,6 +1479,16 @@ class HLS4MLAdapter:
             )
 
     def convert(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute convert at the hls4ml_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         output_dir = Path(arguments["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         if self.mock_mode:
@@ -1366,6 +1703,16 @@ class HLS4MLAdapter:
             )
 
     def run_csim(self, hls_project_dir: str) -> dict[str, Any]:
+        """Execute run_csim at the hls4ml_adapter boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            hls_project_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         log_dir = Path(hls_project_dir).parent / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "hls4ml_csim.log"

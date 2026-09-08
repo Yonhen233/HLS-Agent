@@ -1,3 +1,8 @@
+"""core layer implementation for durable_queue.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,14 +14,41 @@ from typing import Any, Callable
 
 
 def _now_iso() -> str:
+    """Implement the internal _now_iso helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _stable_json(value: Any) -> str:
+    """Implement the internal _stable_json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
 
 
 def _hash(value: Any) -> str:
+    """Implement the internal _hash helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return hashlib.sha256(_stable_json(value).encode("utf-8")).hexdigest()
 
 
@@ -24,6 +56,16 @@ class DurableJobQueue:
     """SQLite lease queue with at-least-once delivery and exactly-once state commits."""
 
     def __init__(self, database):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            database: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.database = database
 
     def enqueue(
@@ -35,6 +77,20 @@ class DurableJobQueue:
         max_attempts: int = 3,
         available_at: float | None = None,
     ) -> dict[str, Any]:
+        """Execute enqueue at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            idempotency_key: Value supplied by the caller and validated by the surrounding schema.
+            priority: Value supplied by the caller and validated by the surrounding schema.
+            max_attempts: Value supplied by the caller and validated by the surrounding schema.
+            available_at: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         key = idempotency_key or _hash(payload)
         job_id = f"job_{uuid.uuid4().hex[:16]}"
         now = _now_iso()
@@ -57,6 +113,17 @@ class DurableJobQueue:
         return result
 
     def claim(self, worker_id: str, *, lease_seconds: float = 60.0) -> dict[str, Any] | None:
+        """Execute claim at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            worker_id: Value supplied by the caller and validated by the surrounding schema.
+            lease_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now_epoch = time.time()
         now = _now_iso()
         with self.database.connect() as connection:
@@ -93,6 +160,18 @@ class DurableJobQueue:
         return self._row(claimed)
 
     def heartbeat(self, job_id: str, worker_id: str, *, lease_seconds: float = 60.0) -> bool:
+        """Execute heartbeat at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            job_id: Value supplied by the caller and validated by the surrounding schema.
+            worker_id: Value supplied by the caller and validated by the surrounding schema.
+            lease_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
@@ -111,6 +190,20 @@ class DurableJobQueue:
         commit_key: str,
         expected_version: int,
     ) -> dict[str, Any]:
+        """Execute commit at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            job_id: Value supplied by the caller and validated by the surrounding schema.
+            worker_id: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            commit_key: Value supplied by the caller and validated by the surrounding schema.
+            expected_version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result_json = _stable_json(result)
         payload_hash = _hash(result)
         now = _now_iso()
@@ -186,6 +279,20 @@ class DurableJobQueue:
         retryable: bool = True,
         retry_delay_seconds: float = 0.0,
     ) -> dict[str, Any]:
+        """Execute fail at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            job_id: Value supplied by the caller and validated by the surrounding schema.
+            worker_id: Value supplied by the caller and validated by the surrounding schema.
+            error: Value supplied by the caller and validated by the surrounding schema.
+            retryable: Value supplied by the caller and validated by the surrounding schema.
+            retry_delay_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now_iso()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -209,6 +316,16 @@ class DurableJobQueue:
         return {"job_id": job_id, "status": status, "retryable": retry}
 
     def get(self, job_id: str) -> dict[str, Any]:
+        """Execute get at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            job_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute("SELECT * FROM agent_jobs WHERE job_id = ?", (job_id,)).fetchone()
         if row is None:
@@ -216,6 +333,16 @@ class DurableJobQueue:
         return self._row(row)
 
     def pending_outbox(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Execute pending_outbox at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            limit: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM agent_outbox WHERE published_at IS NULL ORDER BY created_at LIMIT ?",
@@ -224,6 +351,16 @@ class DurableJobQueue:
         return [self._outbox_row(row) for row in rows]
 
     def acknowledge_outbox(self, event_id: str) -> bool:
+        """Execute acknowledge_outbox at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            event_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             cursor = connection.execute(
                 "UPDATE agent_outbox SET published_at = ? WHERE event_id = ? AND published_at IS NULL",
@@ -234,6 +371,16 @@ class DurableJobQueue:
 
     @staticmethod
     def _row(row) -> dict[str, Any]:
+        """Implement the internal _row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = dict(row)
         payload["payload"] = json.loads(payload.pop("payload_json"))
         result_json = payload.pop("result_json")
@@ -244,18 +391,54 @@ class DurableJobQueue:
 
     @staticmethod
     def _outbox_row(row) -> dict[str, Any]:
+        """Implement the internal _outbox_row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = dict(row)
         payload["payload"] = json.loads(payload.pop("payload_json"))
         return payload
 
 
 class DurableWorker:
+    """Coordinate DurableWorker within the durable_queue boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, queue: DurableJobQueue, worker_id: str, handler: Callable[[dict[str, Any]], dict[str, Any]]):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            queue: Value supplied by the caller and validated by the surrounding schema.
+            worker_id: Value supplied by the caller and validated by the surrounding schema.
+            handler: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.queue = queue
         self.worker_id = worker_id
         self.handler = handler
 
     def run_once(self, *, lease_seconds: float = 300.0) -> dict[str, Any] | None:
+        """Execute run_once at the durable_queue boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            lease_seconds: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         job = self.queue.claim(self.worker_id, lease_seconds=lease_seconds)
         if job is None:
             return None

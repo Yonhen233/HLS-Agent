@@ -1,3 +1,8 @@
+"""tools layer implementation for summarize.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -5,6 +10,16 @@ from typing import Any
 
 
 def _error_lines(errors: list[dict] | list[str]) -> str:
+    """Implement the internal _error_lines helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        errors: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not errors:
         return "- None"
     normalized = []
@@ -19,6 +34,16 @@ def _error_lines(errors: list[dict] | list[str]) -> str:
 
 
 def _todo_table(state: dict[str, Any]) -> str:
+    """Implement the internal _todo_table helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows = ["| ID | Title | Status | Tool | Notes |", "|---|---|---|---|---|"]
     for item in state.get("todos", []):
         outputs = item.get("outputs") or {}
@@ -31,6 +56,16 @@ def _todo_table(state: dict[str, Any]) -> str:
 
 
 def _memory_section(state: dict[str, Any]) -> str:
+    """Implement the internal _memory_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     retrieved = state.get("retrieved_memories", [])[:5]
     short_term = state.get("short_term_memory", {})
     promoted = state.get("promoted_memories", [])
@@ -65,6 +100,16 @@ def _memory_section(state: dict[str, Any]) -> str:
 
 
 def _specialist_section(state: dict[str, Any]) -> str:
+    """Implement the internal _specialist_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows = ["| Todo | Specialist | Status | Context Compression | Notes |", "|---|---|---|---|---|"]
     found = False
     for item in state.get("todos", []):
@@ -90,6 +135,16 @@ def _specialist_section(state: dict[str, Any]) -> str:
 
 
 def _functional_verification_section(state: dict[str, Any]) -> str:
+    """Implement the internal _functional_verification_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     verification = state.get("verification") or {}
     if not verification:
         return (
@@ -140,6 +195,16 @@ def _functional_verification_section(state: dict[str, Any]) -> str:
 
 
 def _pipeline_status_section(state: dict[str, Any]) -> str:
+    """Implement the internal _pipeline_status_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     pipeline = state.get("pipeline_status") or {}
     if not pipeline:
         return "## Pipeline Status\n\n- Status level: unknown\n"
@@ -155,6 +220,16 @@ def _pipeline_status_section(state: dict[str, Any]) -> str:
 
 
 def _parameter_advice_section(state: dict[str, Any]) -> str:
+    """Implement the internal _parameter_advice_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     advice = state.get("parameter_advice") or {}
     if not advice:
         return "## Parameter Advisor\n\n- Status: not_run\n"
@@ -189,6 +264,16 @@ def _parameter_advice_section(state: dict[str, Any]) -> str:
 
 
 def _context_isolation_section(state: dict[str, Any]) -> str:
+    """Implement the internal _context_isolation_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_id = state.get("run_id")
     return (
         "## Context Isolation\n\n"
@@ -199,6 +284,16 @@ def _context_isolation_section(state: dict[str, Any]) -> str:
 
 
 def _llm_section(state: dict[str, Any]) -> str:
+    """Implement the internal _llm_section helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        state: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     selected_skill = state.get("selected_skill")
     usage = state.get("skill_usage_mode")
     decisions = state.get("llm_decisions", [])
@@ -223,6 +318,17 @@ def _llm_section(state: dict[str, Any]) -> str:
 
 
 def write_summary(arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute write_summary at the summarize boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = arguments["state"]
     report = state.get("report") or {}
     hls4ml_support = state.get("hls4ml_support") or {}

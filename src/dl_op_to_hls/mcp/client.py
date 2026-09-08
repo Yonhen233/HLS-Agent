@@ -1,3 +1,8 @@
+"""mcp layer implementation for client.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +21,10 @@ LATEST_STABLE_PROTOCOL_VERSION = "2025-11-25"
 
 
 class MCPProtocolError(RuntimeError):
+    """Coordinate MCPProtocolError within the client boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     pass
 
 
@@ -39,6 +48,23 @@ class StdioMCPClient:
         stderr_path: str | Path | None = None,
         notification_handler: Callable[[dict[str, Any]], None] | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            command: Value supplied by the caller and validated by the surrounding schema.
+            cwd: Value supplied by the caller and validated by the surrounding schema.
+            env: Value supplied by the caller and validated by the surrounding schema.
+            timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+            secret_env_names: Value supplied by the caller and validated by the surrounding schema.
+            stderr_path: Value supplied by the caller and validated by the surrounding schema.
+            notification_handler: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.command = list(command)
         self.cwd = str(cwd) if cwd else None
         self.env = dict(env or {})
@@ -60,13 +86,34 @@ class StdioMCPClient:
 
     @property
     def alive(self) -> bool:
+        """Execute alive at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self._process is not None and self._process.poll() is None
 
     @property
     def stderr_tail(self) -> list[str]:
+        """Execute stderr_tail at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return list(self._stderr_tail)
 
     def start(self) -> dict[str, Any]:
+        """Execute start at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.alive:
             return self.server_info
         process_env = os.environ.copy()
@@ -119,6 +166,13 @@ class StdioMCPClient:
         return self.server_info
 
     def list_tools(self) -> list[dict[str, Any]]:
+        """Execute list_tools at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.start()
         items: list[dict[str, Any]] = []
         cursor: str | None = None
@@ -131,10 +185,24 @@ class StdioMCPClient:
                 return items
 
     def list_resources(self) -> list[dict[str, Any]]:
+        """Execute list_resources at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.start()
         return list(self.request("resources/list", {}).get("resources", []))
 
     def list_prompts(self) -> list[dict[str, Any]]:
+        """Execute list_prompts at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.start()
         return list(self.request("prompts/list", {}).get("prompts", []))
 
@@ -146,6 +214,19 @@ class StdioMCPClient:
         timeout_seconds: float | None = None,
         cancellation_token: Any = None,
     ) -> dict[str, Any]:
+        """Execute call_tool at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+            cancellation_token: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.start()
         # tools/call is never transport-retried: the server may have completed a
         # side effect before the connection failed. ToolRegistry owns safe retry.
@@ -182,6 +263,20 @@ class StdioMCPClient:
         retry: bool = True,
         cancellation_token: Any = None,
     ) -> dict[str, Any]:
+        """Execute request at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            method: Value supplied by the caller and validated by the surrounding schema.
+            params: Value supplied by the caller and validated by the surrounding schema.
+            timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+            retry: Value supplied by the caller and validated by the surrounding schema.
+            cancellation_token: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.alive and method != "initialize":
             self.start()
         request_id = self._allocate_id()
@@ -223,13 +318,42 @@ class StdioMCPClient:
         return result
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
+        """Execute notify at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            method: Value supplied by the caller and validated by the surrounding schema.
+            params: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
 
     def cancel(self, request_id: int, reason: str | None = None) -> None:
+        """Execute cancel at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            request_id: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.alive:
             self.notify("notifications/cancelled", {"requestId": request_id, "reason": reason})
 
     def close(self) -> None:
+        """Execute close at the client boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         process = self._process
         self._process = None
         if process is None:
@@ -255,6 +379,13 @@ class StdioMCPClient:
             self._pending.clear()
 
     def _read_loop(self) -> None:
+        """Implement the internal _read_loop helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         process = self._process
         if process is None or process.stdout is None:
             return
@@ -276,6 +407,13 @@ class StdioMCPClient:
                 target.put(message)
 
     def _stderr_loop(self) -> None:
+        """Implement the internal _stderr_loop helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         process = self._process
         if process is None or process.stderr is None:
             return
@@ -283,6 +421,16 @@ class StdioMCPClient:
             self._record_stderr(line.rstrip("\r\n"))
 
     def _record_stderr(self, line: str) -> None:
+        """Implement the internal _record_stderr helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            line: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not line:
             return
         self._stderr_tail.append(line)
@@ -292,6 +440,16 @@ class StdioMCPClient:
                 stream.write(line + "\n")
 
     def _send(self, payload: dict[str, Any]) -> None:
+        """Implement the internal _send helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self._process is None or self._process.stdin is None or self._process.poll() is not None:
             raise BrokenPipeError(f"MCP server {self.name} is not running")
         with self._write_lock:
@@ -299,14 +457,40 @@ class StdioMCPClient:
             self._process.stdin.flush()
 
     def _allocate_id(self) -> int:
+        """Implement the internal _allocate_id helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self._pending_lock:
             value = self._next_id
             self._next_id += 1
             return value
 
     def __enter__(self):
+        """Implement the internal __enter__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.start()
         return self
 
     def __exit__(self, exc_type, exc, traceback):
+        """Implement the internal __exit__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            exc_type: Value supplied by the caller and validated by the surrounding schema.
+            exc: Value supplied by the caller and validated by the surrounding schema.
+            traceback: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.close()

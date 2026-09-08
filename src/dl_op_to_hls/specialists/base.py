@@ -1,3 +1,8 @@
+"""specialists layer implementation for base.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,32 +20,99 @@ from .result import SpecialistResult
 
 
 def _snake_name(name: str) -> str:
+    """Implement the internal _snake_name helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = name.replace("HLS4ML", "Hls4ml")
     return re.sub(r"(?<!^)(?=[A-Z])", "_", normalized).lower()
 
 
 class BaseSpecialist(ABC):
+    """Coordinate BaseSpecialist within the base boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name: str = "BaseSpecialist"
     description: str = ""
     allowed_tools: list[str] = []
 
     def __init__(self, runtime_context: dict[str, Any] | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            runtime_context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.runtime_context = runtime_context or {}
         self.local_react_decider = SpecialistReActDecider()
         self.token_budget_manager = TokenBudgetManager()
 
     def set_runtime_context(self, runtime_context: dict[str, Any]) -> None:
+        """Execute set_runtime_context at the base boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            runtime_context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.runtime_context = runtime_context
 
     @abstractmethod
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the base boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         ...
 
     @abstractmethod
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the base boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         ...
 
     def _tool_context(self, envelope: ContextEnvelope, permission_gate) -> dict[str, Any]:
+        """Implement the internal _tool_context helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         context = dict(self.runtime_context)
         context.setdefault("run_id", envelope.run_id)
         context.setdefault("permission_gate", permission_gate)
@@ -52,6 +124,13 @@ class BaseSpecialist(ABC):
         return context
 
     def _capabilities(self) -> list[str]:
+        """Implement the internal _capabilities helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         capabilities: set[str] = set()
         for tool in self.allowed_tools:
             if tool.startswith("workspace."):
@@ -65,6 +144,20 @@ class BaseSpecialist(ABC):
         return sorted(capabilities)
 
     def _call_tool(self, tool_name: str, arguments: dict[str, Any], envelope: ContextEnvelope, tool_registry, permission_gate) -> dict[str, Any]:
+        """Implement the internal _call_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if tool_name not in envelope.allowed_tools or tool_name not in self.allowed_tools:
             error = build_error(
                 "PermissionDeniedError",
@@ -84,6 +177,20 @@ class BaseSpecialist(ABC):
         arguments: dict[str, Any] | None = None,
         force_deterministic: bool = False,
     ) -> dict[str, Any]:
+        """Implement the internal _local_react_step helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            observations: Value supplied by the caller and validated by the surrounding schema.
+            preferred_tool: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            force_deterministic: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         legacy_enabled = str(
             self.runtime_context.get(
                 "specialist_llm_decider_enabled",
@@ -122,6 +229,18 @@ class BaseSpecialist(ABC):
         observations: list[dict[str, Any]],
         decision: dict[str, Any],
     ) -> SpecialistResult:
+        """Implement the internal _blocked_result_from_decision helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            observations: Value supplied by the caller and validated by the surrounding schema.
+            decision: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return SpecialistResult(
             specialist_name=self.name,
             todo_id=envelope.todo_id,
@@ -137,6 +256,18 @@ class BaseSpecialist(ABC):
         observations: list[dict[str, Any]],
         decision: dict[str, Any],
     ) -> SpecialistResult:
+        """Implement the internal _failed_result_from_decision helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            observations: Value supplied by the caller and validated by the surrounding schema.
+            decision: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         error = build_error(
             (decision.get("action") or {}).get("error_type") or "LLMGenerationError",
             decision.get("reason_summary") or (decision.get("action") or {}).get("message") or "Specialist local ReAct failed.",
@@ -154,6 +285,16 @@ class BaseSpecialist(ABC):
         )
 
     def _artifact_usage(self, envelope: ContextEnvelope) -> dict[str, Any]:
+        """Implement the internal _artifact_usage helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         raw_artifacts: list[str] = []
         raw_bytes = 0
         for ref in envelope.artifact_refs:
@@ -167,6 +308,17 @@ class BaseSpecialist(ABC):
         return {"raw_artifacts_read": raw_artifacts, "raw_bytes_read": raw_bytes}
 
     def _finalize_result(self, envelope: ContextEnvelope, result: SpecialistResult) -> SpecialistResult:
+        """Implement the internal _finalize_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         usage = self._artifact_usage(envelope)
         summary_bytes = len(json.dumps(result.to_dict(), ensure_ascii=False, default=str).encode("utf-8"))
         raw_bytes = usage["raw_bytes_read"]
@@ -185,6 +337,17 @@ class BaseSpecialist(ABC):
         return result
 
     def _write_local_outputs(self, envelope: ContextEnvelope, result: SpecialistResult) -> None:
+        """Implement the internal _write_local_outputs helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         artifact_manager = self.runtime_context.get("artifact_manager")
         relative_dir = f"specialists/{_snake_name(self.name)}"
         summary_payload = result.to_dict()

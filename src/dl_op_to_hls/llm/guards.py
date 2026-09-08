@@ -1,3 +1,8 @@
+"""llm layer implementation for guards.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -5,7 +10,24 @@ from typing import Any
 
 
 class LLMGuard:
+    """Coordinate LLMGuard within the guards boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def validate_todo_plan(self, plan: dict, tool_registry, specialist_router, skill_registry) -> dict:
+        """Execute validate_todo_plan at the guards boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            plan: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            specialist_router: Value supplied by the caller and validated by the surrounding schema.
+            skill_registry: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         todos = plan.get("todos")
         if not isinstance(todos, list) or not todos:
@@ -64,6 +86,18 @@ class LLMGuard:
         allowed_tools: list[str] | None = None,
         allowed_actions: list[str] | None = None,
     ) -> dict:
+        """Execute validate_react_decision at the guards boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            decision: Value supplied by the caller and validated by the surrounding schema.
+            allowed_tools: Value supplied by the caller and validated by the surrounding schema.
+            allowed_actions: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         allowed_tools = allowed_tools or []
         allowed_actions = allowed_actions or [
             "delegate_to_specialist",
@@ -88,6 +122,17 @@ class LLMGuard:
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
     def validate_reflection(self, reflection: dict, current_skill: str | None) -> dict:
+        """Execute validate_reflection at the guards boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            reflection: Value supplied by the caller and validated by the surrounding schema.
+            current_skill: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         if "new_todos" not in reflection:
             errors.append("Reflection payload must include new_todos.")
@@ -107,6 +152,17 @@ class LLMGuard:
         return {"status": "invalid" if errors else "valid", "errors": errors}
 
     def validate_candidate_files(self, candidate: dict, run_dir: str) -> dict:
+        """Execute validate_candidate_files at the guards boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate: Value supplied by the caller and validated by the surrounding schema.
+            run_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         errors: list[str] = []
         run_path = Path(run_dir).resolve()
         if candidate.get("status") == "verified":

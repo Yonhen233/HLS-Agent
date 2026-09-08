@@ -1,3 +1,8 @@
+"""adapters layer implementation for legacy_vivado_env.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import os
@@ -16,6 +21,17 @@ class HLSVerificationEnv:
     """
 
     def __init__(self, vivado_hls_path: str, work_dir: str | None = None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            vivado_hls_path: Value supplied by the caller and validated by the surrounding schema.
+            work_dir: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         raw_path = str(vivado_hls_path or "").strip()
         normalized = raw_path.replace("\\", "/").lower()
         is_direct_vivado_hls = normalized.endswith("/vivado_hls") or normalized.endswith("/vivado_hls.bat")
@@ -37,10 +53,33 @@ class HLSVerificationEnv:
         os.makedirs(self.work_dir, exist_ok=True)
 
     def _sanitize_name(self, value: str | None, default: str = "hls", max_len: int = 24) -> str:
+        """Implement the internal _sanitize_name helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+            default: Value supplied by the caller and validated by the surrounding schema.
+            max_len: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         text = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in str(value or default)).strip("_")
         return (text or default)[:max_len]
 
     def _build_stage_tcl(self, workspace: dict[str, Any], stage: str) -> str:
+        """Implement the internal _build_stage_tcl helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            workspace: Value supplied by the caller and validated by the surrounding schema.
+            stage: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         first_open = not workspace.get("initialized")
         open_project_line = f"open_project {'-reset ' if first_open else ''}{workspace['project_name']}"
         lines = ["# Auto-generated stage-aware HLS TCL", open_project_line]
@@ -89,6 +128,24 @@ class HLSVerificationEnv:
         array_partition_maximum_size: int | None = None,
         enable_instrumentation: bool = False,
     ) -> str:
+        """Execute create_project_tcl at the legacy_vivado_env boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            project_dir: Value supplied by the caller and validated by the surrounding schema.
+            project_name: Value supplied by the caller and validated by the surrounding schema.
+            top_function: Value supplied by the caller and validated by the surrounding schema.
+            code_file: Value supplied by the caller and validated by the surrounding schema.
+            testbench_file: Value supplied by the caller and validated by the surrounding schema.
+            target_device: Value supplied by the caller and validated by the surrounding schema.
+            clock_period: Value supplied by the caller and validated by the surrounding schema.
+            array_partition_maximum_size: Value supplied by the caller and validated by the surrounding schema.
+            enable_instrumentation: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del enable_instrumentation
         workspace = {
             "project_dir": project_dir,
@@ -119,6 +176,13 @@ class HLSVerificationEnv:
         return tcl_path
 
     def _resolve_executable(self) -> str | None:
+        """Implement the internal _resolve_executable helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidate = Path(self.vivado_hls_exe)
         if candidate.exists():
             return str(candidate)
@@ -134,6 +198,22 @@ class HLSVerificationEnv:
         project_name: str | None = None,
         log_filename: str = "csynth.log",
     ) -> dict[str, Any]:
+        """Execute run_with_existing_tcl at the legacy_vivado_env boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            tcl_file_path: Value supplied by the caller and validated by the surrounding schema.
+            design_dir: Value supplied by the caller and validated by the surrounding schema.
+            code: Value supplied by the caller and validated by the surrounding schema.
+            testbench: Value supplied by the caller and validated by the surrounding schema.
+            timeout_seconds: Value supplied by the caller and validated by the surrounding schema.
+            project_name: Value supplied by the caller and validated by the surrounding schema.
+            log_filename: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del code, testbench, project_name
         executable = self._resolve_executable()
         if not executable:

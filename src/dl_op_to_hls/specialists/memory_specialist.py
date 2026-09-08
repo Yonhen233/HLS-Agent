@@ -1,3 +1,8 @@
+"""specialists layer implementation for memory_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -11,6 +16,10 @@ from .result import SpecialistResult
 
 
 class MemorySpecialist(BaseSpecialist):
+    """Coordinate MemorySpecialist within the memory_specialist boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name = "MemorySpecialist"
     description = "Compresses run context and promotes approved memories into SQLite and RAG-backed retrieval."
     allowed_tools = [
@@ -27,9 +36,31 @@ class MemorySpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the memory_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("memory."))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the memory_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         assigned_tool = str(envelope.task_summary.get("assigned_tool") or "")
         if assigned_tool != "memory.promote_to_long_term":
             return self._handle_atomic(envelope, assigned_tool, tool_registry, permission_gate)
@@ -285,6 +316,19 @@ class MemorySpecialist(BaseSpecialist):
             return [], error
 
     def _handle_atomic(self, envelope, assigned_tool, tool_registry, permission_gate) -> SpecialistResult:
+        """Implement the internal _handle_atomic helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            assigned_tool: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         observations = []
         if assigned_tool not in self.allowed_tools or not assigned_tool.startswith(("memory.", "rag.")):
             return self._finalize_result(
@@ -352,6 +396,16 @@ class MemorySpecialist(BaseSpecialist):
         return self._finalize_result(envelope, specialist_result)
 
     def _compress_result(self, result: dict) -> dict:
+        """Implement the internal _compress_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if result.get("view") == "memory_context":
             return {
                 "status": result.get("status"),

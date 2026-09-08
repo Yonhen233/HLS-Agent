@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_operator_capability_boundaries.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -7,6 +12,13 @@ from dl_op_to_hls.schemas.operator_schema import normalize_operator_task
 
 
 def test_grouped_conv2d_is_rejected_before_candidate_generation() -> None:
+    """Verify the test_grouped_conv2d_is_rejected_before_candidate_generation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(AgentRuntimeError) as raised:
         normalize_operator_task(
             {
@@ -26,6 +38,13 @@ def test_grouped_conv2d_is_rejected_before_candidate_generation() -> None:
 
 
 def test_non_integer_conv2d_group_is_invalid_task() -> None:
+    """Verify the test_non_integer_conv2d_group_is_invalid_task contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(AgentRuntimeError) as raised:
         normalize_operator_task(
             {

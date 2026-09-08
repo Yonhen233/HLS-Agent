@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for make_tiny_mlp_onnx.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -9,6 +14,16 @@ from onnx import TensorProto, helper, numpy_helper
 
 
 def build_model(seed: int = 7) -> onnx.ModelProto:
+    """Execute build_model at the make_tiny_mlp_onnx boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        seed: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rng = np.random.default_rng(seed)
     input_info = helper.make_tensor_value_info("model_input", TensorProto.FLOAT, [1, 16])
     output_info = helper.make_tensor_value_info("model_output", TensorProto.FLOAT, [1, 4])
@@ -40,6 +55,13 @@ def build_model(seed: int = 7) -> onnx.ModelProto:
 
 
 def main() -> None:
+    """Execute main at the make_tiny_mlp_onnx boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     parser = argparse.ArgumentParser(description="Create the real tiny ONNX MLP used by the integration example.")
     parser.add_argument("--output", default="models/mlp.onnx")
     parser.add_argument("--seed", type=int, default=7)

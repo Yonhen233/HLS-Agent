@@ -1,13 +1,39 @@
+"""Test contracts and regression checks for test_sessions.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from concurrent.futures import ThreadPoolExecutor
 
 from dl_op_to_hls.core.sessions import SessionManager
 
 
 def _state(run_id: str, status: str = "initialized") -> dict:
+    """Verify the _state contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        run_id: Value supplied by the caller and validated by the surrounding schema.
+        status: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {"run_id": run_id, "task": {"task_type": "operator", "name": "dense"}, "status": status, "todos": []}
 
 
 def test_session_checkpoint_interrupt_resume_and_rollback(tmp_path):
+    """Verify the test_session_checkpoint_interrupt_resume_and_rollback contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = SessionManager(tmp_path / "sessions")
     session = manager.create("start dense task", "session_demo")
     manager.bind_run(session["session_id"], "run_1")
@@ -32,6 +58,16 @@ def test_session_checkpoint_interrupt_resume_and_rollback(tmp_path):
 
 
 def test_session_supports_follow_up_and_retraction(tmp_path):
+    """Verify the test_session_supports_follow_up_and_retraction contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = SessionManager(tmp_path / "sessions")
     manager.create("first", "session_demo")
     manager.create("follow up", "session_demo")
@@ -44,6 +80,16 @@ def test_session_supports_follow_up_and_retraction(tmp_path):
 
 
 def test_session_approval_is_scoped_to_tool_and_argument_hash(tmp_path):
+    """Verify the test_session_approval_is_scoped_to_tool_and_argument_hash contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = SessionManager(tmp_path / "sessions")
     manager.create("run", "session_demo")
     approval = manager.create_approval_request(
@@ -59,6 +105,16 @@ def test_session_approval_is_scoped_to_tool_and_argument_hash(tmp_path):
 
 
 def test_message_ids_remain_monotonic_after_context_compaction(tmp_path):
+    """Verify the test_message_ids_remain_monotonic_after_context_compaction contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = SessionManager(tmp_path / "sessions")
     manager.create("first", "session_demo")
     for index in range(12):
@@ -72,6 +128,16 @@ def test_message_ids_remain_monotonic_after_context_compaction(tmp_path):
 
 
 def test_database_is_source_of_truth_across_manager_instances(tmp_path):
+    """Verify the test_database_is_source_of_truth_across_manager_instances contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     sessions_root = tmp_path / "sessions"
     first = SessionManager(sessions_root)
     first.create("initial", "session_shared")
@@ -89,6 +155,16 @@ def test_database_is_source_of_truth_across_manager_instances(tmp_path):
 
 
 def test_checkpoint_identity_is_scoped_to_session(tmp_path):
+    """Verify the test_checkpoint_identity_is_scoped_to_session contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     manager = SessionManager(tmp_path / "sessions")
     manager.create("one", "session_one")
     manager.create("two", "session_two")
@@ -103,6 +179,16 @@ def test_checkpoint_identity_is_scoped_to_session(tmp_path):
 
 
 def test_concurrent_workers_preserve_message_order_and_single_use_approval(tmp_path):
+    """Verify the test_concurrent_workers_preserve_message_order_and_single_use_approval contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     sessions_root = tmp_path / "sessions"
     first = SessionManager(sessions_root)
     second = SessionManager(sessions_root)

@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_runtime_hybrid.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 
 from dl_op_to_hls.main_agent.agent import MainAgent
@@ -9,12 +14,32 @@ from dl_op_to_hls.main_agent.workflow import run_task
 
 
 def test_runtime_plan_execute_react_flow(temp_workspace):
+    """Verify the test_runtime_plan_execute_react_flow contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert (temp_workspace / "runs" / state.run_id / "todos.json").exists()
     assert state.todos
 
 
 def test_runtime_load_json_accepts_utf8_bom(tmp_path):
+    """Verify the test_runtime_load_json_accepts_utf8_bom contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task_path = tmp_path / "task.json"
     task_path.write_text('{"task_type": "operator", "name": "dense"}', encoding="utf-8-sig")
 
@@ -22,16 +47,46 @@ def test_runtime_load_json_accepts_utf8_bom(tmp_path):
 
 
 def test_runtime_react_step_recorded(temp_workspace):
+    """Verify the test_runtime_react_step_recorded contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert any(item.react_steps for item in state.todos)
 
 
 def test_runtime_reflector_adds_fallback_todo(temp_workspace):
+    """Verify the test_runtime_reflector_adds_fallback_todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert any(item.title == "Generate fallback HLS template" for item in state.todos)
 
 
 def test_runtime_fallback_success_not_downgraded_by_hls4ml_warning(temp_workspace):
+    """Verify the test_runtime_fallback_success_not_downgraded_by_hls4ml_warning contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
     assert state.selected_path == "fallback_template_path"
     assert state.report["status"] == "success"
@@ -39,6 +94,13 @@ def test_runtime_fallback_success_not_downgraded_by_hls4ml_warning(temp_workspac
 
 
 def test_runtime_timing_failed_is_partial_success_even_when_function_verified():
+    """Verify the test_runtime_timing_failed_is_partial_success_even_when_function_verified contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(
         run_id="timing_failed",
         task={"task_type": "operator", "name": "matmul"},
@@ -68,6 +130,17 @@ def test_runtime_timing_failed_is_partial_success_even_when_function_verified():
 
 
 def test_runtime_vivado_missing_marks_todo_skipped(temp_workspace, monkeypatch):
+    """Verify the test_runtime_vivado_missing_marks_todo_skipped contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     monkeypatch.setattr(
         "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
@@ -80,6 +153,17 @@ def test_runtime_vivado_missing_marks_todo_skipped(temp_workspace, monkeypatch):
 
 
 def test_runtime_partial_success(temp_workspace, monkeypatch):
+    """Verify the test_runtime_partial_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     monkeypatch.setattr(
         "dl_op_to_hls.adapters.vivado_hls_adapter.VivadoHLSAdapter._resolve_vivado_executable",
@@ -91,6 +175,16 @@ def test_runtime_partial_success(temp_workspace, monkeypatch):
 
 
 def test_runtime_reflects_hls4ml_failure_by_assigned_tool_not_title(temp_workspace):
+    """Verify the test_runtime_reflects_hls4ml_failure_by_assigned_tool_not_title contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "mnist_tiny_cnn.json"))
@@ -131,6 +225,16 @@ def test_runtime_reflects_hls4ml_failure_by_assigned_tool_not_title(temp_workspa
 
 
 def test_runtime_executes_graph_rewrite_by_assigned_tool_not_title(temp_workspace):
+    """Verify the test_runtime_executes_graph_rewrite_by_assigned_tool_not_title contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "resnet18_boundary.json"))
@@ -153,6 +257,16 @@ def test_runtime_executes_graph_rewrite_by_assigned_tool_not_title(temp_workspac
 
 
 def test_runtime_reuses_existing_unsupported_report_todo_after_graph_rewrite(temp_workspace):
+    """Verify the test_runtime_reuses_existing_unsupported_report_todo_after_graph_rewrite contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "resnet18_boundary.json"))
@@ -198,6 +312,13 @@ def test_runtime_reuses_existing_unsupported_report_todo_after_graph_rewrite(tem
 
 
 def test_unsupported_path_completed_workflow_remains_partial_success():
+    """Verify the test_unsupported_path_completed_workflow_remains_partial_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "model", "name": "resnet"}, status="initialized")
     state.selected_path = "unsupported_path"
     state.report = {"status": "missing"}
@@ -223,6 +344,13 @@ def test_unsupported_path_completed_workflow_remains_partial_success():
 
 
 def test_unsupported_report_keeps_partial_success_after_repair_todo_fails():
+    """Verify the test_unsupported_report_keeps_partial_success_after_repair_todo_fails contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "operator", "name": "custom"}, status="failed")
     state.selected_path = "unsupported_path"
     state.todos = [
@@ -273,6 +401,13 @@ def test_unsupported_report_keeps_partial_success_after_repair_todo_fails():
 
 
 def test_completed_model_without_selected_path_is_not_success():
+    """Verify the test_completed_model_without_selected_path_is_not_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "model", "name": "qonnx"}, status="initialized")
     state.report = {"status": "missing"}
     state.todos = [
@@ -297,6 +432,13 @@ def test_completed_model_without_selected_path_is_not_success():
 
 
 def test_hls4ml_path_with_missing_report_is_partial_success():
+    """Verify the test_hls4ml_path_with_missing_report_is_partial_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "model", "name": "mlp"}, status="initialized")
     state.selected_path = "hls4ml_path"
     state.report = {"status": "missing"}
@@ -322,6 +464,13 @@ def test_hls4ml_path_with_missing_report_is_partial_success():
 
 
 def test_pipeline_status_distinguishes_synthesis_and_functional_ready():
+    """Verify the test_pipeline_status_distinguishes_synthesis_and_functional_ready contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     from dl_op_to_hls.main_agent.status import compute_pipeline_status
 
     state = AgentState(run_id="r1", task={"task_type": "operator", "name": "matmul"}, status="partial_success")
@@ -340,6 +489,13 @@ def test_pipeline_status_distinguishes_synthesis_and_functional_ready():
 
 
 def test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_status():
+    """Verify the test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_status contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "operator", "name": "matmul"}, status="partial_success")
     state.selected_path = "llm_candidate_path"
     state.report = {"status": "success", "timing": {"met": True}}
@@ -383,6 +539,13 @@ def test_superseded_repair_cancellations_do_not_downgrade_deployment_ready_statu
 
 
 def test_parameter_advice_applies_missing_values_without_overriding_existing_values():
+    """Verify the test_parameter_advice_applies_missing_values_without_overriding_existing_values contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
 
     state = AgentState(
@@ -412,6 +575,16 @@ def test_parameter_advice_applies_missing_values_without_overriding_existing_val
 
 
 def test_candidate_repair_attempts_read_task_override(monkeypatch):
+    """Verify the test_candidate_repair_attempts_read_task_override contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     from dl_op_to_hls.main_agent.runtime import PlanExecuteReactRuntime
 
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS", "2")
@@ -429,6 +602,16 @@ def test_candidate_repair_attempts_read_task_override(monkeypatch):
 
 
 def test_llm_candidate_timing_failure_appends_repair_chain(temp_workspace):
+    """Verify the test_llm_candidate_timing_failure_appends_repair_chain contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))
@@ -494,6 +677,16 @@ def test_llm_candidate_timing_failure_appends_repair_chain(temp_workspace):
 
 
 def test_llm_candidate_generation_failure_schedules_repair(temp_workspace):
+    """Verify the test_llm_candidate_generation_failure_schedules_repair contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "dense_llm_candidate.json"))
@@ -542,6 +735,16 @@ def test_llm_candidate_generation_failure_schedules_repair(temp_workspace):
 
 
 def test_decision_description_does_not_mutate_run_status(temp_workspace):
+    """Verify the test_decision_description_does_not_mutate_run_status contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "dense_operator.json"))
@@ -556,6 +759,16 @@ def test_decision_description_does_not_mutate_run_status(temp_workspace):
 
 
 def test_llm_candidate_verification_failure_uses_assigned_tool_not_title(temp_workspace):
+    """Verify the test_llm_candidate_verification_failure_uses_assigned_tool_not_title contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "matmul_llm_candidate.json"))
@@ -606,6 +819,16 @@ def test_llm_candidate_verification_failure_uses_assigned_tool_not_title(temp_wo
 
 
 def test_successful_reverification_resolves_recoverable_error_history(temp_workspace):
+    """Verify the test_successful_reverification_resolves_recoverable_error_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     agent = MainAgent(temp_workspace, console=False)
     runtime = PlanExecuteReactRuntime(agent)
     state = runtime.initialize(str(temp_workspace / "examples" / "matmul_llm_candidate.json"))

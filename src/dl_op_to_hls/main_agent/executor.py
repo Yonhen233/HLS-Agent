@@ -1,3 +1,8 @@
+"""main_agent layer implementation for executor.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,20 +11,70 @@ from ..core.context_modes import ContextModeConfig
 
 
 class AgentExecutor:
+    """Coordinate AgentExecutor within the executor boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, registry, context):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            registry: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.registry = registry
         self.context = context
         self.context_modes = ContextModeConfig.from_env()
 
     def call(self, tool_name: str, arguments: dict) -> dict:
+        """Execute call at the executor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.registry.call(tool_name, arguments, self.context)
 
     def call_and_record(self, state, tool_name: str, arguments: dict) -> dict:
+        """Execute call_and_record at the executor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result = self.call(tool_name, arguments)
         state.tool_results.append({"tool": tool_name, "result": result})
         return result
 
     def merge_specialist_result(self, state, todo, result):
+        """Execute merge_specialist_result at the executor boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            state: Value supplied by the caller and validated by the surrounding schema.
+            todo: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result_dict = result.to_dict()
         compressed = {
             "specialist_name": result.specialist_name,
@@ -79,6 +134,16 @@ class AgentExecutor:
 
     @staticmethod
     def _read_text_artifacts(artifacts: list[dict]) -> list[dict]:
+        """Implement the internal _read_text_artifacts helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            artifacts: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payloads: list[dict] = []
         text_suffixes = {".txt", ".log", ".rpt", ".json", ".jsonl", ".md", ".cpp", ".cc", ".c", ".h", ".hpp", ".tcl", ".yml", ".yaml"}
         seen: set[str] = set()

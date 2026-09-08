@@ -1,3 +1,8 @@
+"""specialists layer implementation for hls4ml_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -8,6 +13,10 @@ from .result import SpecialistResult
 
 
 class HLS4MLSpecialist(BaseSpecialist):
+    """Coordinate HLS4MLSpecialist within the hls4ml_specialist boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name = "HLS4MLSpecialist"
     description = "Handles hls4ml model inspection, support checks, config generation, and conversion."
     allowed_tools = [
@@ -23,9 +32,31 @@ class HLS4MLSpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the hls4ml_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("hls4ml."))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the hls4ml_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         tool = self._select_tool(envelope)
         args = self._arguments_for_tool(tool, envelope)
         observations: list[dict[str, Any]] = []
@@ -116,6 +147,16 @@ class HLS4MLSpecialist(BaseSpecialist):
         return self._finalize_result(envelope, specialist_result)
 
     def _select_tool(self, envelope: ContextEnvelope) -> str:
+        """Implement the internal _select_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         title = envelope.task_summary.get("todo_title") or ""
         scoped = envelope.scoped_state
         if "Inspect" in title:
@@ -127,6 +168,17 @@ class HLS4MLSpecialist(BaseSpecialist):
         return scoped.get("assigned_tool") or "hls4ml.check_support"
 
     def _arguments_for_tool(self, tool: str, envelope: ContextEnvelope) -> dict[str, Any]:
+        """Implement the internal _arguments_for_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool: Value supplied by the caller and validated by the surrounding schema.
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scoped = envelope.scoped_state
         task = scoped.get("task") or {}
         if tool == "hls4ml.inspect_model":
@@ -165,6 +217,16 @@ class HLS4MLSpecialist(BaseSpecialist):
         }
 
     def _compress_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _compress_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             key: value
             for key, value in result.items()
@@ -172,6 +234,17 @@ class HLS4MLSpecialist(BaseSpecialist):
         }
 
     def _suggested_todos(self, tool: str, result: dict[str, Any]) -> list[dict[str, Any]]:
+        """Implement the internal _suggested_todos helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if tool in {"hls4ml.check_support", "hls4ml.check_hls4ml_support"} and result.get("status") == "unsupported":
             return [
                 {"title": "Try graph rewrite", "assigned_specialist": None},

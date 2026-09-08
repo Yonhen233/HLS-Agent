@@ -1,3 +1,8 @@
+"""benchmarks layer implementation for operator_evidence.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -20,6 +25,16 @@ EVIDENCE_CLASSES = {
 
 
 def _parse_time(value: str | None) -> datetime | None:
+    """Implement the internal _parse_time helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not value:
         return None
     try:
@@ -29,6 +44,16 @@ def _parse_time(value: str | None) -> datetime | None:
 
 
 def _sha256(path: Path) -> str:
+    """Implement the internal _sha256 helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -38,6 +63,10 @@ def _sha256(path: Path) -> str:
 
 @dataclass(frozen=True)
 class EvidenceAssessment:
+    """Coordinate EvidenceAssessment within the operator_evidence boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     evidence_class: str
     valid: bool
     reasons: list[str]
@@ -45,6 +74,13 @@ class EvidenceAssessment:
     sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute to_dict at the operator_evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "evidence_class": self.evidence_class,
             "valid": self.valid,
@@ -107,6 +143,18 @@ def assess_tool_evidence(
 
 
 def _primary_evidence_path(tool_name: str, result: dict[str, Any], arguments: dict[str, Any]) -> str | None:
+    """Implement the internal _primary_evidence_path helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        tool_name: Value supplied by the caller and validated by the surrounding schema.
+        result: Value supplied by the caller and validated by the surrounding schema.
+        arguments: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if tool_name in {"verify_candidate.run", "verify.run_csim"}:
         csynth_path = (result.get("csynth") or {}).get("report_path")
         return csynth_path or (result.get("csim") or {}).get("log_path") or result.get("log_path")
@@ -120,6 +168,16 @@ def _primary_evidence_path(tool_name: str, result: dict[str, Any], arguments: di
 
 
 def _expected_class(tool_name: str) -> str:
+    """Implement the internal _expected_class helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        tool_name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if "cosim" in tool_name:
         return "rtl_cosim"
     if tool_name == "verify_candidate.run":
@@ -132,6 +190,17 @@ def _expected_class(tool_name: str) -> str:
 
 
 def _resolve_path(value: Any, context: dict[str, Any]) -> Path:
+    """Implement the internal _resolve_path helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        context: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path = Path(str(value))
     if path.is_absolute():
         return path.resolve()
@@ -140,11 +209,33 @@ def _resolve_path(value: Any, context: dict[str, Any]) -> Path:
 
 
 def _is_fixture(path: Path) -> bool:
+    """Implement the internal _is_fixture helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     normalized = str(path).replace("\\", "/").lower()
     return "/tests/fixtures/" in normalized or normalized.endswith("/tests/fixtures")
 
 
 def _content_checks(evidence_class: str, path: Path, result: dict[str, Any]) -> list[str]:
+    """Implement the internal _content_checks helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        evidence_class: Value supplied by the caller and validated by the surrounding schema.
+        path: Value supplied by the caller and validated by the surrounding schema.
+        result: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text = path.read_text(encoding="utf-8", errors="ignore")
     lowered = text.lower()
     reasons: list[str] = []

@@ -1,3 +1,8 @@
+"""specialists layer implementation for verification_specialist.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,6 +14,10 @@ from .result import SpecialistResult
 
 
 class VerificationSpecialist(BaseSpecialist):
+    """Coordinate VerificationSpecialist within the verification_specialist boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     name = "VerificationSpecialist"
     description = "Verifies generated HLS candidates through explicit mock or real Vivado-backed verification modes."
     allowed_tools = [
@@ -21,9 +30,31 @@ class VerificationSpecialist(BaseSpecialist):
     ]
 
     def can_handle(self, todo) -> bool:
+        """Execute can_handle at the verification_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            todo: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(todo.assigned_tool and todo.assigned_tool.startswith("verify"))
 
     def handle(self, envelope: ContextEnvelope, tool_registry, permission_gate) -> SpecialistResult:
+        """Execute handle at the verification_specialist boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            envelope: Value supplied by the caller and validated by the surrounding schema.
+            tool_registry: Value supplied by the caller and validated by the surrounding schema.
+            permission_gate: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         scoped = envelope.scoped_state
         run_dir = Path(self.runtime_context.get("run_dir", "."))
         observations: list[dict[str, Any]] = []

@@ -1,3 +1,8 @@
+"""rag layer implementation for retriever.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -59,6 +64,16 @@ ENTITY_TOKENS = {
 
 
 def _tokenize(text: str) -> list[str]:
+    """Implement the internal _tokenize helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tokens: list[str] = []
     for token in TOKEN_RE.findall(text or ""):
         lowered = token.lower()
@@ -68,6 +83,16 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _anchor_tokens(query: str) -> set[str]:
+    """Implement the internal _anchor_tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         token
         for token in _tokenize(query)
@@ -111,6 +136,18 @@ def _entity_anchor_groups(query: str) -> list[set[str]]:
 
 
 def _matches_entity_anchors(query: str, row: dict[str, Any], text_tokens: set[str]) -> bool:
+    """Implement the internal _matches_entity_anchors helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+        row: Value supplied by the caller and validated by the surrounding schema.
+        text_tokens: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     groups = _entity_anchor_groups(query)
     if not groups:
         return True
@@ -119,6 +156,17 @@ def _matches_entity_anchors(query: str, row: dict[str, Any], text_tokens: set[st
 
 
 def _score(query_tokens: Counter, text: str) -> float:
+    """Implement the internal _score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query_tokens: Value supplied by the caller and validated by the surrounding schema.
+        text: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     text_tokens = Counter(_tokenize(text))
     numerator = sum(query_tokens[token] * text_tokens[token] for token in query_tokens)
     if numerator == 0:
@@ -129,6 +177,16 @@ def _score(query_tokens: Counter, text: str) -> float:
 
 
 def _fts_query(query: str) -> str:
+    """Implement the internal _fts_query helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        query: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tokens = []
     for token in _tokenize(query):
         if len(token) >= 3 and token not in GENERIC_QUERY_TOKENS and token not in tokens:
@@ -137,6 +195,16 @@ def _fts_query(query: str) -> str:
 
 
 def _trust_score(row: dict[str, Any]) -> float:
+    """Implement the internal _trust_score helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        row: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     metadata = row.get("metadata") or {}
     source_type = str(metadata.get("source_type") or row.get("source_type") or "")
     memory_type = str(metadata.get("memory_type") or "")
@@ -150,6 +218,16 @@ def _trust_score(row: dict[str, Any]) -> float:
 
 
 def _source_tokens(row: dict[str, Any]) -> set[str]:
+    """Implement the internal _source_tokens helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        row: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     metadata = row.get("metadata") or {}
     source_text = " ".join(
         str(item or "")
@@ -166,6 +244,19 @@ def _source_tokens(row: dict[str, Any]) -> set[str]:
 
 
 def _rank_adjustment(row: dict[str, Any], anchors: set[str], strong_anchors: set[str], text_tokens: set[str]) -> float:
+    """Implement the internal _rank_adjustment helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        row: Value supplied by the caller and validated by the surrounding schema.
+        anchors: Value supplied by the caller and validated by the surrounding schema.
+        strong_anchors: Value supplied by the caller and validated by the surrounding schema.
+        text_tokens: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     metadata = row.get("metadata") or {}
     source_tokens = _source_tokens(row)
     adjustment = 0.0
@@ -184,12 +275,28 @@ def _rank_adjustment(row: dict[str, Any], anchors: set[str], strong_anchors: set
 
 
 class RagRetriever:
+    """Coordinate RagRetriever within the retriever boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(
         self,
         repository,
         static_paths: list[str | Path] | None = None,
         semantic_engine: SemanticRagEngine | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            repository: Value supplied by the caller and validated by the surrounding schema.
+            static_paths: Value supplied by the caller and validated by the surrounding schema.
+            semantic_engine: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.repository = repository
         self.static_paths = [Path(path) for path in (static_paths or [])]
         self.semantic_engine = semantic_engine
@@ -203,6 +310,20 @@ class RagRetriever:
         identity: dict[str, Any] | None = None,
         metadata_filter: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """Execute retrieve at the retriever boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            domain: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            metadata_filter: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         query_tokens = Counter(_tokenize(query))
         anchors = _anchor_tokens(query)
         strong_anchors = _strong_anchor_tokens(query)
@@ -291,6 +412,16 @@ class RagRetriever:
 
     @staticmethod
     def _source_family(source_id: str) -> str:
+        """Implement the internal _source_family helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            source_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         normalized = source_id.replace("\\", "/")
         if re.match(r"^[A-Za-z]:/", normalized):
             return normalized.lower()
@@ -300,6 +431,16 @@ class RagRetriever:
 
     @classmethod
     def _experience_key(cls, result: dict[str, Any]) -> str:
+        """Implement the internal _experience_key helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         metadata = result.get("metadata") or {}
         run_id = str(metadata.get("run_id") or "").strip().lower()
         if run_id:
@@ -313,6 +454,17 @@ class RagRetriever:
         *,
         limit: int,
     ) -> list[tuple[float, dict[str, Any]]]:
+        """Implement the internal _limit_candidates_per_experience helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            scored: Value supplied by the caller and validated by the surrounding schema.
+            limit: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         counts: Counter = Counter()
         selected: list[tuple[float, dict[str, Any]]] = []
         for score, result in scored:
@@ -329,6 +481,18 @@ class RagRetriever:
         candidates: list[dict[str, Any]],
         top_k: int,
     ) -> list[tuple[float, dict[str, Any]]] | None:
+        """Implement the internal _semantic_rank helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            candidates: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.semantic_engine is None or not self.semantic_engine.config.enabled:
             return None
         semantic_scores, diagnostics = self.semantic_engine.recall(
@@ -472,6 +636,18 @@ class RagRetriever:
         anchors: set[str],
         strong_anchors: set[str],
     ) -> list[tuple[float, dict[str, Any]]]:
+        """Implement the internal _lexical_rank helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            candidates: Value supplied by the caller and validated by the surrounding schema.
+            anchors: Value supplied by the caller and validated by the surrounding schema.
+            strong_anchors: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.last_diagnostics = {
             **self.last_diagnostics,
             "mode": "lexical_fallback" if self.semantic_engine is not None else "lexical",
@@ -527,6 +703,16 @@ class RagRetriever:
 
     @classmethod
     def _deduplicate_scored(cls, scored: list[tuple[float, dict[str, Any]]]) -> list[tuple[float, dict[str, Any]]]:
+        """Implement the internal _deduplicate_scored helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            scored: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         by_text: dict[str, tuple[float, dict[str, Any]]] = {}
         for score, result in scored:
             normalized_text = " ".join(str(result.get("text") or "").lower().split())
@@ -538,6 +724,17 @@ class RagRetriever:
 
     @staticmethod
     def _matches_identity(row: dict[str, Any], identity: dict[str, Any] | None) -> bool:
+        """Implement the internal _matches_identity helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not identity:
             return True
         metadata = row.get("metadata") or {}
@@ -554,6 +751,17 @@ class RagRetriever:
 
     @staticmethod
     def _matches_metadata_filter(row: dict[str, Any], metadata_filter: dict[str, Any] | None) -> bool:
+        """Implement the internal _matches_metadata_filter helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+            metadata_filter: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not metadata_filter:
             return True
         metadata = row.get("metadata") or {}
@@ -571,6 +779,16 @@ class RagRetriever:
 
     @staticmethod
     def _citation(row: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _citation helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         metadata = row.get("metadata") or {}
         return {
             "source_id": row.get("source_id"),
@@ -580,6 +798,17 @@ class RagRetriever:
         }
 
     def _matches_domain(self, row: dict[str, Any], domain: str) -> bool:
+        """Implement the internal _matches_domain helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+            domain: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         metadata = row.get("metadata") or {}
         row_domain = metadata.get("domain")
         memory_type = metadata.get("memory_type")
@@ -598,6 +827,16 @@ class RagRetriever:
 
     @staticmethod
     def _is_verified_parameter_evidence(row: dict[str, Any]) -> bool:
+        """Implement the internal _is_verified_parameter_evidence helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         metadata = row.get("metadata") or {}
         return bool(
             metadata.get("evidence_verified") is True
@@ -605,6 +844,13 @@ class RagRetriever:
         )
 
     def _candidate_rows(self) -> list[dict[str, Any]]:
+        """Implement the internal _candidate_rows helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         rows: list[dict[str, Any]] = []
         for row in self.repository.get_rag_chunks():
             rows.append(

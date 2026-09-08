@@ -1,3 +1,8 @@
+"""core layer implementation for tool_evidence.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,10 +26,27 @@ INJECTION_MARKERS = (
 
 
 def _utc_now() -> str:
+    """Implement the internal _utc_now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _sha256(path: Path) -> str:
+    """Implement the internal _sha256 helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -36,6 +58,13 @@ class ToolPostconditionRegistry:
     """Verify semantic evidence before a successful tool result is committed."""
 
     def __init__(self):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._validators: dict[str, Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], list[dict[str, Any]]]] = {}
         self._register_defaults()
 
@@ -44,6 +73,17 @@ class ToolPostconditionRegistry:
         tool_name: str,
         validator: Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], list[dict[str, Any]]],
     ) -> None:
+        """Execute register at the tool_evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            validator: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self._validators[tool_name] = validator
 
     def verify(
@@ -53,6 +93,19 @@ class ToolPostconditionRegistry:
         result: dict[str, Any],
         context: dict[str, Any],
     ) -> dict[str, Any]:
+        """Execute verify at the tool_evidence boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         status = str(result.get("status") or "success")
         checks: list[dict[str, Any]] = []
         validator = self._validators.get(tool_name)
@@ -100,6 +153,13 @@ class ToolPostconditionRegistry:
         }
 
     def _register_defaults(self) -> None:
+        """Implement the internal _register_defaults helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.register("task.validate_schema", self._require_object("task"))
         self.register("fallback.generate_operator_hls", self._require_paths("generated_files", many=True))
         self.register("fallback.generate_testbench", self._require_paths("testbench_path"))
@@ -117,14 +177,59 @@ class ToolPostconditionRegistry:
 
     @staticmethod
     def _require_object(key: str):
+        """Implement the internal _require_object helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            key: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         def validate(_arguments: dict[str, Any], result: dict[str, Any], _context: dict[str, Any]) -> list[dict[str, Any]]:
+            """Execute validate at the tool_evidence boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                _arguments: Value supplied by the caller and validated by the surrounding schema.
+                result: Value supplied by the caller and validated by the surrounding schema.
+                _context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             return [{"name": f"required_object:{key}", "passed": isinstance(result.get(key), dict)}]
 
         return validate
 
     @staticmethod
     def _require_paths(key: str, *, many: bool = False):
+        """Implement the internal _require_paths helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            key: Value supplied by the caller and validated by the surrounding schema.
+            many: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         def validate(_arguments: dict[str, Any], result: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
+            """Execute validate at the tool_evidence boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                _arguments: Value supplied by the caller and validated by the surrounding schema.
+                result: Value supplied by the caller and validated by the surrounding schema.
+                context: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             raw = result.get(key)
             values = raw if many and isinstance(raw, list) else [raw]
             paths = [ToolPostconditionRegistry._resolve_path(item, context) for item in values if item]
@@ -151,6 +256,18 @@ class ToolPostconditionRegistry:
     def _validate_vivado_synthesis(
         _arguments: dict[str, Any], result: dict[str, Any], context: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        """Implement the internal _validate_vivado_synthesis helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            _arguments: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         report_path = ToolPostconditionRegistry._resolve_path(result.get("report_path"), context)
         verification = result.get("verification")
         checks = [
@@ -182,6 +299,18 @@ class ToolPostconditionRegistry:
     def _validate_report(
         arguments: dict[str, Any], result: dict[str, Any], context: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        """Implement the internal _validate_report helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         source_path = ToolPostconditionRegistry._resolve_path(arguments.get("report_path"), context)
         required_sections = ["latency", "resources", "timing"]
         checks = [
@@ -206,6 +335,18 @@ class ToolPostconditionRegistry:
     def _validate_candidate_verification(
         _arguments: dict[str, Any], result: dict[str, Any], context: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        """Implement the internal _validate_candidate_verification helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            _arguments: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         csim = result.get("csim") if isinstance(result.get("csim"), dict) else {}
         csynth = result.get("csynth") if isinstance(result.get("csynth"), dict) else {}
         report_path = ToolPostconditionRegistry._resolve_path(csynth.get("report_path"), context)
@@ -233,6 +374,17 @@ class ToolPostconditionRegistry:
 
     @staticmethod
     def _resolve_path(value: Any, context: dict[str, Any]) -> Path:
+        """Implement the internal _resolve_path helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not value:
             return Path("__missing_evidence_path__")
         path = Path(str(value))
@@ -243,12 +395,34 @@ class ToolPostconditionRegistry:
 
     @staticmethod
     def _within_run(path: Path, context: dict[str, Any]) -> bool:
+        """Implement the internal _within_run helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         run_dir = Path(context.get("run_dir") or Path.cwd()).resolve()
         resolved = path.resolve()
         return resolved == run_dir or run_dir in resolved.parents
 
     @classmethod
     def _artifact_receipts(cls, result: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
+        """Implement the internal _artifact_receipts helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         values: list[Any] = []
         for key, value in result.items():
             if (key == "path" or key.endswith(("_path", "_dir"))) and value:
@@ -271,11 +445,33 @@ class ToolPostconditionRegistry:
 
     @staticmethod
     def _find_injection_markers(result: dict[str, Any]) -> set[str]:
+        """Implement the internal _find_injection_markers helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         encoded = json.dumps(result, ensure_ascii=False, default=str).lower()
         return {marker for marker in INJECTION_MARKERS if marker in encoded}
 
     @staticmethod
     def _is_mock(tool_name: str, result: dict[str, Any], context: dict[str, Any]) -> bool:
+        """Implement the internal _is_mock helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            result: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         mode = str(result.get("mode") or "").lower()
         if mode in {"mock", "demo", "fixture"}:
             return True

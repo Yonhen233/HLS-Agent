@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_fallback_templates.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from pathlib import Path
 
 from dl_op_to_hls.adapters.llm_adapter import LLMAdapter
@@ -12,6 +17,16 @@ from dl_op_to_hls.tools.verify_candidate import verify_candidate
 
 
 def _task(op_type: str) -> dict:
+    """Verify the _task contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        op_type: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "task_type": "operator",
         "op_type": op_type,
@@ -25,26 +40,76 @@ def _task(op_type: str) -> dict:
 
 
 def test_fallback_dense_generation(tmp_path):
+    """Verify the test_fallback_dense_generation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = render_fallback_operator(_task("Dense") | {"output_shape": [32], "name": "dense_demo"}, str(tmp_path))
     assert result["status"] == "success"
 
 
 def test_fallback_matmul_generation(tmp_path):
+    """Verify the test_fallback_matmul_generation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = render_fallback_operator(_task("MatMul") | {"input_shape": [4, 4], "output_shape": [4, 4]}, str(tmp_path))
     assert result["status"] == "success"
 
 
 def test_fallback_relu_generation(tmp_path):
+    """Verify the test_fallback_relu_generation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = render_fallback_operator(_task("ReLU"), str(tmp_path))
     assert result["status"] == "success"
 
 
 def test_fallback_add_generation(tmp_path):
+    """Verify the test_fallback_add_generation contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = render_fallback_operator(_task("Add"), str(tmp_path))
     assert result["status"] == "success"
 
 
 def test_llm_candidate_interface_mock(tmp_path):
+    """Verify the test_llm_candidate_interface_mock contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     generator = LLMCandidateGenerator(LLMAdapter())
     result = generator.generate(_task("Custom"), [], str(tmp_path))
     assert result["status"] == "error"
@@ -52,6 +117,16 @@ def test_llm_candidate_interface_mock(tmp_path):
 
 
 def test_verify_candidate_mock_success(tmp_path):
+    """Verify the test_verify_candidate_mock_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     run_dir = tmp_path / "runs" / "r1"
     run_dir.mkdir(parents=True, exist_ok=True)
     gate = PermissionGate(DEFAULT_PERMISSIONS, tmp_path)
@@ -64,11 +139,32 @@ def test_verify_candidate_mock_success(tmp_path):
 
 
 def test_verify_candidate_mock_failure(tmp_path):
+    """Verify the test_verify_candidate_mock_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = verify_candidate({"candidate_dir": str(tmp_path / "candidate"), "report_dir": str(tmp_path / "reports"), "force_fail": True}, {})
     assert result["status"] == "failed"
 
 
 def test_verify_candidate_real_mode_requires_testbench(tmp_path, monkeypatch):
+    """Verify the test_verify_candidate_real_mode_requires_testbench contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
@@ -83,6 +179,17 @@ def test_verify_candidate_real_mode_requires_testbench(tmp_path, monkeypatch):
 
 
 def test_verify_candidate_real_mode_rejects_missing_contract_file_before_vivado(tmp_path, monkeypatch):
+    """Verify the test_verify_candidate_real_mode_rejects_missing_contract_file_before_vivado contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
@@ -101,6 +208,17 @@ def test_verify_candidate_real_mode_rejects_missing_contract_file_before_vivado(
 
 
 def test_verify_candidate_real_mode_rejects_signature_mismatch_before_vivado(tmp_path, monkeypatch):
+    """Verify the test_verify_candidate_real_mode_rejects_signature_mismatch_before_vivado contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
@@ -124,6 +242,17 @@ def test_verify_candidate_real_mode_rejects_signature_mismatch_before_vivado(tmp
 
 
 def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monkeypatch):
+    """Verify the test_verify_candidate_real_mode_records_composite_tool_phases contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        monkeypatch: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     monkeypatch.setenv("DL_OP_TO_HLS_MOCK_VIVADO", "0")
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
@@ -133,9 +262,23 @@ def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monk
     report_path.write_text("real report evidence\n", encoding="utf-8")
 
     class FakeVivadoAdapter:
+        """Coordinate FakeVivadoAdapter within the test_fallback_templates boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         mock_mode = False
 
         def create_project(self, arguments):
+            """Verify the create_project contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             del arguments
             return {
                 "status": "success",
@@ -145,6 +288,16 @@ def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monk
             }
 
         def run_csynth(self, arguments):
+            """Verify the run_csynth contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             del arguments
             return {
                 "status": "success",
@@ -158,14 +311,46 @@ def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monk
             }
 
         def parse_report(self, arguments):
+            """Verify the parse_report contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                arguments: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             assert arguments["report_path"] == str(report_path)
             return {"status": "success", "latency": {"min_cycles": 1, "max_cycles": 1}}
 
     class RecordingHooks:
+        """Coordinate RecordingHooks within the test_fallback_templates boundary.
+
+        The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+        """
         def __init__(self):
+            """Verify the __init__ contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.events = []
 
         def emit(self, event_name, payload):
+            """Verify the emit contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                event_name: Value supplied by the caller and validated by the surrounding schema.
+                payload: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             self.events.append({"event": event_name, **payload})
 
     hooks = RecordingHooks()
@@ -196,6 +381,16 @@ def test_verify_candidate_real_mode_records_composite_tool_phases(tmp_path, monk
 
 
 def test_unsupported_report_generated(temp_workspace):
+    """Verify the test_unsupported_report_generated contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        temp_workspace: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {
         "task_type": "operator",
         "op_type": "CustomUnsupported",

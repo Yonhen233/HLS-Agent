@@ -1,3 +1,8 @@
+"""Experiment, training, export, or real-tool entry point for create_mnist_result_visuals.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,10 +20,31 @@ OUT_DIR = ROOT / "docs" / "figures" / "mnist_recognition"
 
 
 def read_json(path: Path) -> dict:
+    """Execute read_json at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def read_matrix(path: Path, cols: int | None = None) -> np.ndarray:
+    """Execute read_matrix at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        cols: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -30,6 +56,13 @@ def read_matrix(path: Path, cols: int | None = None) -> np.ndarray:
 
 
 def setup_style() -> None:
+    """Execute setup_style at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     plt.rcParams.update(
         {
             "figure.dpi": 150,
@@ -45,6 +78,17 @@ def setup_style() -> None:
 
 
 def save(fig: plt.Figure, name: str) -> Path:
+    """Execute save at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        fig: Value supplied by the caller and validated by the surrounding schema.
+        name: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUT_DIR / name
     fig.savefig(path, bbox_inches="tight", facecolor="white")
@@ -53,6 +97,13 @@ def save(fig: plt.Figure, name: str) -> Path:
 
 
 def load_data() -> dict:
+    """Execute load_data at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     verification = read_json(RUN_DIR / "verification.json")
     report = read_json(RUN_DIR / "report.json")
     training = read_json(MODEL_DIR / "mnist_mlp_training_metrics.json")
@@ -86,6 +137,16 @@ def load_data() -> dict:
 
 
 def draw_prediction_grid(data: dict) -> Path:
+    """Execute draw_prediction_grid at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        data: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     images = data["inputs"].reshape((-1, 28, 28))
     labels = data["labels"]
     ref_pred = data["ref_pred"]
@@ -124,6 +185,16 @@ def draw_prediction_grid(data: dict) -> Path:
 
 
 def draw_prediction_agreement(data: dict) -> Path:
+    """Execute draw_prediction_agreement at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        data: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     labels = np.asarray(data["labels"])
     ref_pred = np.asarray(data["ref_pred"])
     hls_pred = np.asarray(data["hls_pred"])
@@ -158,6 +229,16 @@ def draw_prediction_agreement(data: dict) -> Path:
 
 
 def draw_logits_comparison(data: dict) -> Path:
+    """Execute draw_logits_comparison at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        data: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     ref_logits = data["ref_logits"]
     hls_logits = data["hls_logits"]
     labels = data["labels"]
@@ -201,6 +282,16 @@ def draw_logits_comparison(data: dict) -> Path:
 
 
 def draw_metrics_dashboard(data: dict) -> Path:
+    """Execute draw_metrics_dashboard at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        data: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     verification = data["verification"]
     cls = verification["classification"]
     cmp = verification["comparison"]
@@ -254,6 +345,16 @@ def draw_metrics_dashboard(data: dict) -> Path:
 
 
 def write_index(paths: list[Path]) -> Path:
+    """Execute write_index at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        paths: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     index = OUT_DIR / "README.md"
     lines = [
         "# MNIST Recognition Visual Results",
@@ -274,6 +375,13 @@ def write_index(paths: list[Path]) -> Path:
 
 
 def main() -> None:
+    """Execute main at the create_mnist_result_visuals boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     setup_style()
     data = load_data()
     paths = [

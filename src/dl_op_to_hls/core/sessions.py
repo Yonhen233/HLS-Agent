@@ -1,3 +1,8 @@
+"""core layer implementation for sessions.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -29,30 +34,87 @@ class SessionVersionConflict(RuntimeError):
 
 
 class CancellationToken:
+    """Coordinate CancellationToken within the sessions boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, manager: "SessionManager", session_id: str | None):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            manager: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.manager = manager
         self.session_id = session_id
 
     @property
     def cancelled(self) -> bool:
+        """Execute cancelled at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return bool(self.session_id and self.manager.pause_requested(self.session_id))
 
     @property
     def reason(self) -> str:
+        """Execute reason at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.session_id:
             return ""
         return str(self.manager.get(self.session_id).get("interrupt_reason") or "User requested interruption")
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _json(value: Any) -> str:
+    """Implement the internal _json helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 
 
 def _loads(value: str | None, default: Any) -> Any:
+    """Implement the internal _loads helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        value: Value supplied by the caller and validated by the surrounding schema.
+        default: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not value:
         return default
     try:
@@ -77,6 +139,19 @@ class SessionManager:
         mirror_files: bool = True,
         import_legacy_files: bool = True,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            sessions_root: Value supplied by the caller and validated by the surrounding schema.
+            database: Value supplied by the caller and validated by the surrounding schema.
+            mirror_files: Value supplied by the caller and validated by the surrounding schema.
+            import_legacy_files: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.sessions_root = Path(sessions_root)
         self.sessions_root.mkdir(parents=True, exist_ok=True)
         if database is None:
@@ -96,6 +171,19 @@ class SessionManager:
         user_id: str = "local-user",
         project_id: str = "default-project",
     ) -> dict[str, Any]:
+        """Execute create at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            user_input: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            project_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session_id = session_id or f"session_{uuid.uuid4().hex[:12]}"
         now = _now()
         with self.database.connect() as connection:
@@ -148,6 +236,17 @@ class SessionManager:
         return self.get(session_id)
 
     def bind_run(self, session_id: str, run_id: str) -> dict[str, Any]:
+        """Execute bind_run at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         record = self.get(session_id)
         run_ids = list(record.get("run_ids", []))
         if run_id not in run_ids:
@@ -155,16 +254,43 @@ class SessionManager:
         return self._update(session_id, run_id=run_id, run_ids=run_ids, status="running")
 
     def set_metadata(self, session_id: str, **metadata: Any) -> dict[str, Any]:
+        """Execute set_metadata at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         record = self.get(session_id)
         merged = dict(record.get("metadata", {}))
         merged.update(metadata)
         return self._update(session_id, metadata=merged)
 
     def get(self, session_id: str) -> dict[str, Any]:
+        """Execute get at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             return self._load_record_tx(connection, session_id)
 
     def list_sessions(self) -> list[dict[str, Any]]:
+        """Execute list_sessions at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             ids = [
                 row["session_id"]
@@ -181,6 +307,19 @@ class SessionManager:
         content: str,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute append_message at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            role: Value supplied by the caller and validated by the surrounding schema.
+            content: Value supplied by the caller and validated by the surrounding schema.
+            metadata: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -207,6 +346,16 @@ class SessionManager:
         return message
 
     def retract_last_user_message(self, session_id: str) -> dict[str, Any]:
+        """Execute retract_last_user_message at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -263,6 +412,17 @@ class SessionManager:
         return payload
 
     def request_interrupt(self, session_id: str, reason: str = "User requested interruption") -> dict[str, Any]:
+        """Execute request_interrupt at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self._transition(
             session_id,
             status="interrupt_requested",
@@ -281,6 +441,21 @@ class SessionManager:
         ttl_seconds: int = 900,
         max_uses: int = 1,
     ) -> dict[str, Any]:
+        """Execute create_approval_request at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            args_hash: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            ttl_seconds: Value supplied by the caller and validated by the surrounding schema.
+            max_uses: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -342,6 +517,19 @@ class SessionManager:
         return approval
 
     def decide_approval(self, session_id: str, approval_id: str, decision: str, feedback: str = "") -> dict[str, Any]:
+        """Execute decide_approval at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            approval_id: Value supplied by the caller and validated by the surrounding schema.
+            decision: Value supplied by the caller and validated by the surrounding schema.
+            feedback: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if decision not in {"approved", "rejected"}:
             raise ValueError("Approval decision must be approved or rejected")
         now = _now()
@@ -392,6 +580,18 @@ class SessionManager:
         return self._approval_row(updated)
 
     def approval_status(self, session_id: str, tool_name: str, args_hash: str) -> str | None:
+        """Execute approval_status at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            args_hash: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = datetime.now(timezone.utc)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -433,6 +633,18 @@ class SessionManager:
         return status
 
     def consume_approval(self, session_id: str, tool_name: str, args_hash: str) -> bool:
+        """Execute consume_approval at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            tool_name: Value supplied by the caller and validated by the surrounding schema.
+            args_hash: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -479,6 +691,16 @@ class SessionManager:
         return False
 
     def interrupt_requested(self, session_id: str) -> bool:
+        """Execute interrupt_requested at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT status FROM agent_sessions WHERE session_id=?", (session_id,)
@@ -488,6 +710,16 @@ class SessionManager:
         return row["status"] == "interrupt_requested"
 
     def pause_requested(self, session_id: str) -> bool:
+        """Execute pause_requested at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT status FROM agent_sessions WHERE session_id=?", (session_id,)
@@ -497,6 +729,17 @@ class SessionManager:
         return row["status"] in {"interrupt_requested", "waiting_for_approval"}
 
     def mark_interrupted(self, session_id: str, reason: str) -> dict[str, Any]:
+        """Execute mark_interrupted at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self._transition(
             session_id,
             status="interrupted",
@@ -506,6 +749,16 @@ class SessionManager:
         )
 
     def mark_running(self, session_id: str) -> dict[str, Any]:
+        """Execute mark_running at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         record = self.get(session_id)
         return self._transition(
             session_id,
@@ -516,6 +769,18 @@ class SessionManager:
         )
 
     def mark_finished(self, session_id: str, status: str, summary: str = "") -> dict[str, Any]:
+        """Execute mark_finished at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            status: Value supplied by the caller and validated by the surrounding schema.
+            summary: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session_status = "completed" if status in {"success", "partial_success", "unsupported"} else "failed"
         return self._transition(
             session_id,
@@ -532,6 +797,19 @@ class SessionManager:
         reason: str,
         runtime: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute create_checkpoint at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            state: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            runtime: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         runtime = dict(runtime or {})
         with self.database.connect() as connection:
@@ -582,6 +860,16 @@ class SessionManager:
         return payload
 
     def load_active_checkpoint(self, session_id: str) -> dict[str, Any]:
+        """Execute load_active_checkpoint at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         record = self.get(session_id)
         checkpoint_id = record.get("active_checkpoint_id")
         if not checkpoint_id:
@@ -589,6 +877,17 @@ class SessionManager:
         return self.load_checkpoint(session_id, checkpoint_id)
 
     def load_checkpoint(self, session_id: str, checkpoint_id: str) -> dict[str, Any]:
+        """Execute load_checkpoint at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            checkpoint_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT * FROM agent_session_checkpoints WHERE session_id=? AND checkpoint_id=?",
@@ -599,6 +898,16 @@ class SessionManager:
         return self._checkpoint_row(row)
 
     def list_checkpoints(self, session_id: str) -> list[dict[str, Any]]:
+        """Execute list_checkpoints at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM agent_session_checkpoints WHERE session_id=? ORDER BY sequence",
@@ -613,6 +922,18 @@ class SessionManager:
         ]
 
     def rollback(self, session_id: str, checkpoint_id: str | None = None, steps: int = 1) -> dict[str, Any]:
+        """Execute rollback at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            checkpoint_id: Value supplied by the caller and validated by the surrounding schema.
+            steps: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         now = _now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -653,6 +974,17 @@ class SessionManager:
         return {"session": self.get(session_id), "checkpoint": self._checkpoint_row(checkpoint_row)}
 
     def compact_messages(self, session_id: str, keep_recent: int = 8) -> dict[str, Any]:
+        """Execute compact_messages at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            keep_recent: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         keep_recent = max(1, int(keep_recent))
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -706,6 +1038,16 @@ class SessionManager:
         return {"summary": record.get("summary", ""), "recent_messages": active[-keep_recent:]}
 
     def list_events(self, session_id: str) -> list[dict[str, Any]]:
+        """Execute list_events at the sessions boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM agent_session_events WHERE session_id=? ORDER BY sequence",
@@ -721,6 +1063,18 @@ class SessionManager:
         event_payload: dict[str, Any],
         **updates: Any,
     ) -> dict[str, Any]:
+        """Implement the internal _transition helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            event: Value supplied by the caller and validated by the surrounding schema.
+            event_payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         status = updates.get("status")
         if status and status not in SESSION_STATUSES:
             raise ValueError(f"Invalid session status: {status}")
@@ -735,6 +1089,16 @@ class SessionManager:
         return self.get(session_id)
 
     def _update(self, session_id: str, **updates: Any) -> dict[str, Any]:
+        """Implement the internal _update helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         status = updates.get("status")
         if status and status not in SESSION_STATUSES:
             raise ValueError(f"Invalid session status: {status}")
@@ -749,6 +1113,17 @@ class SessionManager:
         return self.get(session_id)
 
     def _load_record_tx(self, connection, session_id: str) -> dict[str, Any]:
+        """Implement the internal _load_record_tx helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         row = self._session_row_tx(connection, session_id)
         messages = connection.execute(
             "SELECT * FROM agent_session_messages WHERE session_id=? ORDER BY sequence", (session_id,)
@@ -778,6 +1153,16 @@ class SessionManager:
 
     @staticmethod
     def _normalize_session_updates(updates: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _normalize_session_updates helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            updates: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         normalized = dict(updates)
         for public, stored in (
             ("run_ids", "run_ids_json"),
@@ -789,6 +1174,18 @@ class SessionManager:
         return normalized
 
     def _update_session_tx(self, connection, session_id: str, expected_version: int, **updates: Any) -> None:
+        """Implement the internal _update_session_tx helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            expected_version: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         updates = self._normalize_session_updates(updates)
         allowed = {
             "run_id", "run_ids_json", "status", "generation", "active_checkpoint_id", "updated_at",
@@ -812,6 +1209,19 @@ class SessionManager:
             )
 
     def _append_event_tx(self, connection, session_id: str, event: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _append_event_tx helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            event: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         row = self._session_row_tx(connection, session_id)
         sequence = int(row["next_event_seq"])
         created_at = _now()
@@ -838,6 +1248,22 @@ class SessionManager:
         metadata: dict[str, Any],
         created_at: str,
     ) -> dict[str, Any]:
+        """Implement the internal _insert_message_tx helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+            sequence: Value supplied by the caller and validated by the surrounding schema.
+            role: Value supplied by the caller and validated by the surrounding schema.
+            content: Value supplied by the caller and validated by the surrounding schema.
+            metadata: Value supplied by the caller and validated by the surrounding schema.
+            created_at: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         message_id = f"turn_{sequence:04d}"
         connection.execute(
             """INSERT INTO agent_session_messages
@@ -856,6 +1282,16 @@ class SessionManager:
 
     @staticmethod
     def _message_row(row) -> dict[str, Any]:
+        """Implement the internal _message_row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = {
             "message_id": row["message_id"],
             "role": row["role"],
@@ -872,6 +1308,16 @@ class SessionManager:
 
     @staticmethod
     def _approval_row(row) -> dict[str, Any]:
+        """Implement the internal _approval_row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = {
             "approval_id": row["approval_id"],
             "tool_name": row["tool_name"],
@@ -890,6 +1336,16 @@ class SessionManager:
 
     @staticmethod
     def _checkpoint_row(row) -> dict[str, Any]:
+        """Implement the internal _checkpoint_row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "checkpoint_id": row["checkpoint_id"],
             "parent_checkpoint_id": row["parent_checkpoint_id"],
@@ -905,6 +1361,16 @@ class SessionManager:
 
     @staticmethod
     def _event_row(row) -> dict[str, Any]:
+        """Implement the internal _event_row helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            row: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "event_id": row["event_id"],
             "ts": row["created_at"],
@@ -915,12 +1381,33 @@ class SessionManager:
 
     @staticmethod
     def _session_row_tx(connection, session_id: str):
+        """Implement the internal _session_row_tx helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            connection: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         row = connection.execute("SELECT * FROM agent_sessions WHERE session_id=?", (session_id,)).fetchone()
         if not row:
             raise KeyError(f"Unknown session: {session_id}")
         return row
 
     def _project_session(self, session_id: str) -> None:
+        """Implement the internal _project_session helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.mirror_files:
             return
         try:
@@ -950,6 +1437,13 @@ class SessionManager:
             return
 
     def _import_legacy_files(self) -> None:
+        """Implement the internal _import_legacy_files helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for path in self.sessions_root.glob("*/session.json"):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
@@ -964,6 +1458,17 @@ class SessionManager:
             self._import_legacy_session(payload, path.parent)
 
     def _import_legacy_session(self, payload: dict[str, Any], directory: Path) -> None:
+        """Implement the internal _import_legacy_session helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            payload: Value supplied by the caller and validated by the surrounding schema.
+            directory: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         session_id = str(payload["session_id"])
         created_at = str(payload.get("created_at") or _now())
         updated_at = str(payload.get("updated_at") or created_at)
@@ -1081,17 +1586,59 @@ class SessionManager:
                     connection.commit()
 
     def _session_dir(self, session_id: str) -> Path:
+        """Implement the internal _session_dir helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.sessions_root / session_id
 
     def _session_path(self, session_id: str) -> Path:
+        """Implement the internal _session_path helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self._session_dir(session_id) / "session.json"
 
     @staticmethod
     def _atomic_write(path: Path, payload: dict[str, Any]) -> None:
+        """Implement the internal _atomic_write helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            payload: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         SessionManager._atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=False, default=str))
 
     @staticmethod
     def _atomic_write_text(path: Path, content: str) -> None:
+        """Implement the internal _atomic_write_text helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+            content: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
         temporary.write_text(content, encoding="utf-8")
@@ -1099,6 +1646,16 @@ class SessionManager:
 
     @staticmethod
     def _input_preview(value: Any) -> str:
+        """Implement the internal _input_preview helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            value: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if isinstance(value, str):
             return value[:4000]
         return json.dumps(value, ensure_ascii=False, default=str)[:4000]

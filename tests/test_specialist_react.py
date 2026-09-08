@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_specialist_react.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -9,22 +14,58 @@ from dl_op_to_hls.specialists import ContextBuilder, SpecialistReActDecider, Spe
 
 
 class _FinishClient:
+    """Coordinate _FinishClient within the test_specialist_react boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     context = {}
 
     def is_enabled(self):
+        """Verify the is_enabled contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return True
 
     def complete_json(self, **kwargs):
+        """Verify the complete_json contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {"reason_summary": "done without tool", "decision": "finish_with_result", "action": {}}
 
 
 class _WrongToolClient:
+    """Coordinate _WrongToolClient within the test_specialist_react boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     context = {}
 
     def is_enabled(self):
+        """Verify the is_enabled contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return True
 
     def complete_json(self, **kwargs):
+        """Verify the complete_json contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "reason_summary": "try a neighboring tool",
             "decision": "call_tool",
@@ -33,12 +74,30 @@ class _WrongToolClient:
 
 
 class _BadArgsClient:
+    """Coordinate _BadArgsClient within the test_specialist_react boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     context = {}
 
     def is_enabled(self):
+        """Verify the is_enabled contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return True
 
     def complete_json(self, **kwargs):
+        """Verify the complete_json contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "reason_summary": "call required tool with incomplete args",
             "decision": "call_tool",
@@ -47,6 +106,13 @@ class _BadArgsClient:
 
 
 def _todo() -> TodoItem:
+    """Verify the _todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return TodoItem(
         id="todo_001",
         title="Run Vivado HLS synthesis",
@@ -63,6 +129,13 @@ def _todo() -> TodoItem:
 
 
 def _envelope() -> object:
+    """Verify the _envelope contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(
         run_id="r1",
         task={
@@ -77,6 +150,13 @@ def _envelope() -> object:
 
 
 def test_specialist_react_guard_rejects_disallowed_tool():
+    """Verify the test_specialist_react_guard_rejects_disallowed_tool contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     guard = SpecialistReActGuard()
     result = guard.validate(
         {"reason_summary": "try unrelated tool", "decision": "call_tool", "action": {"tool_name": "hls4ml.inspect_model"}},
@@ -86,12 +166,26 @@ def test_specialist_react_guard_rejects_disallowed_tool():
 
 
 def test_specialist_react_guard_accepts_finish_with_result():
+    """Verify the test_specialist_react_guard_accepts_finish_with_result contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     guard = SpecialistReActGuard()
     result = guard.validate({"reason_summary": "done", "decision": "finish_with_result", "action": {}}, ["vivado.run_csynth"])
     assert result["status"] == "valid"
 
 
 def test_specialist_react_guard_rejects_finish_when_tool_required():
+    """Verify the test_specialist_react_guard_rejects_finish_when_tool_required contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     guard = SpecialistReActGuard()
     result = guard.validate(
         {"reason_summary": "done", "decision": "finish_with_result", "action": {}},
@@ -102,6 +196,13 @@ def test_specialist_react_guard_rejects_finish_when_tool_required():
 
 
 def test_specialist_react_decider_blocks_missing_input():
+    """Verify the test_specialist_react_decider_blocks_missing_input contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     decision = SpecialistReActDecider().decide(
         envelope=_envelope(),
         allowed_tools=["vivado.run_csynth"],
@@ -114,6 +215,13 @@ def test_specialist_react_decider_blocks_missing_input():
 
 
 def test_specialist_react_decider_repairs_finish_when_tool_required():
+    """Verify the test_specialist_react_decider_repairs_finish_when_tool_required contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     decision = SpecialistReActDecider().decide(
         envelope=_envelope(),
         allowed_tools=["vivado.run_csynth"],
@@ -127,6 +235,13 @@ def test_specialist_react_decider_repairs_finish_when_tool_required():
 
 
 def test_specialist_react_decider_repairs_wrong_tool_when_tool_required():
+    """Verify the test_specialist_react_decider_repairs_wrong_tool_when_tool_required contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     decision = SpecialistReActDecider().decide(
         envelope=_envelope(),
         allowed_tools=["vivado.run_csynth", "hls4ml.check_support"],
@@ -141,6 +256,13 @@ def test_specialist_react_decider_repairs_wrong_tool_when_tool_required():
 
 
 def test_specialist_react_decider_preserves_canonical_arguments_when_tool_required():
+    """Verify the test_specialist_react_decider_preserves_canonical_arguments_when_tool_required contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     decision = SpecialistReActDecider().decide(
         envelope=_envelope(),
         allowed_tools=["vivado.run_csynth"],
@@ -155,6 +277,13 @@ def test_specialist_react_decider_preserves_canonical_arguments_when_tool_requir
 
 
 def test_specialist_react_decider_rejects_private_tool_escape():
+    """Verify the test_specialist_react_decider_rejects_private_tool_escape contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     with pytest.raises(AgentRuntimeError):
         SpecialistReActDecider().decide(
             envelope=_envelope(),

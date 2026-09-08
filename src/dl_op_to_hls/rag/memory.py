@@ -1,3 +1,8 @@
+"""rag layer implementation for memory.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +15,10 @@ from .semantic import EmbeddingBackend, RerankerBackend, SemanticRagConfig, Sema
 
 
 class RagMemory:
+    """Coordinate RagMemory within the memory boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(
         self,
         repository,
@@ -19,6 +28,20 @@ class RagMemory:
         embedder: EmbeddingBackend | None = None,
         reranker: RerankerBackend | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            repository: Value supplied by the caller and validated by the surrounding schema.
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+            semantic_config: Value supplied by the caller and validated by the surrounding schema.
+            embedder: Value supplied by the caller and validated by the surrounding schema.
+            reranker: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.repository = repository
         if isinstance(semantic_config, SemanticRagConfig):
             config = semantic_config
@@ -48,6 +71,17 @@ class RagMemory:
         self.corrective_retriever = CorrectiveRetriever(self.retriever.retrieve, self.evidence_grader)
 
     def index_run(self, run_id: str, artifact_paths: list[str]) -> dict:
+        """Execute index_run at the memory boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            artifact_paths: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         documents = []
         for path in artifact_paths:
             candidate = Path(path)
@@ -72,6 +106,20 @@ class RagMemory:
         identity: dict | None = None,
         metadata_filter: dict | None = None,
     ) -> list[dict]:
+        """Execute retrieve at the memory boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            domain: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            metadata_filter: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.retriever.retrieve(
             query,
             top_k=top_k,
@@ -88,6 +136,20 @@ class RagMemory:
         identity: dict | None = None,
         metadata_filter: dict | None = None,
     ) -> dict:
+        """Execute retrieve_corrective at the memory boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+            top_k: Value supplied by the caller and validated by the surrounding schema.
+            domain: Value supplied by the caller and validated by the surrounding schema.
+            identity: Value supplied by the caller and validated by the surrounding schema.
+            metadata_filter: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result = self.corrective_retriever.retrieve(
             query,
             top_k=top_k,
@@ -98,6 +160,18 @@ class RagMemory:
         return {**result, "retrieval_diagnostics": dict(self.retriever.last_diagnostics)}
 
     def index_text(self, source_id: str, text: str, metadata: dict) -> dict:
+        """Execute index_text at the memory boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            source_id: Value supplied by the caller and validated by the surrounding schema.
+            text: Value supplied by the caller and validated by the surrounding schema.
+            metadata: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.indexer.index_text(source_id, text, metadata=metadata)
 
     def refresh_artifact_metadata(self, run_id: str, artifact_paths: list[str]) -> dict:
@@ -114,6 +188,17 @@ class RagMemory:
         return {"status": "success", "sources_updated": sources, "chunks_updated": updated}
 
     def backfill_embeddings(self, *, batch_size: int = 256, max_chunks: int | None = None) -> dict:
+        """Execute backfill_embeddings at the memory boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            batch_size: Value supplied by the caller and validated by the surrounding schema.
+            max_chunks: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if not self.semantic_engine.config.enabled:
             return {"status": "disabled", "embeddings_indexed": 0}
         processed = 0
@@ -153,6 +238,16 @@ class RagMemory:
         }
 
     def _metadata_for_path(self, path: str) -> dict:
+        """Implement the internal _metadata_for_path helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         lowered = str(path).replace("\\", "/").lower()
         run_metadata = self._run_evidence_metadata(Path(path))
         if lowered.endswith("suggestions.md"):
@@ -169,6 +264,16 @@ class RagMemory:
 
     @staticmethod
     def _run_evidence_metadata(path: Path) -> dict:
+        """Implement the internal _run_evidence_metadata helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         state_path = path.parent / "state.json"
         evidence_path = path.parent / "tool_evidence.json"
         try:

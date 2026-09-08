@@ -1,3 +1,8 @@
+"""memory layer implementation for feedback_governance.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +21,13 @@ INJECTION_PATTERNS = (
 
 
 def _now() -> str:
+    """Implement the internal _now helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
@@ -23,6 +35,16 @@ class FeedbackGovernor:
     """Quarantines online feedback until provenance and safety checks pass."""
 
     def __init__(self, repository):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            repository: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.repository = repository
         self.database = repository.database
 
@@ -34,6 +56,20 @@ class FeedbackGovernor:
         user_id: str | None = None,
         evidence: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute submit at the feedback_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            user_id: Value supplied by the caller and validated by the surrounding schema.
+            evidence: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if self.repository.get_memory_item(memory_id) is None:
             raise KeyError(memory_id)
         bounded = max(-1.0, min(1.0, float(score)))
@@ -55,6 +91,18 @@ class FeedbackGovernor:
         return {"candidate_id": candidate_id, "status": status, "risk_flags": flags, "applied": False}
 
     def review(self, candidate_id: int, decision: str, *, reviewer: str) -> dict[str, Any]:
+        """Execute review at the feedback_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate_id: Value supplied by the caller and validated by the surrounding schema.
+            decision: Value supplied by the caller and validated by the surrounding schema.
+            reviewer: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if decision not in {"approve", "reject", "quarantine"}:
             raise ValueError("decision must be approve, reject, or quarantine")
         with self.database.connect() as connection:
@@ -90,6 +138,18 @@ class FeedbackGovernor:
         return {"candidate_id": candidate_id, "status": status, "applied": decision == "approve", "feedback_score": aggregate}
 
     def revoke(self, candidate_id: int, *, reviewer: str, reason: str = "") -> dict[str, Any]:
+        """Execute revoke at the feedback_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            candidate_id: Value supplied by the caller and validated by the surrounding schema.
+            reviewer: Value supplied by the caller and validated by the surrounding schema.
+            reason: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM memory_feedback_candidates WHERE id=?", (candidate_id,)).fetchone()
@@ -109,6 +169,16 @@ class FeedbackGovernor:
         return {"candidate_id": candidate_id, "status": "revoked", "feedback_score": aggregate}
 
     def list_candidates(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Execute list_candidates at the feedback_governance boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            status: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         with self.database.connect() as connection:
             if status:
                 rows = connection.execute("SELECT * FROM memory_feedback_candidates WHERE status=? ORDER BY id DESC", (status,)).fetchall()
@@ -124,6 +194,18 @@ class FeedbackGovernor:
 
     @staticmethod
     def _risk_flags(reason: str, evidence: dict[str, Any], score: float) -> list[str]:
+        """Implement the internal _risk_flags helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            reason: Value supplied by the caller and validated by the surrounding schema.
+            evidence: Value supplied by the caller and validated by the surrounding schema.
+            score: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         lowered = reason.lower()
         flags = [f"prompt_injection:{index}" for index, pattern in enumerate(INJECTION_PATTERNS) if re.search(pattern, lowered)]
         if evidence.get("source_user_id") and evidence.get("target_user_id") and evidence["source_user_id"] != evidence["target_user_id"]:

@@ -1,3 +1,8 @@
+"""schemas layer implementation for operator_schema.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import re
@@ -7,6 +12,16 @@ from ..core.design_objectives import normalize_objective_mode
 
 
 def normalize_operator_task(task: dict) -> dict:
+    """Execute normalize_operator_task at the operator_schema boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     _validate_operator_contract(task)
     normalized = dict(task)
     normalized.setdefault("name", f"{task.get('op_type', 'operator').lower()}_demo")
@@ -22,6 +37,16 @@ def normalize_operator_task(task: dict) -> dict:
 
 
 def _validate_operator_contract(task: dict) -> None:
+    """Implement the internal _validate_operator_contract helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     dtype = task.get("dtype")
     if dtype is not None:
         match = re.fullmatch(r"ap_fixed\s*<\s*(\d+)\s*,\s*(\d+)\s*>", str(dtype))

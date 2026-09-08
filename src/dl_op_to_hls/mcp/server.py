@@ -1,3 +1,8 @@
+"""mcp layer implementation for server.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import base64
@@ -37,6 +42,23 @@ class MCPServer:
         auth: Any | None = None,
         token_verifier: Any | None = None,
     ):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            registry: Value supplied by the caller and validated by the surrounding schema.
+            version: Value supplied by the caller and validated by the surrounding schema.
+            instructions: Value supplied by the caller and validated by the surrounding schema.
+            context_factory: Value supplied by the caller and validated by the surrounding schema.
+            page_size: Value supplied by the caller and validated by the surrounding schema.
+            auth: Value supplied by the caller and validated by the surrounding schema.
+            token_verifier: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.name = name
         self.registry = registry
         self.version = version
@@ -122,6 +144,13 @@ class MCPServer:
     async def _serve_stdio(self) -> None:
         # SDK v2 reserves protocol file descriptors so library output cannot
         # corrupt the JSON-RPC stream on stdout.
+        """Implement the internal _serve_stdio helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         async with stdio.stdio_server() as (read_stream, write_stream):
             await self.sdk_server.run(
                 read_stream,
@@ -134,6 +163,17 @@ class MCPServer:
         _request_context,
         params: types.PaginatedRequestParams | None,
     ) -> types.ListToolsResult:
+        """Implement the internal _list_tools helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            _request_context: Value supplied by the caller and validated by the surrounding schema.
+            params: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         cursor = self._param(params, "cursor")
         offset = self._decode_cursor(str(cursor)) if cursor else 0
         specs = self.registry.list_tools()
@@ -144,6 +184,17 @@ class MCPServer:
         return types.ListToolsResult(tools=tools, nextCursor=next_cursor)
 
     async def _call_tool(self, request_context, params: types.CallToolRequestParams) -> types.CallToolResult:
+        """Implement the internal _call_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            request_context: Value supplied by the caller and validated by the surrounding schema.
+            params: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         name = str(self._param(params, "name") or "")
         arguments = self._param(params, "arguments") or {}
         if not isinstance(arguments, dict):
@@ -179,12 +230,33 @@ class MCPServer:
         return self._result(result)
 
     def _execution_context(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _execution_context helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         context = dict(self.context_factory(name, arguments) if self.context_factory else {})
         context.setdefault("run_id", f"mcp:{self.name}")
         context.setdefault("mcp_server", self.name)
         return context
 
     def _tool_manifest(self, spec) -> types.Tool:
+        """Implement the internal _tool_manifest helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            spec: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         annotations = types.ToolAnnotations(
             readOnlyHint=spec.permission_level == "read",
             destructiveHint=spec.risk_level in {"high", "critical"},
@@ -205,6 +277,16 @@ class MCPServer:
 
     @staticmethod
     def _result(result: Any) -> types.CallToolResult:
+        """Implement the internal _result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            result: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         structured = result if isinstance(result, dict) else {"status": "success", "value": result}
         status = str(structured.get("status") or "success")
         is_error = status in {"error", "failed", "timeout", "interrupted", "blocked"}
@@ -217,6 +299,17 @@ class MCPServer:
 
     @staticmethod
     def _error_result(message: str, error_type: str) -> types.CallToolResult:
+        """Implement the internal _error_result helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            message: Value supplied by the caller and validated by the surrounding schema.
+            error_type: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return MCPServer._result(
             {
                 "status": "error",
@@ -231,6 +324,17 @@ class MCPServer:
 
     @staticmethod
     def _param(params: Any, name: str) -> Any:
+        """Implement the internal _param helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            params: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if params is None:
             return None
         if isinstance(params, dict):
@@ -238,6 +342,16 @@ class MCPServer:
         return getattr(params, name, None)
 
     def _encode_cursor(self, offset: int) -> str:
+        """Implement the internal _encode_cursor helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            offset: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         payload = f"tools:{offset}".encode("ascii")
         signature = hmac.new(self._cursor_secret, payload, hashlib.sha256).digest()[:12]
         encoded_payload = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
@@ -245,6 +359,16 @@ class MCPServer:
         return f"{encoded_payload}.{encoded_signature}"
 
     def _decode_cursor(self, cursor: str) -> int:
+        """Implement the internal _decode_cursor helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            cursor: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         try:
             payload_text, signature_text = cursor.split(".", 1)
             payload = base64.urlsafe_b64decode((payload_text + "=" * (-len(payload_text) % 4)).encode("ascii"))
@@ -262,6 +386,13 @@ class MCPServer:
             raise ValueError("Invalid or expired MCP pagination cursor.") from exc
 
     def _default_instructions(self) -> str:
+        """Implement the internal _default_instructions helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return (
             f"{self.name} exposes bounded HLS tools. Call tools only with paths permitted by their JSON "
             "schemas; large logs and reports are returned as artifact references or structured summaries."
@@ -297,6 +428,17 @@ def build_mcp_context_factory(config, *, server_name: str) -> ContextFactory:
     )
 
     def factory(_tool_name: str, _arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute factory at the server boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            _tool_name: Value supplied by the caller and validated by the surrounding schema.
+            _arguments: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return {
             "run_id": f"mcp:{server_name}",
             "permission_gate": permission_gate,

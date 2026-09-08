@@ -1,3 +1,8 @@
+"""tools layer implementation for functional_verification.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -25,6 +30,17 @@ FAIL_MARKERS = (
 
 
 def _write_lines(path: Path, rows: list[list[float]]) -> None:
+    """Implement the internal _write_lines helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+        rows: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "\n".join(" ".join(f"{float(value):.8g}" for value in row) for row in rows) + "\n",
@@ -33,6 +49,16 @@ def _write_lines(path: Path, rows: list[list[float]]) -> None:
 
 
 def _read_numeric_rows(path: Path) -> list[list[float]]:
+    """Implement the internal _read_numeric_rows helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     rows: list[list[float]] = []
     for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         values = [float(token) for token in re.findall(r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?", line)]
@@ -42,6 +68,16 @@ def _read_numeric_rows(path: Path) -> list[list[float]]:
 
 
 def _read_labels(path: Path) -> list[int]:
+    """Implement the internal _read_labels helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not path.exists():
         return []
     if path.suffix.lower() == ".json":
@@ -57,10 +93,31 @@ def _read_labels(path: Path) -> list[int]:
 
 
 def _argmax(row: list[float]) -> int:
+    """Implement the internal _argmax helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        row: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return max(range(len(row)), key=lambda index: row[index]) if row else -1
 
 
 def _find_first_named(base_dir: Path, filename: str) -> Path | None:
+    """Implement the internal _find_first_named helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        base_dir: Value supplied by the caller and validated by the surrounding schema.
+        filename: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not base_dir.exists():
         return None
     direct = base_dir / filename
@@ -76,6 +133,17 @@ def _find_first_named(base_dir: Path, filename: str) -> Path | None:
 
 
 def _resolve_optional_path(path_value: str | None, *, base_dir: Path | None = None) -> Path | None:
+    """Implement the internal _resolve_optional_path helper.
+
+    Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+    Args:
+        path_value: Value supplied by the caller and validated by the surrounding schema.
+        base_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     if not path_value:
         return None
     path = Path(path_value)
@@ -93,6 +161,18 @@ def compare_classification_outputs(
     output_path: str | Path,
     labels_path: str | Path,
 ) -> dict[str, Any]:
+    """Execute compare_classification_outputs at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        reference_path: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        labels_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     reference = Path(reference_path)
     output = Path(output_path)
     labels_file = Path(labels_path)
@@ -139,6 +219,18 @@ def compare_classification_outputs(
 
 
 def compare_numeric_files(reference_path: str | Path, output_path: str | Path, tolerance: float = 0.25) -> dict[str, Any]:
+    """Execute compare_numeric_files at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        reference_path: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        tolerance: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     reference = Path(reference_path)
     output = Path(output_path)
     if not reference.exists() or not output.exists():
@@ -209,6 +301,20 @@ def parse_csim_verification(
     output_path: str | Path | None = None,
     tolerance: float = 0.25,
 ) -> dict[str, Any]:
+    """Execute parse_csim_verification at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        log_path: Value supplied by the caller and validated by the surrounding schema.
+        work_dir: Value supplied by the caller and validated by the surrounding schema.
+        reference_path: Value supplied by the caller and validated by the surrounding schema.
+        output_path: Value supplied by the caller and validated by the surrounding schema.
+        tolerance: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     log = Path(log_path) if log_path else None
     log_text = log.read_text(encoding="utf-8", errors="ignore") if log and log.exists() else ""
     lowered = log_text.lower()
@@ -332,6 +438,23 @@ def write_onnx_reference_data(
     classification_min_accuracy: float | None = None,
     argmax_match_min: float | None = None,
 ) -> dict[str, Any]:
+    """Execute write_onnx_reference_data at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        model_path: Value supplied by the caller and validated by the surrounding schema.
+        project_dir: Value supplied by the caller and validated by the surrounding schema.
+        num_samples: Value supplied by the caller and validated by the surrounding schema.
+        seed: Value supplied by the caller and validated by the surrounding schema.
+        input_data_path: Value supplied by the caller and validated by the surrounding schema.
+        labels_path: Value supplied by the caller and validated by the surrounding schema.
+        classification_min_accuracy: Value supplied by the caller and validated by the surrounding schema.
+        argmax_match_min: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     project = Path(project_dir)
     tb_data = project / "tb_data"
     input_path = tb_data / "tb_input_features.dat"
@@ -418,6 +541,16 @@ def write_onnx_reference_data(
 
 
 def fallback_reference_payload(task: dict[str, Any]) -> dict[str, Any]:
+    """Execute fallback_reference_payload at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     op_type = str(task.get("op_type", ""))
     input_shape = task.get("input_shape") or []
     output_shape = task.get("output_shape") or []
@@ -435,6 +568,17 @@ def fallback_reference_payload(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_fallback_reference_data(task: dict[str, Any], output_dir: str | Path) -> dict[str, Any]:
+    """Execute write_fallback_reference_data at the functional_verification boundary.
+
+    This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+    Args:
+        task: Value supplied by the caller and validated by the surrounding schema.
+        output_dir: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     output = Path(output_dir)
     path = output / "reference.json"
     payload = fallback_reference_payload(task)

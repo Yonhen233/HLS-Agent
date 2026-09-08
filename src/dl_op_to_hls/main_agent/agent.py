@@ -1,3 +1,8 @@
+"""main_agent layer implementation for agent.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from __future__ import annotations
 
 import json
@@ -67,7 +72,22 @@ from ..tools.verify_candidate import verify_candidate
 
 
 class MainAgent:
+    """Coordinate MainAgent within the agent boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def __init__(self, workspace_root: str | Path | None = None, *, console: bool = True):
+        """Implement the internal __init__ helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            workspace_root: Value supplied by the caller and validated by the surrounding schema.
+            console: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.config = AppConfig.load(workspace_root)
         self.config.ensure_directories()
         permission_config = copy.deepcopy(self.config.load_permissions())
@@ -135,6 +155,13 @@ class MainAgent:
         atexit.register(self.close)
 
     def _configure_tool_execution_policies(self) -> None:
+        """Implement the internal _configure_tool_execution_policies helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         cacheable_tools = {
             "memory.retrieve_similar_experiences",
             "memory.retrieve_failure_cases",
@@ -158,6 +185,13 @@ class MainAgent:
                     spec.required_capabilities = ["hls.inspect" if spec.permission_level == "read" else "hls.execute"]
 
     def _register_tools(self) -> None:
+        """Implement the internal _register_tools helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if os.environ.get("DL_OP_TO_HLS_MCP_TRANSPORT", "local").lower() == "stdio":
             self._register_stdio_mcp_tools()
         else:
@@ -192,6 +226,13 @@ class MainAgent:
         )
 
     def _register_stdio_mcp_tools(self) -> None:
+        """Implement the internal _register_stdio_mcp_tools helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         server_configs = [
             ("hls4ml", "serve-hls4ml", register_hls4ml_tools, self.hls4ml_adapter),
             ("vivado_hls", "serve-vivado-hls", register_vivado_tools, self.vivado_adapter),
@@ -210,11 +251,25 @@ class MainAgent:
             self._mcp_clients.append(client)
 
     def close(self) -> None:
+        """Execute close at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         for client in self._mcp_clients:
             client.close()
         self._mcp_clients.clear()
 
     def _register_domain_tools(self) -> None:
+        """Implement the internal _register_domain_tools helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         result_schema = simple_schema({"status": {"type": "string"}}, ["status"])
         self.registry.register(
             ToolSpec(
@@ -609,6 +664,13 @@ class MainAgent:
         self._register_tool_aliases()
 
     def _register_tool_aliases(self) -> None:
+        """Implement the internal _register_tool_aliases helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         alias_map = {
             "hls4ml.check_hls4ml_support": "hls4ml.check_support",
             "hls4ml.generate_hls4ml_config": "hls4ml.generate_config",
@@ -626,6 +688,17 @@ class MainAgent:
             self.registry.register_alias(alias_name, target_name)
 
     def _rag_retrieve(self, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _rag_retrieve helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         retrieval = self.rag_memory.retrieve_corrective(
             arguments["query"],
             top_k=int(arguments.get("top_k", 5)),
@@ -655,15 +728,44 @@ class MainAgent:
         return {"status": "success", **retrieval}
 
     def _ensure_legacy_workflow_map(self) -> None:
+        """Implement the internal _ensure_legacy_workflow_map helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         path = self.config.docs_root / "legacy_workflow_map.md"
         if path.exists():
             return
         self.legacy_extractor.write_legacy_workflow_map(path)
 
     def _rag_index(self, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _rag_index helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.rag_memory.index_run(arguments["run_id"], arguments["artifact_paths"])
 
     def _write_unsupported_report_tool(self, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _write_unsupported_report_tool helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         artifact_manager = context["artifact_manager"]
         reason = arguments["reason"]
         content = (
@@ -686,6 +788,18 @@ class MainAgent:
         return {"status": "success", "path": str(path), "summary": reason}
 
     def _db_call(self, method_name: str, arguments: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """Implement the internal _db_call helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Args:
+            method_name: Value supplied by the caller and validated by the surrounding schema.
+            arguments: Value supplied by the caller and validated by the surrounding schema.
+            context: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         method = getattr(self.repository, method_name)
         result = method(arguments)
         hooks = context.get("hooks")
@@ -696,6 +810,13 @@ class MainAgent:
         return result
 
     def _bootstrap_releases(self) -> None:
+        """Implement the internal _bootstrap_releases helper.
+
+        Keep this helper focused on local normalization or calculation; callers should enforce public permission and evidence boundaries.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         skill_manifest = sorted(
             (skill.name, skill.version, skill.status)
             for skill in self.skill_registry.list_skills()
@@ -737,6 +858,16 @@ class MainAgent:
                 self.release_manager.set_baseline(component_type, name, version)
 
     def make_run_id(self, task: dict[str, Any]) -> str:
+        """Execute make_run_id at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            task: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         forced = os.environ.get("DL_OP_TO_HLS_RUN_ID")
         if forced:
             safe_forced = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in forced).strip("_-")
@@ -756,6 +887,17 @@ class MainAgent:
         return candidate
 
     def create_run_context(self, run_id: str, session_id: str | None = None) -> dict[str, Any]:
+        """Execute create_run_context at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id: Value supplied by the caller and validated by the surrounding schema.
+            session_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         run_dir = self.config.runs_root / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         release_manifest = self.release_manager.resolve_bundle(run_id)
@@ -789,6 +931,16 @@ class MainAgent:
             hooks.register("RunFinished", ConsoleHook())
 
         def tool_call_db_hook(payload: dict[str, Any]) -> None:
+            """Execute tool_call_db_hook at the agent boundary.
+
+            This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+            Args:
+                payload: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             event = payload.get("event")
             if event not in {"PostToolUse", "ToolFailed"}:
                 return
@@ -887,15 +1039,49 @@ class MainAgent:
         }
 
     def list_runs(self) -> list[dict[str, Any]]:
+        """Execute list_runs at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.list_runs()
 
     def list_memories(self) -> list[dict[str, Any]]:
+        """Execute list_memories at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.list_memory_items(status=None)
 
     def get_memory(self, memory_id: int) -> dict[str, Any] | None:
+        """Execute get_memory at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            memory_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.get_memory_item(memory_id)
 
     def search_memories(self, query: str) -> list[dict[str, Any]]:
+        """Execute search_memories at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return (
             self.memory_manager.retrieve_similar_experiences(query, top_k=10)
             + self.memory_manager.retrieve_failure_cases(query, top_k=10)
@@ -903,11 +1089,28 @@ class MainAgent:
         )
 
     def promote_run_memories(self, run_id_or_path: str) -> dict[str, Any]:
+        """Execute promote_run_memories at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id_or_path: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         run_id = Path(run_id_or_path).name if Path(run_id_or_path).exists() else run_id_or_path
         candidates = self.memory_manager.extract_memory_candidates(run_id)
         return self.memory_manager.promote_to_long_term(run_id, candidates)
 
     def list_skills(self) -> list[dict[str, Any]]:
+        """Execute list_skills at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.skill_registry.load_all()
         return [
             {
@@ -921,6 +1124,16 @@ class MainAgent:
         ]
 
     def get_skill(self, skill_name: str) -> dict[str, Any] | None:
+        """Execute get_skill at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skill_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         self.skill_registry.load_all()
         try:
             skill = self.skill_registry.get(skill_name)
@@ -944,15 +1157,49 @@ class MainAgent:
         }
 
     def list_procedural_skills(self) -> list[dict[str, Any]]:
+        """Execute list_procedural_skills at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.list_skills()
 
     def get_procedural_skill(self, skill_id: int) -> dict[str, Any] | None:
+        """Execute get_procedural_skill at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            skill_id: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return self.repository.get_skill(skill_id)
 
     def list_specialists(self) -> list[dict[str, Any]]:
+        """Execute list_specialists at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return build_default_router().list_specialists()
 
     def get_specialist(self, name: str) -> dict[str, Any] | None:
+        """Execute get_specialist at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         normalized = name.lower()
         for item in self.list_specialists():
             if item["name"].lower() == normalized:
@@ -960,6 +1207,17 @@ class MainAgent:
         return None
 
     def read_specialist_trace(self, run_id_or_path: str, specialist_name: str) -> str:
+        """Execute read_specialist_trace at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id_or_path: Value supplied by the caller and validated by the surrounding schema.
+            specialist_name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         normalized_name = specialist_name.replace("HLS4ML", "Hls4ml")
         snake = "".join([f"_{ch.lower()}" if ch.isupper() and idx else ch.lower() for idx, ch in enumerate(normalized_name)])
         candidate = Path(run_id_or_path)
@@ -971,6 +1229,17 @@ class MainAgent:
         return summary_path.read_text(encoding="utf-8")
 
     def read_run_file(self, run_id_or_path: str, name: str) -> str:
+        """Execute read_run_file at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id_or_path: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         candidate = Path(run_id_or_path)
         if candidate.exists():
             path = candidate if candidate.is_file() else candidate / name
@@ -979,4 +1248,15 @@ class MainAgent:
         return path.read_text(encoding="utf-8")
 
     def read_run_json(self, run_id_or_path: str, name: str) -> dict[str, Any]:
+        """Execute read_run_json at the agent boundary.
+
+        This callable keeps structured inputs and outputs at a stable boundary so the surrounding Agent Harness can trace, validate, and recover the operation.
+
+        Args:
+            run_id_or_path: Value supplied by the caller and validated by the surrounding schema.
+            name: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         return json.loads(self.read_run_file(run_id_or_path, name))

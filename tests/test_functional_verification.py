@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_functional_verification.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 import json
 from pathlib import Path
 
@@ -9,6 +14,16 @@ from dl_op_to_hls.tools.parameter_advisor import recommend_parameters
 
 
 def _operator_task(op_type: str) -> dict:
+    """Verify the _operator_task contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        op_type: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return {
         "task_type": "operator",
         "op_type": op_type,
@@ -23,6 +38,17 @@ def _operator_task(op_type: str) -> dict:
 
 @pytest.mark.parametrize("op_type", ["Dense", "MatMul", "ReLU", "Add"])
 def test_fallback_generates_golden_testbench_and_reference(tmp_path, op_type):
+    """Verify the test_fallback_generates_golden_testbench_and_reference contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+        op_type: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = render_fallback_operator(_operator_task(op_type), str(tmp_path))
     testbench = (tmp_path / "testbench.cpp").read_text(encoding="utf-8")
     reference = json.loads((tmp_path / "reference.json").read_text(encoding="utf-8"))
@@ -33,6 +59,16 @@ def test_fallback_generates_golden_testbench_and_reference(tmp_path, op_type):
 
 
 def test_parse_csim_verification_from_golden_log(tmp_path):
+    """Verify the test_parse_csim_verification_from_golden_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     log = tmp_path / "csynth.log"
     log.write_text("Starting C simulation...\nGOLDEN_CHECK_PASSED\nC simulation completed\n", encoding="utf-8")
     result = parse_csim_verification(log, work_dir=tmp_path)
@@ -41,6 +77,13 @@ def test_parse_csim_verification_from_golden_log(tmp_path):
 
 
 def test_existing_hls_example_testbench_contains_real_golden_oracle():
+    """Verify the test_existing_hls_example_testbench_contains_real_golden_oracle contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     testbench = Path("examples/hls_projects/dense/testbench.cpp").read_text(encoding="utf-8")
 
     assert "output[i] != input[i]" in testbench
@@ -49,6 +92,16 @@ def test_existing_hls_example_testbench_contains_real_golden_oracle():
 
 
 def test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log(tmp_path):
+    """Verify the test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     log = tmp_path / "csynth.log"
     log.write_text(
         "Starting C simulation...\n"
@@ -65,6 +118,16 @@ def test_parse_csim_verification_prefers_golden_pass_over_threshold_mismatch_log
 
 
 def test_parse_csim_verification_compares_hls4ml_outputs(tmp_path):
+    """Verify the test_parse_csim_verification_compares_hls4ml_outputs contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tb_data = tmp_path / "tb_data"
     tb_data.mkdir()
     (tb_data / "tb_output_predictions.dat").write_text("1.0 2.0\n", encoding="utf-8")
@@ -77,6 +140,16 @@ def test_parse_csim_verification_compares_hls4ml_outputs(tmp_path):
 
 
 def test_parse_csim_verification_accepts_classification_pass_with_numeric_drift(tmp_path):
+    """Verify the test_parse_csim_verification_accepts_classification_pass_with_numeric_drift contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tb_data = tmp_path / "tb_data"
     tb_data.mkdir()
     (tb_data / "tb_output_predictions.dat").write_text("1 9 0\n8 1 0\n", encoding="utf-8")
@@ -97,6 +170,16 @@ def test_parse_csim_verification_accepts_classification_pass_with_numeric_drift(
 
 
 def test_parse_csim_verification_uses_defaults_when_manifest_thresholds_are_null(tmp_path):
+    """Verify the test_parse_csim_verification_uses_defaults_when_manifest_thresholds_are_null contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tb_data = tmp_path / "tb_data"
     tb_data.mkdir()
     (tb_data / "tb_output_predictions.dat").write_text("1 9 0\n", encoding="utf-8")
@@ -117,6 +200,16 @@ def test_parse_csim_verification_uses_defaults_when_manifest_thresholds_are_null
 
 
 def test_parse_csim_verification_finds_vivado_csim_build_output(tmp_path):
+    """Verify the test_parse_csim_verification_finds_vivado_csim_build_output contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tb_data = tmp_path / "tb_data"
     build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"
     tb_data.mkdir()
@@ -132,6 +225,16 @@ def test_parse_csim_verification_finds_vivado_csim_build_output(tmp_path):
 
 
 def test_parse_csim_verification_reports_assertion_failure(tmp_path):
+    """Verify the test_parse_csim_verification_reports_assertion_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     tb_data = tmp_path / "tb_data"
     build_tb_data = tmp_path / "vivado_hls" / "solution1" / "csim" / "build" / "tb_data"
     tb_data.mkdir()
@@ -147,6 +250,16 @@ def test_parse_csim_verification_reports_assertion_failure(tmp_path):
 
 
 def test_parse_csim_verification_reports_compiler_failure(tmp_path):
+    """Verify the test_parse_csim_verification_reports_compiler_failure contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     log = "Starting C simulation...\ncc1plus.exe: out of memory allocating 65536 bytes\nERROR: [SIM 211-100] 'csim_design' failed\n"
     path = tmp_path / "compiler_failure.log"
     path.write_text(log, encoding="utf-8")
@@ -157,6 +270,16 @@ def test_parse_csim_verification_reports_compiler_failure(tmp_path):
 
 
 def test_write_onnx_reference_data(tmp_path):
+    """Verify the test_write_onnx_reference_data contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     pytest.importorskip("onnx")
     pytest.importorskip("onnxruntime")
     import onnx
@@ -178,7 +301,21 @@ def test_write_onnx_reference_data(tmp_path):
 
 
 class _Repo:
+    """Coordinate _Repo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {
@@ -201,6 +338,13 @@ class _Repo:
 
 
 def test_parameter_advisor_reads_verified_history():
+    """Verify the test_parameter_advisor_reads_verified_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {
         "task": {
             "name": "mnist_mlp_demo",
@@ -215,7 +359,21 @@ def test_parameter_advisor_reads_verified_history():
 
 
 class _ExecutionOnlyRepo:
+    """Coordinate _ExecutionOnlyRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 512}},
@@ -226,6 +384,13 @@ class _ExecutionOnlyRepo:
 
 
 def test_parameter_advisor_ignores_execution_only_csim_history():
+    """Verify the test_parameter_advisor_ignores_execution_only_csim_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {"task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 64}}}
     result = recommend_parameters({"state": state}, {"repository": _ExecutionOnlyRepo()})
     assert result["mode"] == "heuristic_bootstrap"
@@ -233,7 +398,21 @@ def test_parameter_advisor_ignores_execution_only_csim_history():
 
 
 class _TimingFailedRepo:
+    """Coordinate _TimingFailedRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {"name": "matmul_16x16_resource", "task_type": "operator", "optimization": {"reuse_factor": 8}},
@@ -244,6 +423,13 @@ class _TimingFailedRepo:
 
 
 def test_parameter_advisor_ignores_timing_failed_history():
+    """Verify the test_parameter_advisor_ignores_timing_failed_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {"task": {"name": "matmul_16x16_resource", "task_type": "operator", "optimization": {"reuse_factor": 8}}}
     result = recommend_parameters({"state": state}, {"repository": _TimingFailedRepo()})
     assert result["mode"] == "heuristic_bootstrap"
@@ -251,7 +437,21 @@ def test_parameter_advisor_ignores_timing_failed_history():
 
 
 class _MismatchedFamilyRepo:
+    """Coordinate _MismatchedFamilyRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {
@@ -268,6 +468,13 @@ class _MismatchedFamilyRepo:
 
 
 def test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp():
+    """Verify the test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {"task": {"name": "mnist_mlp_demo", "task_type": "model", "hls4ml": {"reuse_factor": 512}}}
     result = recommend_parameters({"state": state}, {"repository": _MismatchedFamilyRepo()})
     assert result["mode"] == "heuristic_bootstrap"
@@ -276,7 +483,21 @@ def test_parameter_advisor_does_not_cross_model_family_from_cnn_to_mlp():
 
 
 class _CrossVisionShapeRepo:
+    """Coordinate _CrossVisionShapeRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {
@@ -294,6 +515,13 @@ class _CrossVisionShapeRepo:
 
 
 def test_parameter_advisor_rejects_cross_vision_shape_history():
+    """Verify the test_parameter_advisor_rejects_cross_vision_shape_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {
         "task": {
             "name": "cifar10_tiny_vgg",
@@ -309,6 +537,16 @@ def test_parameter_advisor_rejects_cross_vision_shape_history():
 
 
 def test_parameter_advisor_uses_activation_calibration_when_history_is_incompatible(tmp_path):
+    """Verify the test_parameter_advisor_uses_activation_calibration_when_history_is_incompatible contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     calibration = tmp_path / "activation_ranges.json"
     calibration.write_text(
         json.dumps(
@@ -340,7 +578,21 @@ def test_parameter_advisor_uses_activation_calibration_when_history_is_incompati
 
 
 class _SampleFixtureRepo:
+    """Coordinate _SampleFixtureRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
         value = {
             "task": {
@@ -361,6 +613,13 @@ class _SampleFixtureRepo:
 
 
 def test_parameter_advisor_ignores_sample_fixture_history():
+    """Verify the test_parameter_advisor_ignores_sample_fixture_history contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {"task": {"name": "mnist_recognition_mlp", "task_type": "model", "hls4ml": {"reuse_factor": 1024}}}
     result = recommend_parameters({"state": state}, {"repository": _SampleFixtureRepo()})
     assert result["mode"] == "heuristic_bootstrap"
@@ -368,10 +627,38 @@ def test_parameter_advisor_ignores_sample_fixture_history():
 
 
 class _ResourceRankingRepo:
+    """Coordinate _ResourceRankingRepo within the test_functional_verification boundary.
+
+    The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
+    """
     def list_memory_items(self, memory_types):
+        """Verify the list_memory_items contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            memory_types: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         del memory_types
 
         def item(memory_id, run_id, clock, ff, lut):
+            """Verify the item contract.
+
+            The test should fail on a real contract regression rather than hide an unsupported path.
+
+            Args:
+                memory_id: Value supplied by the caller and validated by the surrounding schema.
+                run_id: Value supplied by the caller and validated by the surrounding schema.
+                clock: Value supplied by the caller and validated by the surrounding schema.
+                ff: Value supplied by the caller and validated by the surrounding schema.
+                lut: Value supplied by the caller and validated by the surrounding schema.
+
+            Returns:
+                The structured value promised by the function signature.
+            """
             value = {
                 "task": {
                     "name": "mnist_recognition_mlp",
@@ -397,6 +684,13 @@ class _ResourceRankingRepo:
 
 
 def test_parameter_advisor_ranks_verified_history_by_resource_cost():
+    """Verify the test_parameter_advisor_ranks_verified_history_by_resource_cost contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = {"task": {"name": "mnist_recognition_mlp", "task_type": "model", "objective": "resource", "hls4ml": {}}}
     result = recommend_parameters({"state": state}, {"repository": _ResourceRankingRepo()})
     assert result["mode"] == "verified_history"

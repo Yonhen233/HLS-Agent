@@ -1,3 +1,8 @@
+"""Test contracts and regression checks for test_bad_case_governance.py.
+
+This module is part of the DL-to-HLS Agent Harness. It owns the boundary named by its path and should keep raw artifacts, structured state, permissions, and tool calls separated according to the project contracts.
+"""
+
 from types import SimpleNamespace
 
 from dl_op_to_hls.core.goal_contract import CompletionGate, GoalContractBuilder, PlanCoverageValidator
@@ -10,6 +15,18 @@ from dl_op_to_hls.rag.evidence import ClaimEvidenceVerifier, CorrectiveRetriever
 
 
 def _todo(todo_id, tool, status="completed"):
+    """Verify the _todo contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        todo_id: Value supplied by the caller and validated by the surrounding schema.
+        tool: Value supplied by the caller and validated by the surrounding schema.
+        status: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     return TodoItem(
         id=todo_id,
         title=tool,
@@ -26,6 +43,13 @@ def _todo(todo_id, tool, status="completed"):
 
 
 def test_plan_coverage_is_repaired_from_approved_skill_without_extra_work():
+    """Verify the test_plan_coverage_is_repaired_from_approved_skill_without_extra_work contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     contract = GoalContractBuilder().build({"task_type": "operator", "name": "dense", "op_type": "Dense"})
     validator = PlanCoverageValidator()
     skill = SimpleNamespace(
@@ -48,6 +72,16 @@ def test_plan_coverage_is_repaired_from_approved_skill_without_extra_work():
 
 
 def test_completion_gate_prevents_success_without_verification(tmp_path):
+    """Verify the test_completion_gate_prevents_success_without_verification contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
     contract = GoalContractBuilder().build(task)
     state = AgentState(run_id="r1", task=task, status="success")
@@ -67,6 +101,16 @@ def test_completion_gate_prevents_success_without_verification(tmp_path):
 
 
 def test_completion_gate_accepts_only_fully_evidenced_success(tmp_path):
+    """Verify the test_completion_gate_accepts_only_fully_evidenced_success contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
     contract = GoalContractBuilder().build(task)
     state = AgentState(run_id="r1", task=task, status="partial_success")
@@ -90,6 +134,16 @@ def test_completion_gate_accepts_only_fully_evidenced_success(tmp_path):
 
 
 def test_completion_gate_keeps_auxiliary_failures_as_warnings(tmp_path):
+    """Verify the test_completion_gate_keeps_auxiliary_failures_as_warnings contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
     contract = GoalContractBuilder().build(task)
     state = AgentState(run_id="r1", task=task, status="partial_success")
@@ -123,6 +177,16 @@ def test_completion_gate_keeps_auxiliary_failures_as_warnings(tmp_path):
 
 
 def test_completion_gate_blocks_required_path_errors(tmp_path):
+    """Verify the test_completion_gate_blocks_required_path_errors contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
     contract = GoalContractBuilder().build(task)
     state = AgentState(run_id="r1", task=task, status="success")
@@ -156,6 +220,16 @@ def test_completion_gate_blocks_required_path_errors(tmp_path):
 
 
 def test_completion_gate_ignores_resolved_required_path_error(tmp_path):
+    """Verify the test_completion_gate_ignores_resolved_required_path_error contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     task = {"task_type": "operator", "name": "dense", "op_type": "Dense"}
     contract = GoalContractBuilder().build(task)
     state = AgentState(run_id="r1", task=task, status="partial_success")
@@ -192,6 +266,13 @@ def test_completion_gate_ignores_resolved_required_path_error(tmp_path):
 
 
 def test_progress_supervisor_detects_repeated_failure_loop():
+    """Verify the test_progress_supervisor_detects_repeated_failure_loop contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     state = AgentState(run_id="r1", task={"task_type": "operator", "name": "dense"})
     todo = _todo("todo_1", "fallback.generate_operator_hls", status="failed")
     todo.requirement_ids = ["implementation.resolved"]
@@ -205,6 +286,13 @@ def test_progress_supervisor_detects_repeated_failure_loop():
 
 
 def test_rag_evidence_grader_rejects_wrong_anchor_and_prompt_injection():
+    """Verify the test_rag_evidence_grader_rejects_wrong_anchor_and_prompt_injection contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     grader = RAGEvidenceGrader()
 
     wrong = grader.grade_many(
@@ -224,7 +312,24 @@ def test_rag_evidence_grader_rejects_wrong_anchor_and_prompt_injection():
 
 
 def test_corrective_retriever_rewrites_once_and_abstains_when_needed():
+    """Verify the test_corrective_retriever_rewrites_once_and_abstains_when_needed contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     def retrieve(query, **_kwargs):
+        """Verify the retrieve contract.
+
+        The test should fail on a real contract regression rather than hide an unsupported path.
+
+        Args:
+            query: Value supplied by the caller and validated by the surrounding schema.
+
+        Returns:
+            The structured value promised by the function signature.
+        """
         if query == "densekernel":
             return [{"source_id": "doc1", "citation": {"source_id": "doc1"}, "text": "densekernel unroll guidance"}]
         return [{"source_id": "doc2", "citation": {"source_id": "doc2"}, "text": "unrelated resnet guidance"}]
@@ -239,6 +344,13 @@ def test_corrective_retriever_rewrites_once_and_abstains_when_needed():
 
 
 def test_claim_evidence_verifier_detects_unsupported_claim():
+    """Verify the test_claim_evidence_verifier_detects_unsupported_claim contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     result = ClaimEvidenceVerifier().verify(
         ["Dense reuse factor reduces DSP demand.", "ResNet is fully supported."],
         [{"text": "Dense reuse factor reduces DSP demand.", "citation": {"source_id": "doc1"}}],
@@ -249,6 +361,16 @@ def test_claim_evidence_verifier_detects_unsupported_claim():
 
 
 def test_tool_registry_blocks_success_when_semantic_postcondition_fails(tmp_path):
+    """Verify the test_tool_registry_blocks_success_when_semantic_postcondition_fails contract.
+
+    The test should fail on a real contract regression rather than hide an unsupported path.
+
+    Args:
+        tmp_path: Value supplied by the caller and validated by the surrounding schema.
+
+    Returns:
+        The structured value promised by the function signature.
+    """
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
