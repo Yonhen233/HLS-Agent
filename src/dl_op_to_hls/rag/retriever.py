@@ -38,6 +38,7 @@ GENERIC_QUERY_TOKENS = {
     "vivado",
 }
 ENTITY_TOKENS = {
+    "add",
     "cnn",
     "conv1d",
     "conv2d",
@@ -49,8 +50,10 @@ ENTITY_TOKENS = {
     "pooling",
     "qkeras",
     "qonnx",
+    "relu",
     "resnet",
     "resnet18",
+    "scaleshift",
     "transformer",
 }
 
@@ -73,11 +76,11 @@ def _anchor_tokens(query: str) -> set[str]:
 
 
 def _strong_anchor_tokens(query: str) -> set[str]:
-    """Rare identifiers such as structured error names should not be diluted by generic overlap."""
+    """Structured error identities must not be diluted by generic overlap."""
     return {
         token
         for token in _anchor_tokens(query)
-        if len(token) >= 10 or token.endswith("error") or token.endswith("notfounderror")
+        if token.endswith("error") or token.endswith("notfounderror")
     }
 
 
@@ -91,9 +94,11 @@ def _entity_anchor_groups(query: str) -> list[set[str]]:
             for part in re.split(r"[_<>.\-]+", token)
             if len(part) >= 4 and part not in GENERIC_QUERY_TOKENS and part != "demo"
         }
-        alpha_numeric = any(char.isalpha() for char in token) and any(char.isdigit() for char in token)
         known_entities = parts.intersection(ENTITY_TOKENS)
-        is_entity = token in ENTITY_TOKENS or alpha_numeric or token.endswith("error") or bool(known_entities)
+        # Shapes, fixed-point spellings, FPGA parts, and clock values are soft
+        # retrieval features. Treating every alphanumeric token as a hard
+        # identity constraint caused valid same-operator memories to vanish.
+        is_entity = token in ENTITY_TOKENS or token.endswith("error") or bool(known_entities)
         if not is_entity:
             continue
         specific = {
@@ -162,7 +167,6 @@ def _source_tokens(row: dict[str, Any]) -> set[str]:
 
 def _rank_adjustment(row: dict[str, Any], anchors: set[str], strong_anchors: set[str], text_tokens: set[str]) -> float:
     metadata = row.get("metadata") or {}
-    source_type = str(metadata.get("source_type") or "")
     source_tokens = _source_tokens(row)
     adjustment = 0.0
 
@@ -176,14 +180,6 @@ def _rank_adjustment(row: dict[str, Any], anchors: set[str], strong_anchors: set
 
     if strong_anchors:
         adjustment += 0.25 * len(strong_anchors.intersection(text_tokens))
-        if source_type == "static_doc":
-            # Playbooks are curated knowledge and should not be buried under many
-            # duplicated run memories when the exact structured error is queried.
-            adjustment += 0.75
-
-    if source_type in {"memory_fact", "procedural_memory"}:
-        adjustment += 0.04
-
     return adjustment
 
 
@@ -205,6 +201,7 @@ class RagRetriever:
         top_k: int = 5,
         domain: str | None = None,
         identity: dict[str, Any] | None = None,
+        metadata_filter: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         query_tokens = Counter(_tokenize(query))
         anchors = _anchor_tokens(query)
@@ -216,6 +213,8 @@ class RagRetriever:
             if domain and not self._matches_domain(row, domain):
                 continue
             if not self._matches_identity(row, identity):
+                continue
+            if not self._matches_metadata_filter(row, metadata_filter):
                 continue
             text = sanitize_memory_text(row["text"])
             if not text:
@@ -254,12 +253,23 @@ class RagRetriever:
                 }
             )
 
+        if domain == "parameter":
+            verified_candidates = [
+                item
+                for item in candidates
+                if item["entity_anchor_match"] and self._is_verified_parameter_evidence(item["row"])
+            ]
+            if verified_candidates:
+                candidates = verified_candidates
+                for item in candidates:
+                    item["result"]["retrieval"]["evidence_gate_passed"] = True
+
         # Missing legacy vectors are backfilled only for this bounded lexical/trust
         # frontier; already-indexed rows still participate in full dense recall.
         candidates.sort(
             key=lambda item: (
                 item["lexical_score"] + item["fts_score"] + max(-0.15, min(0.15, item["rank_adjustment"])),
-                item["trust"],
+                str(item["result"].get("source_id", "")),
             ),
             reverse=True,
         )
@@ -268,14 +278,13 @@ class RagRetriever:
         if scored is None:
             scored = self._lexical_rank(candidates, anchors, strong_anchors)
         selected: list[dict[str, Any]] = []
-        source_counts: Counter = Counter()
+        experience_counts: Counter = Counter()
         for _, result in scored:
-            source_id = str(result.get("source_id", ""))
-            source_family = self._source_family(source_id)
-            if source_counts[source_family] >= 2:
+            experience_key = self._experience_key(result)
+            if experience_counts[experience_key] >= 1:
                 continue
             selected.append(result)
-            source_counts[source_family] += 1
+            experience_counts[experience_key] += 1
             if len(selected) >= top_k:
                 break
         return selected
@@ -288,6 +297,31 @@ class RagRetriever:
         if normalized.startswith(("memory_fact:", "skill:")):
             return normalized.split(":", 1)[0]
         return normalized.split(":", 1)[0] if ":" in normalized and "://" not in normalized else normalized
+
+    @classmethod
+    def _experience_key(cls, result: dict[str, Any]) -> str:
+        metadata = result.get("metadata") or {}
+        run_id = str(metadata.get("run_id") or "").strip().lower()
+        if run_id:
+            return f"run:{run_id}"
+        return f"source:{cls._source_family(str(result.get('source_id') or ''))}"
+
+    @classmethod
+    def _limit_candidates_per_experience(
+        cls,
+        scored: list[tuple[float, dict[str, Any]]],
+        *,
+        limit: int,
+    ) -> list[tuple[float, dict[str, Any]]]:
+        counts: Counter = Counter()
+        selected: list[tuple[float, dict[str, Any]]] = []
+        for score, result in scored:
+            key = cls._experience_key(result)
+            if counts[key] >= limit:
+                continue
+            counts[key] += 1
+            selected.append((score, result))
+        return selected
 
     def _semantic_rank(
         self,
@@ -309,29 +343,71 @@ class RagRetriever:
                 return None
             return []
 
-        pre_ranked: list[tuple[float, dict[str, Any]]] = []
+        eligible: list[tuple[int, dict[str, Any], float, float]] = []
         for index, item in enumerate(candidates):
             if not item["entity_anchor_match"]:
                 continue
             semantic_score = float(semantic_scores.get(index, -1.0))
             lexical_signal = min(1.0, max(0.0, item["lexical_score"] + item["fts_score"]))
-            if semantic_score < self.semantic_engine.config.min_embedding_score and lexical_signal == 0.0:
+            evidence_gated = bool(item["result"]["retrieval"].get("evidence_gate_passed"))
+            if (
+                semantic_score < self.semantic_engine.config.min_embedding_score
+                and lexical_signal == 0.0
+                and not evidence_gated
+            ):
                 continue
-            semantic_normalized = max(0.0, min(1.0, (semantic_score + 1.0) / 2.0))
-            source_bonus = max(-0.15, min(0.15, item["rank_adjustment"] * 0.2))
-            pre_score = 0.72 * semantic_normalized + 0.18 * lexical_signal + 0.10 * item["trust"] + source_bonus
+            eligible.append((index, item, semantic_score, lexical_signal))
+
+        # Domain/entity filtering happens before either ranking. RRF therefore
+        # fuses the same safe candidate set instead of allowing a second
+        # retriever to reintroduce out-of-domain evidence.
+        lexical_order = sorted(
+            eligible,
+            key=lambda value: (
+                value[3] + max(-0.15, min(0.15, value[1]["rank_adjustment"])),
+                str(value[1]["result"].get("source_id", "")),
+            ),
+            reverse=True,
+        )
+        semantic_order = sorted(
+            eligible,
+            key=lambda value: (value[2], str(value[1]["result"].get("source_id", ""))),
+            reverse=True,
+        )
+        lexical_rank = {value[0]: rank for rank, value in enumerate(lexical_order, start=1)}
+        semantic_rank = {value[0]: rank for rank, value in enumerate(semantic_order, start=1)}
+        fusion_method = self.semantic_engine.config.fusion_method
+        if fusion_method != "rrf":
+            return None
+        rrf_k = self.semantic_engine.config.rrf_k
+        rrf_scores = {
+            index: (1.0 / (rrf_k + lexical_rank[index])) + (1.0 / (rrf_k + semantic_rank[index]))
+            for index, _, _, _ in eligible
+        }
+
+        pre_ranked: list[tuple[float, dict[str, Any]]] = []
+        for index, item, semantic_score, lexical_signal in eligible:
+            pre_score = rrf_scores[index]
             result = item["result"]
             result["retrieval"].update(
                 {
-                    "mode": "embedding_recall",
+                    "mode": "rrf_recall",
                     "embedding_model": self.semantic_engine.embedder.model_id,
                     "semantic_score": round(semantic_score, 4),
                     "pre_rerank_score": round(pre_score, 4),
+                    "lexical_rank": lexical_rank[index],
+                    "semantic_rank": semantic_rank[index],
+                    "rrf_k": rrf_k,
+                    "rrf_score": round(pre_score, 6),
                     "entity_anchor_guard_passed": True,
                 }
             )
             pre_ranked.append((pre_score, result))
         pre_ranked.sort(key=lambda value: (value[0], str(value[1].get("source_id", ""))), reverse=True)
+        # A long artifact can yield dozens of chunks. Bound its representation
+        # before CrossEncoder reranking so chunk count cannot crowd independent
+        # historical runs out of the candidate pool.
+        pre_ranked = self._limit_candidates_per_experience(pre_ranked, limit=2)
         pool_size = max(top_k, self.semantic_engine.config.candidate_pool_size)
         pool = pre_ranked[:pool_size]
         if not pool:
@@ -344,40 +420,47 @@ class RagRetriever:
             **recall_diagnostics,
             **rerank_diagnostics,
             "candidate_count": len(candidates),
+            "experience_limited_candidate_count": len(pre_ranked),
             "reranked_count": len(pool),
         }
         final: list[tuple[float, dict[str, Any]]] = []
         for index, (pre_score, result) in enumerate(pool):
             retrieval = result["retrieval"]
-            semantic_normalized = max(0.0, min(1.0, (float(retrieval["semantic_score"]) + 1.0) / 2.0))
-            lexical_signal = min(1.0, max(0.0, float(retrieval["lexical_score"])))
-            trust = float((result.get("provenance") or {}).get("trust_score") or 0.7)
             cross_score = rerank_scores.get(index)
-            if cross_score is not None and cross_score < self.semantic_engine.min_reranker_score:
+            evidence_gated = bool(retrieval.get("evidence_gate_passed"))
+            if (
+                cross_score is not None
+                and cross_score < self.semantic_engine.min_reranker_score
+                and not evidence_gated
+            ):
                 continue
             if cross_score is None:
-                final_score = 0.75 * semantic_normalized + 0.20 * lexical_signal + 0.05 * trust
-                mode = "embedding_only"
+                final_score = float(retrieval["rrf_score"])
+                mode = "rrf_embedding"
             else:
-                config = self.semantic_engine.config
-                final_score = (
-                    config.semantic_weight * semantic_normalized
-                    + config.lexical_weight * lexical_signal
-                    + config.reranker_weight * cross_score
-                    + config.trust_weight * trust
-                )
+                # The learned Cross-Encoder owns the final ordering. RRF is a
+                # deterministic tie-breaker, not an arbitrary score blend.
+                final_score = float(cross_score)
                 mode = "embedding_cross_encoder"
             retrieval.update(
                 {
                     "mode": mode,
                     "reranker_model": self.semantic_engine.reranker.model_id if cross_score is not None else None,
                     "cross_encoder_score": round(cross_score, 4) if cross_score is not None else None,
+                    "fusion_method": fusion_method,
                     "hybrid_score": round(final_score, 4),
                 }
             )
             result["score"] = round(final_score, 4)
             final.append((final_score, result))
-        final.sort(key=lambda value: (value[0], str(value[1].get("source_id", ""))), reverse=True)
+        final.sort(
+            key=lambda value: (
+                value[0],
+                float((value[1].get("retrieval") or {}).get("rrf_score") or 0.0),
+                str(value[1].get("source_id", "")),
+            ),
+            reverse=True,
+        )
         deduplicated = self._deduplicate_scored(final)
         for final_rank, (_, result) in enumerate(deduplicated, start=1):
             result["retrieval"]["final_rank"] = final_rank
@@ -393,7 +476,7 @@ class RagRetriever:
             **self.last_diagnostics,
             "mode": "lexical_fallback" if self.semantic_engine is not None else "lexical",
         }
-        scored: list[tuple[float, dict[str, Any]]] = []
+        scored: list[tuple[float, dict[str, Any], int]] = []
         for item in candidates:
             text_tokens = item["text_tokens"]
             if strong_anchors and not strong_anchors.intersection(text_tokens):
@@ -406,25 +489,48 @@ class RagRetriever:
                 item["lexical_score"]
                 + item["fts_score"]
                 + item["rank_adjustment"]
-                + 0.08 * item["trust"]
             )
             result = item["result"]
+            metadata = result.get("metadata") or {}
+            curated_playbook = int(
+                metadata.get("source_type") == "static_doc"
+                and bool(str(result.get("text") or ""))
+                and bool(strong_anchors)
+                and bool(strong_anchors.intersection(item["text_tokens"]))
+            )
             result["score"] = round(adjusted_score, 4)
             result["retrieval"].update(
                 {
                     "mode": self.last_diagnostics["mode"],
                     "hybrid_score": round(adjusted_score, 4),
+                    "curated_playbook_precedence": bool(curated_playbook),
                 }
             )
-            scored.append((adjusted_score, result))
-        scored.sort(key=lambda value: (value[0], str(value[1].get("source_id", ""))), reverse=True)
-        return self._deduplicate_scored(scored)
+            # This is a hard provenance policy for curated playbooks, not a
+            # numeric trust bonus: a matching playbook outranks duplicate run
+            # memories, while unrelated static documents remain ineligible.
+            scored.append((adjusted_score, result, curated_playbook))
+        scored.sort(
+            key=lambda value: (value[2], value[0], str(value[1].get("source_id", ""))),
+            reverse=True,
+        )
+        deduplicated = self._deduplicate_scored([(score, result) for score, result, _ in scored])
+        deduplicated.sort(
+            key=lambda value: (
+                int(bool((value[1].get("retrieval") or {}).get("curated_playbook_precedence"))),
+                value[0],
+                str(value[1].get("source_id", "")),
+            ),
+            reverse=True,
+        )
+        return deduplicated
 
-    @staticmethod
-    def _deduplicate_scored(scored: list[tuple[float, dict[str, Any]]]) -> list[tuple[float, dict[str, Any]]]:
+    @classmethod
+    def _deduplicate_scored(cls, scored: list[tuple[float, dict[str, Any]]]) -> list[tuple[float, dict[str, Any]]]:
         by_text: dict[str, tuple[float, dict[str, Any]]] = {}
         for score, result in scored:
-            key = " ".join(str(result.get("text") or "").lower().split())
+            normalized_text = " ".join(str(result.get("text") or "").lower().split())
+            key = f"{cls._experience_key(result)}\n{normalized_text}"
             previous = by_text.get(key)
             if previous is None or score > previous[0]:
                 by_text[key] = (score, result)
@@ -444,6 +550,23 @@ class RagRetriever:
             return False
         if namespace == "session" and metadata.get("session_id") != identity.get("session_id"):
             return False
+        return True
+
+    @staticmethod
+    def _matches_metadata_filter(row: dict[str, Any], metadata_filter: dict[str, Any] | None) -> bool:
+        if not metadata_filter:
+            return True
+        metadata = row.get("metadata") or {}
+        for key, expected in metadata_filter.items():
+            if expected is None or expected == "":
+                continue
+            actual = metadata.get(key)
+            if isinstance(expected, (list, tuple, set)):
+                allowed = {str(item).strip().lower() for item in expected}
+                if str(actual or "").strip().lower() not in allowed:
+                    return False
+            elif str(actual or "").strip().lower() != str(expected).strip().lower():
+                return False
         return True
 
     @staticmethod
@@ -472,6 +595,14 @@ class RagRetriever:
         if domain == "episodic":
             return memory_type == "episodic" or source_type in {"summary", "episodic"}
         return False
+
+    @staticmethod
+    def _is_verified_parameter_evidence(row: dict[str, Any]) -> bool:
+        metadata = row.get("metadata") or {}
+        return bool(
+            metadata.get("evidence_verified") is True
+            or metadata.get("memory_type") == "verified_implementation"
+        )
 
     def _candidate_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []

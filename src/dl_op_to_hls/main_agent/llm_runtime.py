@@ -96,6 +96,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         state.session_id = session_id
         run_id = str(checkpoint.get("run_id") or state.run_id)
         self.context = self.agent.create_run_context(run_id, session_id)
+        self.context["llm_client"] = self.llm_client
         self._record_context_modes()
         if state.release_manifest:
             self.context["release_manifest"] = dict(state.release_manifest)
@@ -235,6 +236,9 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         task = self._apply_generation_policy(task)
         run_id = self.agent.make_run_id(task)
         self.context = self.agent.create_run_context(run_id, self.session_id)
+        # Planner, Main ReAct and Specialist-local LLM work must share the
+        # exact same run-scoped client, release config and usage accounting.
+        self.context["llm_client"] = self.llm_client
         self._record_context_modes()
         self.skill_registry.pin_release_manifest(self.context.get("release_manifest") or {})
         self.llm_client.set_context(self.context)

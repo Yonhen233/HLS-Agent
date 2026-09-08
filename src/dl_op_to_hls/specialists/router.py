@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .base import BaseSpecialist
+from .codegen_specialist import CodegenSpecialist
 from .hls4ml_specialist import HLS4MLSpecialist
 from .memory_specialist import MemorySpecialist
 from .optimization_specialist import OptimizationSpecialist
@@ -36,6 +37,7 @@ class SpecialistRouter:
 def build_default_router(runtime_context: dict | None = None) -> SpecialistRouter:
     return SpecialistRouter(
         [
+            CodegenSpecialist(runtime_context),
             HLS4MLSpecialist(runtime_context),
             VivadoSpecialist(runtime_context),
             VerificationSpecialist(runtime_context),

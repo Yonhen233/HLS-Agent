@@ -185,6 +185,31 @@ OPTIMIZATION_SUGGESTION_SCHEMA: dict[str, Any] = {
     },
 }
 
+
+MEMORY_EXPERIENCE_SELECTION_SCHEMA: dict[str, Any] = {
+    "title": "MemoryExperienceSelectionSchema",
+    "type": "object",
+    "required": ["summary", "selected_candidates"],
+    "properties": {
+        "summary": {"type": "string"},
+        "selected_candidates": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "required": ["source_index", "summary"],
+                "properties": {
+                    "source_index": {"type": "integer"},
+                    "summary": {"type": "string"},
+                    "fact": {"type": ["string", "null"]},
+                    "title": {"type": "string"},
+                    "decision_indexes": {"type": "array", "items": {"type": "integer"}},
+                },
+            },
+        },
+    },
+}
+
 CANDIDATE_GENERATION_SCHEMA: dict[str, Any] = {
     "title": "CandidateGenerationSchema",
     "type": "object",

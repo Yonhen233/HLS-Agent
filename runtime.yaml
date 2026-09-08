@@ -20,10 +20,8 @@ runtime:
     candidate_pool_size: 32
     embedding_batch_size: 32
     rerank_batch_size: 16
-    semantic_weight: 0.30
-    lexical_weight: 0.10
-    reranker_weight: 0.55
-    trust_weight: 0.05
+    fusion_method: rrf
+    rrf_k: 60
     min_embedding_score: 0.12
     min_reranker_score: 0.02
     local_files_only: true

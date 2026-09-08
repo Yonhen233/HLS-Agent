@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+
+from ..core.errors import build_error
+from ..llm import prompts
+from ..llm.schemas import MEMORY_EXPERIENCE_SELECTION_SCHEMA
 from .base import BaseSpecialist
 from .context import ContextEnvelope
 from .result import SpecialistResult
@@ -9,6 +14,7 @@ class MemorySpecialist(BaseSpecialist):
     name = "MemorySpecialist"
     description = "Compresses run context and promotes approved memories into SQLite and RAG-backed retrieval."
     allowed_tools = [
+        "trace.query",
         "memory.write_short_term",
         "memory.compress_run_context",
         "memory.extract_memory_candidates",
@@ -29,6 +35,42 @@ class MemorySpecialist(BaseSpecialist):
             return self._handle_atomic(envelope, assigned_tool, tool_registry, permission_gate)
 
         observations = []
+        trace_decision = self._local_react_step(
+            envelope,
+            observations,
+            "trace.query",
+            {"run_id": envelope.run_id, "view": "memory_context", "max_items": 12},
+            force_deterministic=True,
+        )
+        if trace_decision["decision"] in {"mark_blocked", "mark_failed"}:
+            return self._finalize_result(envelope, self._failed_result_from_decision(envelope, observations, trace_decision))
+        trace_action = trace_decision.get("action") or {}
+        trace_package = self._call_tool(
+            trace_action.get("tool_name") or trace_action.get("tool") or "trace.query",
+            trace_action.get("arguments") or {"run_id": envelope.run_id, "view": "memory_context", "max_items": 12},
+            envelope,
+            tool_registry,
+            permission_gate,
+        )
+        observations.append({"tool": "trace.query", "result": self._compress_result(trace_package)})
+        if trace_package.get("status") != "success":
+            error = trace_package.get("error") or build_error(
+                "TraceReadError",
+                "MemorySpecialist could not read the bounded decision ledger projection.",
+                recoverable=True,
+                source="MemorySpecialist.trace.query",
+            ).to_dict()
+            return self._finalize_result(
+                envelope,
+                SpecialistResult(
+                    specialist_name=self.name,
+                    todo_id=envelope.todo_id,
+                    status="failed",
+                    summary="Memory promotion stopped because decision evidence was unavailable.",
+                    observations=observations,
+                    errors=[error],
+                ),
+            )
         compress_args = {"run_id": envelope.run_id}
         compress_decision = self._local_react_step(
             envelope,
@@ -72,6 +114,24 @@ class MemorySpecialist(BaseSpecialist):
         )
         observations.append({"tool": "memory.extract_memory_candidates", "result": self._compress_result(extracted)})
         candidates = extracted.get("candidates", [])
+        candidates, llm_summary_error = self._summarize_candidates_with_llm(
+            envelope,
+            candidates,
+            trace_package,
+            observations,
+        )
+        if llm_summary_error is not None:
+            return self._finalize_result(
+                envelope,
+                SpecialistResult(
+                    specialist_name=self.name,
+                    todo_id=envelope.todo_id,
+                    status="failed",
+                    summary="Memory promotion stopped because the LLM experience summary failed validation.",
+                    observations=observations,
+                    errors=[llm_summary_error],
+                ),
+            )
         promote_args = {"run_id": envelope.run_id, "candidates": candidates}
         promote_decision = self._local_react_step(
             envelope,
@@ -110,13 +170,119 @@ class MemorySpecialist(BaseSpecialist):
             summary=f"Promoted {count} long-term memories and refreshed compressed run context.",
             observations=observations,
             metrics={
-                "memory_candidates": candidates,
+                # Promotion already persisted the full evidence-backed records
+                # to SQLite/RAG. Return only a bounded projection to Main Agent.
+                "memory_candidates": [self._compact_candidate(item) for item in candidates],
                 "promoted_memories": promoted.get("promoted_memories", []),
             },
             artifacts=artifacts,
             errors=[promoted["error"]] if promoted.get("error") else [],
         )
         return self._finalize_result(envelope, specialist_result)
+
+    def _summarize_candidates_with_llm(self, envelope, candidates, trace_package, observations):
+        """Let the configured LLM select and word experience, never evidence."""
+        client = self.runtime_context.get("llm_client")
+        configured = self.runtime_context.get("memory_llm_summarization_enabled")
+        if configured is None:
+            provider = str(getattr(getattr(client, "config", None), "provider", "") or "").lower()
+            configured = provider != "fake"
+        if client is None or not client.is_enabled() or not configured:
+            observations.append({"type": "memory_summary", "mode": "deterministic_candidates", "selected_count": len(candidates)})
+            return candidates, None
+
+        candidate_views = []
+        for index, candidate in enumerate(candidates[:16]):
+            candidate_views.append(
+                {
+                    "source_index": index,
+                    "kind": str(candidate.get("kind") or "")[:80],
+                    "key": str(candidate.get("key") or "")[:160],
+                    "summary": str(candidate.get("summary") or "")[:600],
+                    "fact": str(candidate.get("fact") or "")[:600],
+                    "domain": str(candidate.get("domain") or "")[:80],
+                }
+            )
+        evidence = {
+            "decision_ledger": trace_package.get("decision_ledger", [])[-12:],
+            "todo_history": trace_package.get("todo_history", [])[-8:],
+            "failures": trace_package.get("failures", [])[-8:],
+            "evidence": trace_package.get("evidence", [])[-8:],
+        }
+        prompt_payload = {
+            "run_id": envelope.run_id,
+            "task_summary": {
+                key: envelope.task_summary.get(key)
+                for key in ("task_type", "op_type", "name", "objective", "input_shape", "output_shape", "dtype")
+                if envelope.task_summary.get(key) is not None
+            },
+            "candidates": candidate_views,
+            "evidence": evidence,
+            "rules": [
+                "Select only candidates by source_index.",
+                "Do not invent metrics or outcomes.",
+                "Return at most 8 durable design experiences.",
+                "Discard routine execution noise.",
+            ],
+        }
+        try:
+            response = client.complete_json(
+                prompts.resolve_prompt(self.runtime_context, "memory_extractor"),
+                json.dumps(prompt_payload, ensure_ascii=False, default=str),
+                MEMORY_EXPERIENCE_SELECTION_SCHEMA,
+                temperature=0.0,
+            )
+            selected = response.get("selected_candidates", [])
+            refined = []
+            for item in selected:
+                if not isinstance(item, dict) or not isinstance(item.get("source_index"), int):
+                    continue
+                index = item["source_index"]
+                if index < 0 or index >= len(candidates):
+                    continue
+                source = dict(candidates[index])
+                if item.get("summary"):
+                    source["summary"] = str(item["summary"])[:1200]
+                if item.get("fact"):
+                    source["fact"] = str(item["fact"])[:1200]
+                if item.get("title"):
+                    source["title"] = str(item["title"])[:240]
+                source["llm_selected"] = True
+                ledger = evidence["decision_ledger"]
+                decision_indexes = [
+                    value
+                    for value in item.get("decision_indexes", [])
+                    if isinstance(value, int) and 0 <= value < len(ledger)
+                ]
+                source["decision_evidence"] = {
+                    "source": trace_package.get("source_path"),
+                    "source_of_truth": trace_package.get("source_of_truth"),
+                    "records": [ledger[value] for value in decision_indexes[:8]],
+                }
+                refined.append(source)
+            observations.append(
+                {
+                    "type": "memory_summary",
+                    "mode": "llm",
+                    "summary": str(response.get("summary") or "")[:1200],
+                    "candidate_count_before": len(candidates),
+                    "selected_count": len(refined),
+                }
+            )
+            return refined, None
+        except Exception as exc:
+            error = getattr(exc, "error", None)
+            if error is not None and hasattr(error, "to_dict"):
+                error = error.to_dict()
+            else:
+                error = build_error(
+                    "LLMGenerationError",
+                    str(exc),
+                    recoverable=True,
+                    source="MemorySpecialist.memory_extractor",
+                    suggested_action="Fix the LLM response schema or retry memory extraction.",
+                ).to_dict()
+            return [], error
 
     def _handle_atomic(self, envelope, assigned_tool, tool_registry, permission_gate) -> SpecialistResult:
         observations = []
@@ -186,4 +352,32 @@ class MemorySpecialist(BaseSpecialist):
         return self._finalize_result(envelope, specialist_result)
 
     def _compress_result(self, result: dict) -> dict:
+        if result.get("view") == "memory_context":
+            return {
+                "status": result.get("status"),
+                "view": result.get("view"),
+                "source_of_truth": result.get("source_of_truth"),
+                "source_path": result.get("source_path"),
+                "decision_ledger": list(result.get("decision_ledger", [])[-12:]),
+                "todo_history": list(result.get("todo_history", [])[-8:]),
+                "failures": list(result.get("failures", [])[-8:]),
+                "evidence": list(result.get("evidence", [])[-8:]),
+            }
         return {key: value for key, value in result.items() if key not in {"short_term", "compressed_context"}}
+
+    @staticmethod
+    def _compact_candidate(candidate: dict) -> dict:
+        """Return a bounded Main-Agent projection after full promotion is persisted."""
+        compact = {
+            key: candidate.get(key)
+            for key in ("kind", "key", "summary", "fact", "title", "domain", "llm_selected")
+            if candidate.get(key) is not None
+        }
+        evidence = candidate.get("decision_evidence")
+        if isinstance(evidence, dict):
+            compact["decision_evidence"] = {
+                "source": evidence.get("source"),
+                "source_of_truth": evidence.get("source_of_truth"),
+                "record_count": len(evidence.get("records") or []),
+            }
+        return compact

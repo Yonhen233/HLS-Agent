@@ -1,486 +1,297 @@
-# 深度学习算子转 HLS Agent
+# DL-to-HLS Agent
 
-完整 LLM Agent Harness 的架构、会话、权限、上下文、记忆、RAG、Skill、MCP 与评测实现，见 [成熟 LLM Agent 架构文档](docs/mature_llm_agent_architecture.md)。
+面向 FPGA 高层次综合的 Coding Agent Harness：将深度学习算子、小型模型或已有 HLS 工程转换为可验证、可综合、可追踪的 HLS 实现。
 
-英文名：`DL-Operator-to-HLS-Agent`
+项目不是简单地让 LLM 输出一段 C++。它围绕真实工程闭环组织工作：理解目标、规划步骤、生成候选实现、编写 Golden Testbench、调用 Vivado HLS、解析时延与资源报告、失败修复、沉淀经验，并要求每个成功结论都能追溯到工具产物。
 
-命令行名：`dl-op-to-hls`
+> 当前边界：生成并验证 HLS 工程，不生成 bitstream，不做上板验证，也不承诺支持任意神经网络。
 
-这是一个面向 FPGA HLS 工作流的 Agent 工程原型：用户输入深度学习算子、小模型或已有 HLS 工程任务，系统通过 Agent 编排 LLM Candidate、Vivado HLS 工具、受限基线模板、RAG Memory、SQLite 元数据和 Specialist Sub-agent，生成候选 HLS 工程、执行功能/综合验证、解析报告，并给出可追踪的优化建议。当前算子 Benchmark 默认采用 LLM Candidate 主路径；hls4ml 不参与该主路径。
+## 能解决什么问题
 
-本项目的重点不是“支持任意模型”，而是展示一套可面试演示、可调试、可扩展的 Agent 工程架构。
+用户可以输入：
 
-## 项目边界
+- 一个算子描述，例如 Dense、MatMul、ReLU、Add、ScaleShift 或受支持的静态 Conv2D。
+- 一个 ONNX/QONNX 小模型。
+- 一个已有 HLS C++ 工程。
+- 一段自然语言需求，例如“把这个 Dense 算子转成 HLS，在资源预算内优先降低 II”。
 
-- 本项目是深度学习算子/小模型到 HLS 的 Agent 原型。
-- 不生成 bitstream。
-- 不做上板验证。
-- 不承诺支持任意 PyTorch/ONNX/QONNX/QKeras 模型。
-- LLM 生成的 HLS 代码必须经过验证，不能直接作为最终实现。
-- SQLite 是结构化事实源；RAG 只是检索层，不替代数据库。
-- `run`、`agent-run` 和 `run-llm` 都进入持久化 LLM Agent Runtime；LLM 不可用时不会静默退回规则 planner。
-- `run-baseline` 只保留为兼容和消融实验入口，不是产品主路径。
-- 算子任务默认 `llm_candidate.required=true`；模板只用于公平基线与已验证实现复用，不作为静默兜底。
-- Unit、Mock、Fixture、Real CSim 与 Real CSynth 分开统计，任何真实指标必须绑定当前 Run Artifact 与 SHA256。
+Agent 会根据任务和目标选择执行路径：
 
-## 算子 Benchmark
+```text
+用户需求
+  -> LLM Planner 生成 Todo DAG
+  -> Main Agent 调度 Specialist
+  -> 复用已验证实现，或生成新的 LLM Candidate
+  -> Candidate Sandbox 静态检查
+  -> Golden CSim 功能验证
+  -> Vivado HLS CSynth
+  -> 报告解析与证据门禁
+  -> 优化建议、Trace、Artifact 和长期经验
+```
+
+只有满足相应证据条件时，状态才会提升为 `functional_verified` 或 `deployment_ready_candidate`。LLM 不能只凭文字宣称任务完成。
+
+## 快速开始
+
+### 1. 安装
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m dl_op_to_hls.cli operator-benchmark --output runs\benchmarks\operator_release.json
-python -m dl_op_to_hls.cli operator-onnx-benchmark --output benchmarks\operator_onnx_graph_results.json
-python -m dl_op_to_hls.cli operator-fair-comparison --output benchmarks\operator_template_vs_llm_results.json
-python -m dl_op_to_hls.cli agent-interview-benchmark --output runs\benchmarks\agent_interview_release.json
+git clone https://github.com/Yonhen233/HLS-Agent.git
+cd HLS-Agent
+python -m pip install -e .
 ```
 
-统一报告包含 120 个独立 Layer-1 Golden Case、真实 CSim/CSynth 证据、LLM pass³、20 个生产组件 Bad Case、26 个真实 ONNX 图契约和 4 组 Dense/MatMul template-vs-LLM 公平对照。ONNX 适配器在该评测中只负责静态图契约提取，HLS 生成仍走 LLM Candidate；公平对照使用预声明 exact Run ID，不做 best-of 筛选。
-
-面向 Agent 岗位的统一 Benchmark 额外汇总冻结真实 Run、真实 LLM 开放任务规划、RAG hard-negative、Guard 消融、Specialist 上下文隔离以及恢复/幂等探针。指标定义、结果和严格口径见 [Agent 面试量化 Benchmark](docs/agent_interview_benchmark.md)。添加 `--run-open-llm` 才会调用已配置的真实模型；默认只复算本地证据和受控组件实验。
-
-关键文档：`docs/operator_support_audit.md`、`docs/operator_testing_methodology.md`、`docs/operator_interview_guide.md`。
-
-## 核心架构
-
-```text
-User Task
-  ↓
-Durable Session
-  - conversation / checkpoint / interrupt / resume / rollback / approval
-  ↓
-Main Agent
-  - 全局任务理解
-  - TodoList 管理
-  - bounded scheduler / Specialist 调度
-  - 状态合并
-  - Trace / Artifact / Memory / Summary
-  ↓
-Todo-driven Plan-Execute-ReAct Runtime
-  - 外层：Plan → TodoList → Execute → Reflect → Finalize
-  - 内层：Main Agent ReAct 或 Specialist Local ReAct
-  ↓
-Specialist Sub-agents
-  - HLS4MLSpecialist
-  - VivadoSpecialist
-  - VerificationSpecialist
-  - OptimizationSpecialist
-  - MemorySpecialist
-  ↓
-Correlated Agent Message Bus
-  - delegation_request / delegation_result
-  ↓
-Skill Policy / ToolRegistry / MCP-style Tools
-  - JSON Schema contract / permission / approval / retry / cache / budget
-  - hls4ml tools
-  - Vivado HLS tools
-  - fallback templates
-  - report parser
-  - memory / RAG / DB tools
-  ↓
-Artifacts + SQLite + RAG
-```
-
-## 为什么这是 Agent 工程项目
-
-本项目不只是脚本串联。它包含：
-
-- Tool Registry：所有工具统一注册、调用、追踪。
-- Permission Gate：限制文件读写和命令执行，避免工具越权。
-- Hook / Trace：每次运行生成 `trace.jsonl`，记录 Run、Todo、Tool、Specialist、LLM 事件。
-- AgentState：运行状态可序列化，失败也保存。
-- Artifact Manager：所有生成文件登记到 manifest。
-- Structured Error：失败以结构化错误返回，支持 partial success。
-- Context Compression：原始长日志和报告保存为 artifact，Agent 只接收摘要。
-- Memory Layer：短期记忆、长期 episodic/semantic memory、skills/playbooks。
-- RAG Memory：embedding recall + cross-encoder rerank，从 summary、suggestions、compressed context、memory facts 检索历史经验，并保留 FTS 降级、证据门禁和实体污染防护。
-- Todo Board：每个任务拆成可观察、可恢复、可追踪的 TodoItem。
-- Plan-Execute-ReAct Hybrid：全局规划与局部 ReAct 决策结合。
-- Specialist Sub-agent：领域任务隔离，避免 Main Agent 污染上下文。
-- Durable Session：支持用户中断、Todo 边界 checkpoint、断点恢复、回滚、消息撤回和按参数哈希审批。
-- Agent Message Bus：Main Agent 与 Specialist 通过持久化、可关联的 request/result 消息通信。
-- Bounded Scheduler：只并行独立只读工作，LLM 调用和全局状态合并保持串行。
-- Run Budget：统一约束 LLM calls、tool calls 和 provider token usage，显式记录 cache hit 与预算超限。
-- Tool/Skill Contract：工具输入输出做 schema 校验；Skill 带版本、状态、权限、上下文、预算和并行策略。
-
-## 两层 ReAct 设计
-
-### Main Agent ReAct
-
-Main Agent 不直接看到 Specialist 的私有底层工具。它只允许以下高层动作：
-
-```text
-delegate_to_specialist
-direct_tool_only_when_no_specialist
-request_replan
-mark_blocked
-mark_failed
-```
-
-这能防止 Main Agent 绕过 Specialist，直接拼接 `hls4ml.*` 或 `vivado.*` 工具参数。
-
-### Specialist Local ReAct
-
-每个 Specialist 内部有自己的局部 ReAct decider，输入被限制为：
-
-```text
-ContextEnvelope
-allowed_tools
-recent specialist observations
-candidate arguments
-```
-
-输出只允许：
-
-```text
-call_tool
-mark_blocked
-mark_failed
-finish_with_result
-```
-
-Specialist 只能调用自己的 `allowed_tools`，并且只能返回压缩后的 `SpecialistResult`，不能直接修改完整 `AgentState` 或长期 memory。
-
-## Specialist 分工
-
-- `HLS4MLSpecialist`：模型检查、hls4ml 支持判断、配置生成、模型转换。
-- `VivadoSpecialist`：Vivado HLS project 创建、csim/csynth、报告解析。
-- `VerificationSpecialist`：fallback/LLM candidate 的 testbench、csim、验证。
-- `OptimizationSpecialist`：结合 report、objective、RAG/memory 生成优化建议。
-- `MemorySpecialist`：压缩上下文、抽取 memory candidate、长期记忆提升、RAG 索引。
-
-## Memory 分层
-
-```text
-L0 Runtime State
-  AgentState / state.json / current todo / tool results
-  注意：L0 是运行状态，不是真正 memory。
-
-L1 Short-term Memory
-  当前 run 的压缩上下文、近期决策、错误摘要。
-
-L2 Long-term Episodic Memory
-  历史 run、实现、综合结果、失败案例，存入 SQLite。
-
-L3 Long-term Semantic Memory
-  从多次 run 中总结出的事实和经验，存入 memory_facts + RAG。
-
-L4 Skills / Playbooks
-  可复用流程：hls4ml path、fallback path、Vivado synthesis、unsupported path 等。
-```
-
-## 运行模式
-
-### 持久化 LLM Agent 主流程
+可选依赖：
 
 ```powershell
-$env:PYTHONPATH="src"
+python -m pip install -e ".[real-toolchain]"
+python -m pip install -e ".[rag]"
+```
+
+### 2. 配置 LLM
+
+项目支持 OpenAI-compatible API。密钥只通过环境变量传入，不要写进仓库：
+
+```powershell
 $env:DL_OP_TO_HLS_LLM_ENABLED="1"
 $env:DL_OP_TO_HLS_LLM_PROVIDER="openai-compatible"
-$env:DL_OP_TO_HLS_LLM_BASE_URL="https://your-openai-compatible-endpoint/v1"
+$env:DL_OP_TO_HLS_LLM_BASE_URL="https://your-endpoint/v1"
 $env:DL_OP_TO_HLS_LLM_MODEL="your-model"
 $env:DL_OP_TO_HLS_LLM_API_KEY="<your-api-key>"
-python -m dl_op_to_hls.cli run examples/dense_operator.json
 ```
 
-`agent-run`、`run-llm` 是同一主 Runtime 的显式别名。确定性版本仅用于回归对照：
+### 3. 运行一个任务
 
 ```powershell
-python -m dl_op_to_hls.cli run-baseline examples/dense_operator.json
+dl-op-to-hls agent-run examples\dense_operator.json --real-tools
 ```
 
-### 会话控制
+`run`、`run-llm` 和 `agent-run` 进入同一套持久化 LLM Agent Runtime；`run-baseline` 仅用于确定性对照实验。
+
+### 4. 连续对话
 
 ```powershell
-python -m dl_op_to_hls.cli session-list
-python -m dl_op_to_hls.cli session-interrupt <session_id> --reason "pause"
-python -m dl_op_to_hls.cli session-checkpoints <session_id>
-python -m dl_op_to_hls.cli session-resume <session_id>
-python -m dl_op_to_hls.cli session-rollback <session_id> --steps 1
-python -m dl_op_to_hls.cli session-retract <session_id>
+dl-op-to-hls chat --real-tools
 ```
 
-### 连续对话 CLI
-
-项目还提供持久化的多轮自然语言入口：
-
-```powershell
-python -m dl_op_to_hls.cli chat
-```
-
-启动后普通文本会连续提交到同一个 Agent session，后续请求会携带压缩后的历史摘要、最近消息和上一轮任务。例如：
+示例：
 
 ```text
-> 把这个 Dense 算子转换成 HLS，优先优化 latency
-> 在不明显增加 latency 的情况下继续降低 DSP
+> 把 Dense 16x32 转成 HLS，优先优化资源
+> 保持功能验证通过，再尝试降低 DSP
 > /status
 > /exit
 ```
 
-`/status` 查看当前 session，`/help` 查看命令，`/exit` 或 `/quit` 退出。退出后可用 `dl-op-to-hls chat --session-id <session_id>` 继续同一会话。聊天终端只显示压缩结果，完整 AgentState、Todo、Trace、Memory 和 artifacts 仍按原有路径保存。详细说明见 `docs/interactive_chat.md`。
-
-详细设计、状态机、安全边界和评测口径见 `docs/llm_agent_runtime_v2.md`。
-
-### Demo / strict 优化建议模式
-
-仓库主配置使用 `production + strict`，LLM 优化失败会返回结构化错误，不会用规则结果伪装 LLM 成功。仅在确定性基线或离线演示中显式开启 `demo`：
+会话退出后可继续：
 
 ```powershell
-$env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="demo"
+dl-op-to-hls chat --session-id <session_id> --real-tools
 ```
 
-主路径保持 `strict`：
+## 接入真实 Vivado HLS
 
-```powershell
-$env:DL_OP_TO_HLS_OPTIMIZATION_FALLBACK_MODE="strict"
-```
-
-## hls4ml / Vivado HLS / Vitis HLS 配置
-
-hls4ml 是 Python 库；安装后可走真实 hls4ml path。HLS 综合工具支持两种配置：
-
-- `vivado_hls`：默认路径，适合当前稳定 demo，使用 Vivado HLS 2018.3。
-- `vitis_hls`：可选现代路径，使用 Vitis 2025.2.1 的 `vitis-run --mode hls`。
-
-Vivado HLS 2018.3：
+Vivado HLS 2018.3 示例配置：
 
 ```powershell
 $env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vivado_hls"
-$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vivado"
 $env:DL_OP_TO_HLS_VIVADO_HLS_PATH="D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"
-```
-
-Vitis HLS 2025.2.1：
-
-```powershell
-$env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vitis_hls"
-$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vitis"
-$env:DL_OP_TO_HLS_VITIS_HLS_PATH="D:\vitis25.2.1\2025.2.1\Vitis\bin\vitis-run.bat"
-```
-
-当前真实对比结论：Vitis 已经接入并可生成真实 report，但 Demo2 5ns timing 未通过，Demo3/Demo4 的 latency 与 LUT/FF 相比 Vivado 2018.3 更高。因此默认仍保持 `vivado_hls`，Vitis 作为可选真实工具链继续优化。
-
-如需强制演示环境使用 mock 工具：
-
-```powershell
-$env:DL_OP_TO_HLS_MOCK_HLS4ML="1"
-$env:DL_OP_TO_HLS_MOCK_VIVADO="1"
-python -m dl_op_to_hls.cli run examples/dense_operator.json --mock-tools
-```
-
-## Demo 任务
-
-| Demo | 文件 | 类型 | 目标路径 | 作用 |
-|---|---|---|---|---|
-| Demo 0 | `examples/dense_operator.json` | operator | fallback_template | 最稳演示，展示 Agent 工程闭环 |
-| Demo 1 | `examples/matmul_resource.json` | operator | fallback_template | 展示 latency/resource trade-off |
-| Demo 2 | `examples/mnist_mlp_hls4ml.json` | model | hls4ml | 展示 hls4ml 主路径 |
-| Demo 3 | `examples/mnist_tiny_cnn.json` | model | hls4ml | 展示经典 CNN |
-| Demo 4 | `examples/mnist_qonnx_cnn.json` | model | hls4ml / qonnx | 展示 Torch/QONNX FPGA-aware 量化路径 |
-| Demo 5 | `examples/tiny_residual_block.json` | model | partial / rewrite / boundary | 展示 residual block 边界处理 |
-| Demo 6 | `examples/resnet18_boundary.json` | model | unsupported_report | 展示 Agent 不盲目承诺 |
-
-## 真实 MNIST 识别 Demo
-
-如果要演示“生成的 HLS 代码真的能识别数字”，需要使用训练好的权重和带 label 的测试样本，而不是随机初始化模型。当前项目新增了一个真实识别 demo：
-
-```text
-examples/mnist_recognition_mlp.json
-```
-
-训练或重新生成模型：
-
-```powershell
-$env:PYTHONPATH="src"
-python scripts/train_mnist_recognition_mlp.py --epochs 4 --eval-samples 5000 --reference-samples 20 --target-accuracy 0.90
-```
-
-真实 hls4ml + Vivado HLS 2018.3 运行：
-
-```powershell
-$env:PYTHONPATH="src"
 $env:DL_OP_TO_HLS_MOCK_HLS4ML="0"
 $env:DL_OP_TO_HLS_MOCK_VIVADO="0"
-$env:DL_OP_TO_HLS_HLS_TOOLCHAIN="vivado_hls"
-$env:DL_OP_TO_HLS_HLS4ML_BACKEND="Vivado"
-$env:DL_OP_TO_HLS_VIVADO_HLS_PATH="D:\Xilinx\Vivado\2018.3\bin\vivado_hls.bat"
-python -m dl_op_to_hls.cli run examples/mnist_recognition_mlp.json
 ```
 
-已验证的真实 run：
+Vivado 本身不原生支持 MCP。项目通过 Adapter 将其命令行和 TCL 自动化流程封装为标准 MCP Tools：
 
 ```text
-runs/mnist_recognition_mlp_234d539d
+VivadoSpecialist
+  -> Tool Registry / Permission Gate / Trace
+  -> MCP Client
+  -> JSON-RPC over stdio
+  -> Vivado MCP Server
+  -> VivadoHLSAdapter
+  -> vivado_hls.bat -f run_hls.tcl
 ```
 
-关键结果：
+MCP Server 基于官方 Python MCP SDK，支持：
 
-| 指标 | 结果 |
-|---|---:|
-| Run status | success |
-| Pipeline level | deployment_ready_candidate |
-| Python/ONNX reference accuracy | 95% |
-| HLS csim accuracy | 95% |
-| HLS vs ONNX argmax match rate | 100% |
-| Timing met | true |
-| Latency max | 1237 cycles |
-| DSP / BRAM / LUT / FF | 133 / 48 / 31792 / 21275 |
+- 标准 stdio 与 Streamable HTTP。
+- `tools/list` 动态发现。
+- 输入和输出 JSON Schema。
+- Progress 与 Cancellation 通知。
+- 结构化错误和结果。
+- stderr 隔离与协议 stdout 保护。
+- 客户端和服务端双层权限检查。
+- 非幂等综合调用禁止在传输故障后盲目重放。
 
-说明：该 demo 的 fixed-point logits 数值误差较大，但 HLS argmax 和 ONNX argmax 完全一致，且 HLS 对 20 个样本的识别准确率达到 95%。因此 summary 中会同时保留 numeric drift 和 recognition verification 两类指标。
-
-递进运行：
+本地 EDA 推荐 stdio：
 
 ```powershell
-$env:PYTHONPATH="src"
-python -m dl_op_to_hls.cli run examples/dense_operator.json --mock-tools
-python -m dl_op_to_hls.cli run examples/matmul_resource.json --mock-tools
-python -m dl_op_to_hls.cli run examples/mnist_mlp_hls4ml.json --mock-tools
-python -m dl_op_to_hls.cli run examples/mnist_tiny_cnn.json --mock-tools
-python -m dl_op_to_hls.cli run examples/mnist_qonnx_cnn.json --mock-tools
-python -m dl_op_to_hls.cli run examples/tiny_residual_block.json --mock-tools
-python -m dl_op_to_hls.cli run examples/resnet18_boundary.json --mock-tools
+$env:DL_OP_TO_HLS_MCP_TRANSPORT="stdio"
+dl-op-to-hls agent-run examples\dense_operator.json --real-tools
 ```
 
-每次 run 会生成：
+也可以单独启动本机 Streamable HTTP Server：
+
+```powershell
+dl-op-to-hls serve-hls4ml --transport streamable-http --host 127.0.0.1 --port 8000
+dl-op-to-hls serve-vivado-hls --transport streamable-http --host 127.0.0.1 --port 8001
+```
+
+未配置 OAuth 时，HTTP 服务只能监听 loopback。公网部署必须配置 OAuth 2.1、HTTPS 和受保护资源元数据。
+
+## Agent 架构
+
+### Todo-driven Plan-Execute-ReAct
+
+外层使用 Plan-Execute 管理长流程：
 
 ```text
-runs/<run_id>/state.json
-runs/<run_id>/todos.json
-runs/<run_id>/trace.jsonl
-runs/<run_id>/artifacts.json
-runs/<run_id>/summary.md
-runs/<run_id>/suggestions.md
-runs/<run_id>/memory/*.json
-runs/<run_id>/specialists/*/summary.json
+Plan -> Todo DAG -> Execute -> Reflect/Replan -> Finalize
 ```
 
-## 常用命令
+局部异常通过 ReAct 处理：
 
-```powershell
-$env:PYTHONPATH="src"
-
-python -m dl_op_to_hls.cli llm-status
-python -m dl_op_to_hls.cli report runs/<run_id>
-python -m dl_op_to_hls.cli suggest runs/<run_id>
-python -m dl_op_to_hls.cli rag-search "Dense reuse factor DSP"
-python -m dl_op_to_hls.cli rag-backfill --batch-size 256
-python -m dl_op_to_hls.cli memory-search "Dense high DSP reuse factor"
-python -m dl_op_to_hls.cli db-list-runs
-python -m dl_op_to_hls.cli skills-list
-python -m dl_op_to_hls.cli specialists-list
-python -m dl_op_to_hls.cli specialist-show VivadoSpecialist
+```text
+Reason -> Tool Call -> Observation -> Decision
 ```
 
-Semantic RAG 的可选依赖与本地模型需要在部署阶段准备：
+当工具和参数已经由 Planner 明确确定时，Runtime 不会重复调用 LLM 再做一次相同选择；只有参数缺失、工具结果异常、需要修复或改变路径时，才触发局部 ReAct。这兼顾了 Agent 决策能力、调用成本和行为稳定性。
 
-```powershell
-python -m pip install -e ".[rag]"
-python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+### 中心调度式 Multi-Agent
+
+Main Agent 拥有全局状态、Todo DAG 和最终决策权。领域任务被委派给 Specialist：
+
+| Specialist | 职责 |
+|---|---|
+| CodegenSpecialist | 生成或修复 HLS Candidate |
+| HLS4MLSpecialist | 模型检查、配置与可选 hls4ml 转换 |
+| VivadoSpecialist | CSim、CSynth、日志及报告解析 |
+| VerificationSpecialist | Golden Testbench、参考输出比对和验证状态 |
+| OptimizationSpecialist | 根据目标、报告和历史经验提出优化建议 |
+| MemorySpecialist | 抽取有证据的经验并写入长期记忆 |
+
+Main Agent 为每次委派构建受 Token Budget 限制的 `ContextEnvelope`。Specialist 只能看到当前任务所需的摘要、Artifact 引用、相关经验和允许工具，不能读取完整 AgentState，也不能越过 Tool Registry。
+
+### Skill、Tool 与 MCP
+
+- Skill 描述某类任务“应该如何做”，包含触发条件、步骤、允许工具和成功标准。
+- Tool 执行一个原子动作，例如生成候选、运行 CSim 或解析报告。
+- MCP 标准化进程间的工具发现和调用，不负责 Planner、Memory 或 Agent 决策。
+- Tool Registry 是统一网关，负责 Schema、权限、重试、缓存、预算、Trace 和证据后置条件。
+
+## 长任务与恢复
+
+三个机制分别工作在不同层次：
+
+- SQLite WAL：可靠存储底座，改善并发读写与崩溃恢复。
+- Durable Queue：管理任务领取、租约、去重、重试和完成提交。
+- Incremental Checkpoint：在 Planner 和 Todo 边界保存 AgentState、Todo、预算和证据状态。
+
+进程中断后，Agent 从最近有效 Checkpoint 恢复未完成 Todo；这不表示能从 Vivado 进程内部的某个综合百分比继续，而是避免重新执行已经有有效证据的前置阶段。
+
+## 经验复用
+
+SQLite 是 source of truth，RAG 是检索层。只有具备相应真实证据的实现、失败和优化经验才能进入高置信长期记忆。
+
+检索链路为：
+
+```text
+任务域过滤
+  -> BM25 + Embedding 召回
+  -> RRF 融合
+  -> Cross-Encoder 精排
+  -> 证据门禁与来源去重
+  -> Top-K 经验摘要
 ```
 
-`runtime.yaml` 默认使用本地模型制品。模型不可用时会明确记录 `lexical_fallback`；不会把降级结果记作 embedding/cross-encoder 成功。
+累计语料包含 16,062 个历史片段和对应 Embedding。方法级真实经验评测包含 105 条 leave-one-source-out 查询；在生产检索配置下取得 `Hit@5=92.38%`、`MRR=90.48%`、`Recall@5=11.82%`。Recall 较低的主要原因是每条方法查询可能对应大量相关历史来源，而 Top-5 最多返回 5 条；因此 Hit 与 MRR 更适合衡量运行时是否及时找到可用经验。该数据集属于单人规则化弱标注，不等同于独立双人标注的开放域 Gold Set。
 
-## Benchmark / Quantitative Evaluation
+## 上下文管理
 
-The project includes an Agent-quality benchmark. The primary evaluation focus is Agent behavior, not hardware score chasing: path/toolchain selection, bucketed task success, unsupported honesty, repair success, trace completeness, RAG evidence hit/pollution, LLM harness signals, and runtime/tool/LLM/token cost. Hardware latency/resource metrics are secondary evidence for the real MNIST path.
+- Main Agent 只维护全局摘要、Todo、关键决策和结构化结果。
+- Specialist 通过 ContextEnvelope 接收裁剪后的局部上下文。
+- 原始日志、报告和 HLS C++ 作为 Artifact 保存，不直接注入 LLM。
+- 历史经验按任务域和 Top-K 检索，不加载完整 Memory DB。
+- Workspace 使用增量文件清单、符号索引和按需行读取。
 
-```powershell
-$env:PYTHONPATH="src"
-$env:DL_OP_TO_HLS_LLM_API_KEY="<set-locally>"
-$env:DL_OP_TO_HLS_LLM_ENABLED="1"
-$env:DL_OP_TO_HLS_LLM_PROVIDER="openai-compatible"
-$env:DL_OP_TO_HLS_LLM_BASE_URL="https://api.deepseek.com"
-$env:DL_OP_TO_HLS_LLM_MODEL="deepseek-v4-pro"
-python -m dl_op_to_hls.cli benchmark `
-  --run-suite `
-  --suite-file benchmarks\mnist_agent_quality_suite.json `
-  --rag-eval-file benchmarks\rag_eval_labels.json `
-  --rag-top-k 5 `
-  --output runs\benchmarks\mnist_agent_quality_suite.json `
-  --quiet
+在配对上下文消融实验中，真实 API Prompt Token 中位数由 `53,078` 降至 `24,269`，减少 `54.28%`。该指标衡量发送给模型的 Prompt Token，不等价于离线 Envelope 字节压缩率；实验没有证明墙钟时间稳定下降。
+
+## 证据与可观测性
+
+每次运行会生成：
+
+```text
+runs/<run_id>/
+  state.json
+  todos.json
+  trace.jsonl
+  artifacts.json
+  report.json
+  summary.md
+  suggestions.md
+  memory/
+  specialists/
 ```
 
-Use `--quiet` for long evaluations so the run writes JSON/Markdown artifacts without continuously printing the full payload. Do not store API keys in repository files.
+Trace 记录 Planner、Todo 状态迁移、Specialist 路由、Decision Ledger、工具调用、Artifact、Evidence Receipt 和结构化异常。它用于还原执行链路；Session Runtime 使用 Checkpoint 实际执行恢复。
 
-The recommended suite is MNIST-first because `examples/mnist_recognition_mlp.json` is the currently verified real path. Smaller fallback, unsupported, and toolchain-recovery cases remain as Agent contract buckets.
+## 示例与演示
 
-For LLM Agent harness evaluation, run `benchmarks\llm_agent_harness_suite.json`. It keeps MNIST as the primary real-tool case, then adds LLM-first fallback, existing-project, unsupported-honesty, LLM candidate generation, and forced candidate repair/recovery cases. This suite is intentionally harder than the MNIST smoke suite and is better suited for Agent-role interview discussion.
+| 示例 | 输入 | 主要展示内容 |
+|---|---|---|
+| `dense_operator.json` | Dense 算子 | LLM Candidate、Golden CSim、CSynth 闭环 |
+| `matmul_resource.json` | MatMul 算子 | 资源目标与复用权衡 |
+| `mnist_mlp_hls4ml.json` | ONNX MLP | 模型输入与可选 hls4ml 路径 |
+| `mnist_tiny_cnn.json` | 小型 CNN | Conv/Pool 模型边界 |
+| `mnist_qonnx_cnn.json` | Torch/QONNX | FPGA-aware 量化模型输入 |
+| `tiny_residual_block.json` | Residual Block | Rewrite 与能力边界 |
+| `resnet18_boundary.json` | ResNet18 边界 | 安全拒绝而不是盲目承诺 |
+| `mnist_recognition_mlp.json` | 训练权重 MNIST | Python/ONNX 与 HLS 识别结果比对 |
 
-See `docs/benchmark_metrics.md` for metric definitions and interview-ready interpretation.
-
-上下文管理另有一组严格的 A/B/C 实验：`full+raw`、`scoped+raw`、`scoped+compressed`。90 次真实 DeepSeek-V4-Pro + Vivado HLS 运行的设计、Token、配对置信区间、负面结果和可用于简历的严格口径见 [上下文压缩真实消融评测](docs/context_ablation_final_report.md)。该实验确认了 Token 减载，但由于三组 Golden CSim/CSynth 均为 0，明确不宣称“压缩保持了成功执行效果”。
-
-The production-oriented Harness extensions, including durable workers, exactly-once state commit, release canaries, FAISS HNSW, hard-negative reranker calibration, OpenTelemetry/SLO, credential leases, container policy, and feedback quarantine, are documented in `docs/production_llm_agent_harness.md`.
-
-Bad Case governance is exercised separately from happy-path success metrics. It covers incomplete-plan repair, false-success prevention, RAG abstention/injection/contradiction handling, repeated-failure loop detection, semantic tool postconditions, and evidence receipts:
+查看结果：
 
 ```powershell
-python -m dl_op_to_hls.cli bad-case-benchmark --output runs\benchmarks\agent_bad_case_probe.json
-python -m dl_op_to_hls.cli semantic-rag-benchmark --output runs\benchmarks\semantic_rag_real_probe.json
+dl-op-to-hls report runs\<run_id>
+dl-op-to-hls suggest runs\<run_id>
+dl-op-to-hls rag-search "Dense reuse factor DSP"
+dl-op-to-hls session-list
+dl-op-to-hls specialists-list
 ```
 
-## 测试
+## 测试与评测
 
 ```powershell
-$env:PYTHONPATH="src"
 python -m pytest -q
 ```
 
-当前测试覆盖：
+当前测试覆盖 Tool Registry、Permission Gate、Todo/Replan、Specialist、MCP stdio/HTTP、Context、Memory/RAG、Candidate Sandbox、功能验证、报告解析、会话恢复和 Bad Case。Mock、Fixture、Real CSim、Real CSynth 与真实 LLM 证据分开统计。
 
-- ToolRegistry / PermissionGate / Hook / Trace
-- TodoList / Hybrid Runtime
-- Memory / RAG / SQLite
-- hls4ml / Vivado HLS MCP-style adapters
-- fallback templates / report parser
-- Main Agent / Specialist Sub-agent
-- Main Agent ReAct 与 Specialist Local ReAct 契约
-- Demo0-Demo6 mock-flow 验收
+常用评测入口：
 
-## 目录结构
-
-```text
-src/dl_op_to_hls/
-  main_agent/        Main Agent、runtime、todo、planner、executor、reflector
-  specialists/       Specialist Sub-agent、ContextEnvelope、SpecialistResult
-  core/              ToolRegistry、permissions、hooks、trace、artifacts、errors
-  adapters/          hls4ml / Vivado HLS adapter
-  tools/             fallback、report parser、suggestion、verification
-  memory/            MemoryManager、policy、short-term/episodic/semantic/skills
-  rag/               chunker、indexer、retriever
-  db/                SQLite schema 与 repository
-  llm/               LLM client、planner、react、guards、schemas、prompts
-
-examples/            Demo0-Demo6 输入任务
-models/              示例模型或生成模型目录
-scripts/             示例模型生成脚本
-docs/                架构、运行时、memory、specialist、开发日志
-tests/               pytest 测试
-runs/                本地运行产物，默认不进入 git
+```powershell
+dl-op-to-hls agent-interview-benchmark --output runs\benchmarks\agent_interview_release.json
+dl-op-to-hls experience-content-benchmark --output runs\benchmarks\experience_content.json
+dl-op-to-hls bad-case-benchmark --output runs\benchmarks\bad_case.json
 ```
 
-## 重要文档
+详细指标口径见：
 
-- `docs/runtime_design.md`
-- `docs/memory_design.md`
-- `docs/todo_design.md`
-- `docs/specialist_agents.md`
-- `docs/context_isolation.md`
-- `docs/llm_first_agent_design.md`
-- `docs/llm_guardrails.md`
-- `docs/production_llm_agent_harness.md`
-- `docs/development_log.md`
+- [Agent 架构](docs/mature_llm_agent_architecture.md)
+- [MCP 设计](docs/mcp_tools.md)
+- [Agent Benchmark](docs/agent_interview_benchmark.md)
+- [上下文消融](docs/context_ablation_final_report.md)
+- [RAG 设计](docs/rag_design.md)
+- [交互式 CLI](docs/interactive_chat.md)
 
-## 当前限制与未来工作
+## 项目边界与后续工作
 
-当前限制：
+- 当前 LLM-first Conv2D 只支持有限的静态图契约，不是完整 ONNX Compiler。
+- 真实综合依赖本地 Vivado/Vitis 安装、License 和目标器件支持。
+- Golden CSim 证明当前测试向量下的功能一致性，不等于对任意输入完成形式化验证。
+- `deployment_ready_candidate` 表示具备继续进入 RTL/部署验证的候选，不表示已经生成 bitstream 或完成上板。
+- MCP Tasks 目前仍属于实验能力，长任务暂由项目的 Durable Queue 和 Checkpoint 管理。
+- 下一阶段重点是扩大独立人工标注评测、增加更多真实模型验证，并接入 bitstream 与上板测试链路。
 
-- 当前 LLM-first Conv2D 仅支持静态 NHWC、group=1、静态权重/Bias、valid/same padding。
-- Vivado HLS 真实综合取决于本机安装、license、环境变量和 Windows batch 调用。
-- boundary demo 设计目标是展示“安全拒绝/边界处理”，不是 full synthesis success。
-- LLM API 有速率限制时需要配置请求节流。
+## License
 
-未来工作：
-
-- 完成 18 个真实 CSim、10 个真实 CSynth 和 15 次真实 LLM pass³ 锚点。
-- 增加 precision/reuse factor 的小规模 Pareto DSE。
-- 将 MCP-style in-process tools 升级为真实 MCP server/client。
-- 引入更系统的 benchmark report 和 experiment comparison。
+本仓库用于学习、研究和工程能力展示。使用 AMD/Xilinx、模型与数据集相关组件时，请遵循各自许可证。

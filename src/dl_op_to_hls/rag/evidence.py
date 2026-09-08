@@ -97,9 +97,7 @@ class RAGEvidenceGrader:
         text_tokens = _tokens(text)
         overlap_tokens = query_anchors.intersection(text_tokens)
         overlap = len(overlap_tokens) / max(1, len(query_anchors)) if query_anchors else 0.0
-        provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
         metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-        trust = float(provenance.get("trust_score") or item.get("trust_score") or 0.7)
         retrieval = item.get("retrieval") if isinstance(item.get("retrieval"), dict) else {}
         raw_score = float(retrieval.get("hybrid_score") or item.get("score") or 0.0)
         normalized_score = raw_score / (1.0 + abs(raw_score))
@@ -152,9 +150,9 @@ class RAGEvidenceGrader:
         elif semantic_support:
             label = "relevant"
             reasons.append("embedding_and_cross_encoder_passed")
-        elif overlap >= 0.5 or (overlap >= 0.25 and trust >= 0.8):
+        elif overlap >= 0.5:
             label = "relevant"
-            reasons.append("anchor_and_trust_passed")
+            reasons.append("anchor_overlap_passed")
         elif overlap > 0 or (not query_anchors and normalized_score >= 0.15):
             label = "ambiguous"
             reasons.append("weak_support")
@@ -167,10 +165,7 @@ class RAGEvidenceGrader:
             semantic_confidence += 0.4 * max(0.0, min(1.0, (float(semantic_score) + 1.0) / 2.0))
         if cross_encoder_score is not None:
             semantic_confidence += 0.6 * max(0.0, min(1.0, float(cross_encoder_score)))
-        confidence = max(
-            0.0,
-            min(1.0, 0.45 * overlap + 0.20 * trust + 0.15 * normalized_score + 0.20 * semantic_confidence),
-        )
+        confidence = max(0.0, min(1.0, 0.55 * overlap + 0.20 * normalized_score + 0.25 * semantic_confidence))
         return {
             "label": label,
             "confidence": round(confidence, 4),
@@ -252,11 +247,18 @@ class CorrectiveRetriever:
         top_k: int = 5,
         domain: str | None = None,
         identity: dict[str, Any] | None = None,
+        metadata_filter: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         attempts: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []
         for candidate_query in self._query_variants(query):
-            candidates = self.retrieve_fn(candidate_query, top_k=max(top_k * 2, 8), domain=domain, identity=identity)
+            candidates = self.retrieve_fn(
+                candidate_query,
+                top_k=max(top_k * 2, 8),
+                domain=domain,
+                identity=identity,
+                metadata_filter=metadata_filter,
+            )
             graded = self.grader.grade_many(query, candidates, require_citation=True)
             attempts.append(
                 {

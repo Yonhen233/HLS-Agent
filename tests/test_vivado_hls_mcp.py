@@ -42,6 +42,7 @@ def test_vivado_create_project_copies_all_candidate_headers(tmp_path):
     _write_design(project_dir)
     (project_dir / "weights.h").write_text("static const int weights[1] = {1};\n", encoding="utf-8")
     (project_dir / "types.hpp").write_text("typedef float data_t;\n", encoding="utf-8")
+    (project_dir / "bias.inc").write_text("static const int bias[1] = {0};\n", encoding="utf-8")
 
     adapter = VivadoHLSAdapter(mock_mode=True)
     result = adapter.create_project({"hls_project_dir": str(project_dir), "top_function": "demo", "work_dir": str(tmp_path / "vivado")})
@@ -50,7 +51,8 @@ def test_vivado_create_project_copies_all_candidate_headers(tmp_path):
     assert (tmp_path / "vivado" / "design.h").exists()
     assert (tmp_path / "vivado" / "weights.h").exists()
     assert (tmp_path / "vivado" / "types.hpp").exists()
-    assert len(result["headers"]) == 3
+    assert (tmp_path / "vivado" / "bias.inc").exists()
+    assert len(result["headers"]) == 4
 
 
 def test_vivado_create_project_sanitizes_hls4ml_legacy_stdio_includes(tmp_path):

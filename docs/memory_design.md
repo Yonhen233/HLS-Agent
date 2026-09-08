@@ -114,3 +114,18 @@ SQLite 保存结构化事实；RAG 只负责把可检索文本切块后辅助找
 - 未压缩 report 原文
 - 无意义 tool output
 
+## Decision Ledger and Trace
+
+系统只保存一份运行历史文件：`runs/<run_id>/trace.jsonl`。Trace 是唯一的运行事实源，既包含 Run、Todo、Specialist、Tool 等生命周期事件，也包含结构化的 `DecisionRecorded` 事件。Decision Ledger 不是第二份可变文件，而是 `TraceReader` 从 Trace 中生成的只读投影视图。
+
+`DecisionRecorded` 保存 Todo 决策、触发原因、决策前后状态、结果和 artifact evidence refs。`trace.query` 通过 ToolRegistry 和 PermissionGate 提供以下有界视图：
+
+- `decision_ledger`
+- `todo_history`
+- `failures`
+- `evidence`
+- `memory_context`
+
+MemorySpecialist 只能查询当前 run，不能读取其他 run，也不接收完整 `trace.jsonl`。读取器按字段白名单移除 raw log、stdout、stderr、完整代码和完整 Trace 字段，并限制返回条数；长任务优先保留最新记录。
+
+启用 LLM 时，MemorySpecialist 把候选经验和有界 Decision Ledger 交给 LLM。LLM 可以决定保留多少条候选、如何把它们表达为可复用设计经验，但只能通过 `source_index` 和 `decision_indexes` 引用已有候选和已有决策。原始验证状态、综合报告和 evidence refs 由确定性代码保留，最终是否允许 promotion 仍由 MemoryPolicy 决定。未启用 LLM 的确定性运行继续保留原候选，不伪装成 LLM 总结。

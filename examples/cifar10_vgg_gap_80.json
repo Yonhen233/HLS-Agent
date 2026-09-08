@@ -1,0 +1,38 @@
+{
+  "task_type": "model",
+  "name": "cifar10_vgg_gap_80",
+  "model_path": "models/cifar10_vgg_gap_80_gpu/cifar10_tiny_vgg.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    32,
+    32,
+    3
+  ],
+  "layout": "NHWC",
+  "activation_ranges_path": "models/cifar10_vgg_gap_80_gpu/cifar10_tiny_vgg_activation_ranges.json",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 15
+  },
+  "hls4ml": {
+    "precision": "fixed<16,6>",
+    "reuse_factor": 256,
+    "strategy": "Resource"
+  },
+  "reference_data": {
+    "input_path": "models/cifar10_vgg_gap_80_gpu/cifar10_test_inputs_64.dat",
+    "labels_path": "models/cifar10_vgg_gap_80_gpu/cifar10_test_labels_64.json",
+    "num_samples": 64,
+    "seed": 11,
+    "tolerance": 1.0,
+    "classification_min_accuracy": 0.8,
+    "argmax_match_min": 0.9
+  },
+  "objective": "standard",
+  "demo": {
+    "expected_path": "hls4ml",
+    "mock_tools": false,
+    "description": "Real CIFAR-10 80%+ VGG-style CNN: GPU-trained on the full CIFAR-10 training split, exported to ONNX, converted through the hls4ml adapter, and checked against 64 golden classification samples."
+  }
+}

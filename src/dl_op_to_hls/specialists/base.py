@@ -56,7 +56,7 @@ class BaseSpecialist(ABC):
         for tool in self.allowed_tools:
             if tool.startswith("workspace."):
                 capabilities.add("workspace.read")
-            elif tool.startswith(("memory.retrieve", "rag.")):
+            elif tool.startswith(("memory.retrieve", "rag.", "trace.")):
                 capabilities.add("memory.read")
             elif tool.startswith("memory."):
                 capabilities.add("memory.write")

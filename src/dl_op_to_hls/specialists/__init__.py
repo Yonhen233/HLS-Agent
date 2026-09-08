@@ -1,4 +1,5 @@
 from .base import BaseSpecialist
+from .codegen_specialist import CodegenSpecialist
 from .context import ContextBuilder, ContextEnvelope
 from .hls4ml_specialist import HLS4MLSpecialist
 from .memory_specialist import MemorySpecialist
@@ -11,6 +12,7 @@ from .vivado_specialist import VivadoSpecialist
 
 __all__ = [
     "BaseSpecialist",
+    "CodegenSpecialist",
     "ContextBuilder",
     "ContextEnvelope",
     "HLS4MLSpecialist",

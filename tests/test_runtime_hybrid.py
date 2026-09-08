@@ -538,6 +538,21 @@ def test_llm_candidate_generation_failure_schedules_repair(temp_workspace):
     assert verify.dependencies == [retry.id]
     assert generate.status == "completed_with_warning"
     assert state.errors == []
+    assert state.status == "partial_success"
+
+
+def test_decision_description_does_not_mutate_run_status(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    runtime = PlanExecuteReactRuntime(agent)
+    state = runtime.initialize(str(temp_workspace / "examples" / "dense_operator.json"))
+    runtime.todo_manager.create_from_plan(state.run_id, ["Generate candidate"], state.task)
+    todo = runtime.todo_manager.todo_list.items[0]
+    state.status = "partial_success"
+
+    decision = runtime._decision_from_observation(state, todo, {"status": "failed"})
+
+    assert decision == "Mark todo as failed and surface the structured error."
+    assert state.status == "partial_success"
 
 
 def test_llm_candidate_verification_failure_uses_assigned_tool_not_title(temp_workspace):

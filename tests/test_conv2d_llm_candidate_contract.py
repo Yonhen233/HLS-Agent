@@ -113,3 +113,4 @@ def test_runtime_rejects_unknown_operator_without_golden_oracle_before_candidate
 def test_candidate_prompt_requires_compact_sandbox_safe_testbench():
     assert "Keep the JSON and source files compact" in CANDIDATE_GENERATOR_SYSTEM_PROMPT
     assert "Do not include <cstdlib>, <fstream>" in CANDIDATE_GENERATOR_SYSTEM_PROMPT
+    assert "Never invent or expand large literal weight/bias tables" in CANDIDATE_GENERATOR_SYSTEM_PROMPT

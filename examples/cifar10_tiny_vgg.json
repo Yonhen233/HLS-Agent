@@ -1,0 +1,37 @@
+{
+  "task_type": "model",
+  "name": "cifar10_tiny_vgg",
+  "model_path": "models/cifar10_tiny_vgg_hls/cifar10_tiny_vgg.onnx",
+  "frontend": "onnx",
+  "input_shape": [
+    8,
+    8,
+    3
+  ],
+  "layout": "NHWC",
+  "target": {
+    "backend": "Vivado",
+    "part": "xc7z020clg400-1",
+    "clock_period": 15
+  },
+  "hls4ml": {
+    "precision": "fixed<12,6>",
+    "reuse_factor": 64,
+    "strategy": "Resource"
+  },
+  "reference_data": {
+    "input_path": "models/cifar10_tiny_vgg_hls/cifar10_test_inputs_20.dat",
+    "labels_path": "models/cifar10_tiny_vgg_hls/cifar10_test_labels_20.json",
+    "num_samples": 20,
+    "seed": 11,
+    "tolerance": 0.35,
+    "classification_min_accuracy": 0.8,
+    "argmax_match_min": 0.8
+  },
+  "objective": "balanced",
+  "demo": {
+    "expected_path": "hls4ml",
+    "mock_tools": false,
+    "description": "Real CIFAR-10 TinyVGG-style CNN demo: train a compact VGG-like CNN, convert with hls4ml, verify classification semantics with a small golden sample set, and compare resource/performance objective modes."
+  }
+}

@@ -10,6 +10,9 @@ from .benchmarks.agent_quality_benchmark import main as benchmark_main
 from .benchmarks.agent_interview_benchmark import run_interview_benchmark
 from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
 from .benchmarks.context_ablation import run_benchmark as run_context_ablation_benchmark
+from .benchmarks.historical_rag_benchmark import run_historical_rag_benchmark
+from .benchmarks.experience_content_benchmark import run_experience_content_benchmark
+from .benchmarks.design_experience_benchmark import run_design_experience_benchmark, run_production_noise_card_benchmark, run_production_source_benchmark
 from .benchmarks.maturity_benchmark import run_maturity_benchmark
 from .benchmarks.semantic_rag_benchmark import run_semantic_rag_benchmark
 from .benchmarks.operator_benchmark import run_operator_benchmark
@@ -26,7 +29,7 @@ from .chat.loop import InteractiveChat
 from .adapters.hls4ml_adapter import HLS4MLAdapter
 from .adapters.vivado_hls_adapter import VivadoHLSAdapter
 from .core.config import AppConfig
-from .mcp.server import MCPServer
+from .mcp.server import MCPServer, build_mcp_context_factory
 from .mcp_servers.hls4ml_server import build_hls4ml_registry
 from .mcp_servers.vivado_hls_server import build_vivado_registry
 
@@ -132,6 +135,36 @@ def build_parser() -> argparse.ArgumentParser:
     bad_case_parser.add_argument("--output", default="runs/benchmarks/agent_bad_case_probe.json")
     semantic_rag_parser = subparsers.add_parser("semantic-rag-benchmark")
     semantic_rag_parser.add_argument("--output", default="runs/benchmarks/semantic_rag_real_probe.json")
+    historical_rag_parser = subparsers.add_parser(
+        "historical-rag-benchmark",
+        help="Evaluate the latest retriever on evidence-gated historical runs.",
+    )
+    historical_rag_parser.add_argument("--output", default="runs/benchmarks/historical_rag_benchmark.json")
+    historical_rag_parser.add_argument("--max-cases", type=int, default=64)
+    experience_content_parser = subparsers.add_parser(
+        "experience-content-benchmark",
+        help="Evaluate method-level content in real historical experience windows.",
+    )
+    experience_content_parser.add_argument("--output", default="runs/benchmarks/real_experience_content_window.json")
+    experience_content_parser.add_argument("--per-label", type=int, default=12)
+    design_experience_parser = subparsers.add_parser(
+        "design-experience-benchmark",
+        help="Evaluate manually annotated, evidence-backed design experience cards.",
+    )
+    design_experience_parser.add_argument("--output", default="runs/benchmarks/design_experience_benchmark.json")
+    design_experience_parser.add_argument("--top-k", type=int, default=5)
+    production_experience_parser = subparsers.add_parser(
+        "design-experience-production-benchmark",
+        help="Evaluate method labels against real source ids in production RAG SQLite.",
+    )
+    production_experience_parser.add_argument("--output", default="runs/benchmarks/design_experience_production_source_benchmark.json")
+    production_experience_parser.add_argument("--top-k", type=int, default=5)
+    production_noise_parser = subparsers.add_parser(
+        "design-experience-production-noise-benchmark",
+        help="Evaluate promoted method cards against a snapshot of the full production corpus.",
+    )
+    production_noise_parser.add_argument("--output", default="runs/benchmarks/design_experience_production_noise_benchmark.json")
+    production_noise_parser.add_argument("--top-k", type=int, default=5)
     operator_benchmark_parser = subparsers.add_parser("operator-benchmark")
     operator_benchmark_parser.add_argument("--output", default="runs/benchmarks/operator_release.json")
     operator_onnx_parser = subparsers.add_parser("operator-onnx-benchmark")
@@ -314,8 +347,18 @@ def build_parser() -> argparse.ArgumentParser:
     synth_parser = subparsers.add_parser("synth")
     synth_parser.add_argument("run_id_or_path")
 
-    subparsers.add_parser("serve-hls4ml")
-    subparsers.add_parser("serve-vivado-hls")
+    for command in ("serve-hls4ml", "serve-vivado-hls"):
+        mcp_parser = subparsers.add_parser(command)
+        mcp_parser.add_argument(
+            "--transport",
+            choices=("stdio", "streamable-http"),
+            default="stdio",
+            help="Standard MCP transport. stdio is recommended for local EDA tools.",
+        )
+        mcp_parser.add_argument("--host", default="127.0.0.1")
+        mcp_parser.add_argument("--port", type=int, default=8000 if command == "serve-hls4ml" else 8001)
+        mcp_parser.add_argument("--path", default="/mcp")
+        mcp_parser.add_argument("--stateless", action="store_true")
     return parser
 
 
@@ -520,6 +563,26 @@ def main(argv: list[str] | None = None) -> int:
         payload = run_semantic_rag_benchmark(Path.cwd(), args.output)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+    if args.command == "historical-rag-benchmark":
+        payload = run_historical_rag_benchmark(Path.cwd(), args.output, max_cases=args.max_cases)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "experience-content-benchmark":
+        payload = run_experience_content_benchmark(Path.cwd(), args.output, per_label=args.per_label)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "design-experience-benchmark":
+        payload = run_design_experience_benchmark(Path.cwd(), args.output, top_k=args.top_k)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0 if payload.get("status") == "complete" else 2
+    if args.command == "design-experience-production-benchmark":
+        payload = run_production_source_benchmark(Path.cwd(), args.output, top_k=args.top_k)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0 if payload.get("status") == "complete" else 2
+    if args.command == "design-experience-production-noise-benchmark":
+        payload = run_production_noise_card_benchmark(Path.cwd(), args.output, top_k=args.top_k)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0 if payload.get("status") == "complete" else 2
     if args.command == "operator-benchmark":
         payload = run_operator_benchmark(Path.cwd(), args.output)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -748,7 +811,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve-hls4ml":
         config = AppConfig.load()
         adapter = HLS4MLAdapter(mock_mode=config.mock_hls4ml, backend_override=config.hls4ml_backend)
-        MCPServer("hls4ml", build_hls4ml_registry(adapter)).serve()
+        server = MCPServer(
+            "hls4ml",
+            build_hls4ml_registry(adapter),
+            context_factory=build_mcp_context_factory(config, server_name="hls4ml"),
+        )
+        if args.transport == "streamable-http":
+            server.serve_http(host=args.host, port=args.port, path=args.path, stateless=args.stateless)
+        else:
+            server.serve()
         return 0
     if args.command == "serve-vivado-hls":
         config = AppConfig.load()
@@ -758,7 +829,15 @@ def main(argv: list[str] | None = None) -> int:
             vivado_hls_path=config.vivado_hls_path,
             vitis_hls_path=config.vitis_hls_path,
         )
-        MCPServer("vivado_hls", build_vivado_registry(adapter)).serve()
+        server = MCPServer(
+            "vivado_hls",
+            build_vivado_registry(adapter),
+            context_factory=build_mcp_context_factory(config, server_name="vivado_hls"),
+        )
+        if args.transport == "streamable-http":
+            server.serve_http(host=args.host, port=args.port, path=args.path, stateless=args.stateless)
+        else:
+            server.serve()
         return 0
     return 1
 

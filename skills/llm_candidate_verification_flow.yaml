@@ -27,7 +27,7 @@
     {
       "title": "Generate LLM candidate",
       "assigned_tool": "llm.generate_hls_candidate",
-      "assigned_specialist": null
+      "assigned_specialist": "CodegenSpecialist"
     },
     {
       "title": "Verify LLM candidate",
@@ -69,6 +69,7 @@
     "memory.promote_to_long_term"
   ],
   "allowed_specialists": [
+    "CodegenSpecialist",
     "VerificationSpecialist",
     "VivadoSpecialist",
     "MemorySpecialist"

@@ -19,12 +19,13 @@ class LLMCandidateGenerator:
             try:
                 run_path = Path(output_dir).resolve()
                 run_dir = run_path.parent if run_path.name == "candidate" else run_path
-                self.llm_client.set_context(context)
+                active_client = context.get("llm_client") or self.llm_client
+                active_client.set_context(context)
                 return self.engine.generate(
                     op_spec=op_spec,
                     rag_context=rag_context,
                     run_dir=str(run_dir),
-                    client=self.llm_client,
+                    client=active_client,
                     permission_gate=context["permission_gate"],
                 )
             except AgentRuntimeError as exc:

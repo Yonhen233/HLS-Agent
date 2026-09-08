@@ -6,6 +6,7 @@ from dl_op_to_hls.core.errors import AgentRuntimeError
 from dl_op_to_hls.core.permissions import PermissionGate
 from dl_op_to_hls.llm.candidate_generator import LLMCandidateGenerator
 from dl_op_to_hls.llm.client import FakeLLMClient
+from dl_op_to_hls.tools.llm_candidate import LLMCandidateGenerator as ToolCandidateGenerator
 
 
 def test_candidate_sandbox_rejects_system_call():
@@ -57,6 +58,41 @@ def test_llm_candidate_generator_applies_candidate_sandbox(tmp_path):
     assert "CandidateSandbox" in exc.value.error.message
     assert exc.value.error.details["violations"]
     assert not (run_dir / "candidate" / "bad.cpp").exists()
+
+
+def test_candidate_tool_uses_run_scoped_llm_client(tmp_path):
+    class RecordingClient:
+        def __init__(self):
+            self.context = None
+
+        def set_context(self, context):
+            self.context = context
+
+    class RecordingEngine:
+        def __init__(self):
+            self.client = None
+
+        def generate(self, **kwargs):
+            self.client = kwargs["client"]
+            return {"status": "candidate_generated", "files": [], "requires_verification": True}
+
+    owned_client = RecordingClient()
+    run_client = RecordingClient()
+    engine = RecordingEngine()
+    generator = ToolCandidateGenerator(engine=engine, llm_client=owned_client)
+    context = {"llm_client": run_client, "permission_gate": object()}
+
+    result = generator.generate(
+        {"op_type": "ReLU"},
+        [],
+        str(tmp_path / "runs" / "r1" / "candidate"),
+        context=context,
+    )
+
+    assert result["status"] == "candidate_generated"
+    assert engine.client is run_client
+    assert run_client.context is context
+    assert owned_client.context is None
 
 
 def test_candidate_sandbox_rejects_m_axi_for_non_byte_aligned_fixed_point():

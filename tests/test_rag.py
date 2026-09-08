@@ -1,3 +1,5 @@
+import json
+
 from dl_op_to_hls.db.database import Database
 from dl_op_to_hls.db.repositories import MetadataRepository
 from dl_op_to_hls.rag.memory import RagMemory
@@ -81,6 +83,24 @@ def test_rag_retrieve_filters_generic_resource_overlap_when_anchor_mismatches(tm
     assert results == []
 
 
+def test_hardware_part_and_fixed_precision_are_soft_not_hard_entity_anchors(tmp_path):
+    memory = _memory(tmp_path)
+    memory.index_text(
+        "runs/dense_verified/parameter_advice.json",
+        "Dense verified parameter experience recommends resource reuse.",
+        {"domain": "parameter", "op_type": "Dense"},
+    )
+
+    results = memory.retrieve(
+        "Dense input 16 output 32 ap_fixed<16,6> xc7z020clg400-1",
+        top_k=1,
+        domain="parameter",
+    )
+
+    assert results
+    assert results[0]["source_id"].endswith("parameter_advice.json")
+
+
 def test_rag_index_and_retrieve_strip_second_order_prior_experience(tmp_path):
     memory = _memory(tmp_path)
     memory.index_text(
@@ -102,6 +122,33 @@ def test_rag_index_run_artifacts(tmp_path):
     summary.write_text("Dense DSP reuse factor summary", encoding="utf-8")
     result = memory.index_run("r1", [str(summary)])
     assert result["chunks_indexed"] >= 1
+
+
+def test_refresh_artifact_metadata_does_not_create_new_chunks(tmp_path):
+    memory = _memory(tmp_path)
+    run_dir = tmp_path / "runs" / "dense_real"
+    run_dir.mkdir(parents=True)
+    advice = run_dir / "parameter_advice.json"
+    advice.write_text("Dense parameter advice.", encoding="utf-8")
+    (run_dir / "state.json").write_text(
+        '{"objective":"resource","task":{"task_type":"operator","op_type":"Dense"},"pipeline_status":{"functional_verified":true}}',
+        encoding="utf-8",
+    )
+    (run_dir / "tool_evidence.json").write_text(
+        '{"receipts":[{"valid":true,"mock_evidence":false,"evidence_class":"real_csynth"}]}',
+        encoding="utf-8",
+    )
+    memory.index_text(str(advice), "Dense parameter advice.", {"domain": "parameter"})
+    before = memory.repository.get_rag_chunks()
+
+    result = memory.refresh_artifact_metadata("dense_real", [str(advice)])
+    after = memory.repository.get_rag_chunks()
+
+    assert result == {"status": "success", "sources_updated": 1, "chunks_updated": 1}
+    assert len(after) == len(before) == 1
+    metadata = json.loads(after[0]["metadata_json"])
+    assert metadata["evidence_verified"] is True
+    assert metadata["op_type"] == "Dense"
 
 
 def test_rag_retrieves_static_vivado_failure_playbook(tmp_path):
@@ -188,6 +235,49 @@ def test_rag_domain_filter_separates_parameter_and_optimization_memory(tmp_path)
     assert all(item["metadata"].get("domain") == "optimization" for item in optimization_results)
 
 
+def test_parameter_retrieval_uses_hard_evidence_gate_when_verified_peer_exists(tmp_path):
+    memory = _memory(tmp_path)
+    memory.index_text(
+        "runs/dense_mock/parameter_advice.json",
+        "Dense resource parameter recommendation reuse factor.",
+        {"domain": "parameter", "op_type": "Dense", "evidence_verified": False},
+    )
+    memory.index_text(
+        "runs/dense_real/parameter_advice.json",
+        "Dense resource parameter recommendation reuse factor.",
+        {"domain": "parameter", "op_type": "Dense", "evidence_verified": True},
+    )
+
+    results = memory.retrieve("Dense resource reuse factor", top_k=5, domain="parameter")
+
+    assert results
+    assert {item["source_id"] for item in results} == {"runs/dense_real/parameter_advice.json"}
+    assert results[0]["retrieval"]["evidence_gate_passed"] is True
+
+
+def test_metadata_filter_separates_operator_from_model_parameter_experience(tmp_path):
+    memory = _memory(tmp_path)
+    memory.index_text(
+        "runs/dense_operator/parameter_advice.json",
+        "Dense operator latency parameter experience.",
+        {"domain": "parameter", "task_type": "operator", "op_type": "Dense", "objective": "latency"},
+    )
+    memory.index_text(
+        "runs/mlp_model/parameter_advice.json",
+        "Dense MLP model latency parameter experience.",
+        {"domain": "parameter", "task_type": "model", "name": "mlp_demo", "objective": "latency"},
+    )
+
+    results = memory.retrieve(
+        "Dense latency parameter experience",
+        top_k=5,
+        domain="parameter",
+        metadata_filter={"task_type": "operator", "op_type": "Dense", "objective": "latency"},
+    )
+
+    assert [item["source_id"] for item in results] == ["runs/dense_operator/parameter_advice.json"]
+
+
 def test_embedding_recall_finds_semantic_match_without_lexical_anchor(tmp_path):
     query = "lower multiplier energy"
     relevant = "Reducing parallel arithmetic saves power in the synthesized circuit."
@@ -232,6 +322,25 @@ def test_cross_encoder_reranks_embedding_candidate_pool(tmp_path):
 
     assert results[0]["source_id"] == "candidate-b"
     assert results[0]["retrieval"]["cross_encoder_score"] > results[1]["retrieval"]["cross_encoder_score"]
+
+
+def test_provenance_does_not_soft_bias_rrf_or_cross_encoder_ranking(tmp_path):
+    first = "Dense reuse factor option A."
+    second = "Dense reuse factor option B."
+    memory, _, _, _ = _semantic_memory(
+        tmp_path,
+        {"Dense reuse factor": [1.0, 0.0], first: [1.0, 0.0], second: [1.0, 0.0]},
+        {first: 2.0, second: 2.0},
+    )
+    memory.index_text("verified-a", first, {"memory_type": "verified_implementation"})
+    memory.index_text("ordinary-b", second, {"source_type": "artifact"})
+
+    results = memory.retrieve("Dense reuse factor", top_k=2)
+
+    assert len(results) == 2
+    assert {item["retrieval"]["fusion_method"] for item in results} == {"rrf"}
+    assert len({item["retrieval"]["hybrid_score"] for item in results}) == 1
+    assert {item["provenance"]["trust_score"] for item in results} == {0.7, 0.95}
 
 
 def test_indexed_embeddings_are_persisted_and_reused(tmp_path):
@@ -308,8 +417,61 @@ def test_embedding_backfill_is_resumable_and_reports_coverage(tmp_path):
     assert second["coverage"]["coverage"] == 1.0
 
 
+def test_missing_faiss_uses_exact_vector_scan_without_disabling_embeddings(tmp_path):
+    query = "Dense resource advice"
+    document = "Dense reuse factor lowers DSP usage."
+    memory, _, _, _ = _semantic_memory(
+        tmp_path,
+        {query: [1.0, 0.0], document: [1.0, 0.0]},
+        {document: 4.0},
+    )
+    memory.index_text("dense", document, {"domain": "parameter"})
+
+    class _MissingFaissIndex:
+        def ensure(self, records):
+            raise ModuleNotFoundError("No module named 'faiss'")
+
+    memory.semantic_engine.vector_index = _MissingFaissIndex()
+    object.__setattr__(memory.semantic_engine.config, "ann_min_rows", 1)
+
+    results = memory.retrieve(query, top_k=1, domain="parameter")
+
+    assert results
+    assert results[0]["retrieval"]["mode"] == "embedding_cross_encoder"
+    assert memory.retriever.last_diagnostics["embedding_error"] is None
+    assert "faiss" in memory.retriever.last_diagnostics["ann_error"]
+
+
 def test_windows_paths_are_distinct_rag_source_families():
     assert RagRetriever._source_family(r"D:\runs\one\summary.md") != RagRetriever._source_family(
         r"D:\runs\two\summary.md"
     )
     assert RagRetriever._source_family("memory_fact:1") == RagRetriever._source_family("memory_fact:2")
+
+
+def test_semantic_candidate_pool_limits_chunks_per_run():
+    scored = [
+        (0.9, {"source_id": "run-a/advice.json", "metadata": {"run_id": "run-a"}}),
+        (0.8, {"source_id": "run-a/advice.json", "metadata": {"run_id": "run-a"}}),
+        (0.7, {"source_id": "run-a/advice.json", "metadata": {"run_id": "run-a"}}),
+        (0.6, {"source_id": "run-b/advice.json", "metadata": {"run_id": "run-b"}}),
+    ]
+
+    limited = RagRetriever._limit_candidates_per_experience(scored, limit=2)
+
+    assert [item[0] for item in limited] == [0.9, 0.8, 0.6]
+
+
+def test_rag_deduplication_preserves_identical_evidence_from_distinct_runs():
+    scored = [
+        (0.9, {"source_id": "run-a/advice.json", "text": "same advice", "metadata": {"run_id": "run-a"}}),
+        (0.8, {"source_id": "run-b/advice.json", "text": "same advice", "metadata": {"run_id": "run-b"}}),
+        (0.7, {"source_id": "run-a/advice.json", "text": "same advice", "metadata": {"run_id": "run-a"}}),
+    ]
+
+    deduplicated = RagRetriever._deduplicate_scored(scored)
+
+    assert [(score, item["metadata"]["run_id"]) for score, item in deduplicated] == [
+        (0.9, "run-a"),
+        (0.8, "run-b"),
+    ]

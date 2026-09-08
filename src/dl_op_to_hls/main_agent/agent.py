@@ -27,6 +27,8 @@ from ..core.sessions import CancellationToken, SessionManager
 from ..core.tool_evidence import ToolPostconditionRegistry
 from ..core.tool_registry import ToolRegistry, ToolSpec
 from ..core.trace import TraceHook, TraceWriter, stable_hash
+from ..core.trace import DecisionTraceHook
+from ..core.trace_tools import query_trace
 from ..core.workspace_context import WorkspaceContext
 from ..db.database import Database
 from ..db.repositories import MetadataRepository
@@ -202,6 +204,7 @@ class MainAgent:
                 cwd=self.config.workspace_root,
                 timeout_seconds=float(os.environ.get("DL_OP_TO_HLS_MCP_TIMEOUT_SECONDS", "60")),
                 name=name,
+                stderr_path=self.config.runs_root / "mcp" / f"{name}.stderr.log",
             )
             register_mcp_proxy_tools(self.registry, local_registry.list_tools(), client)
             self._mcp_clients.append(client)
@@ -358,11 +361,11 @@ class MainAgent:
         self.registry.register(
             ToolSpec(
                 name="llm.generate_candidate",
-                description="Generate an LLM candidate implementation in mock mode.",
+                description="Generate a sandbox-checked LLM HLS candidate. Always requires independent verification.",
                 input_schema=simple_schema({"op_spec": {"type": "object"}, "output_dir": {"type": "string"}}, ["op_spec", "output_dir"]),
                 output_schema=simple_schema({"status": {"type": "string"}}),
                 permission_level="write",
-                tags=["llm"],
+                tags=["llm", "codegen", "specialist_private"],
                 handler=generate_candidate,
             )
         )
@@ -386,6 +389,34 @@ class MainAgent:
                 permission_level="write",
                 tags=["memory"],
                 handler=write_short_term,
+            )
+        )
+        self.registry.register(
+            ToolSpec(
+                name="trace.query",
+                description="Read a bounded structured projection of the current run trace.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "run_id": {"type": "string"},
+                        "view": {"type": "string", "enum": ["decisions", "decision_ledger", "todos", "todo_history", "failures", "errors", "evidence", "memory_context"]},
+                        "max_items": {"type": "integer"},
+                    },
+                    "required": ["run_id"],
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "status": {"type": "string"},
+                        "view": {"type": "string"},
+                        "records": {"type": "array"},
+                    },
+                    "required": ["status"],
+                },
+                permission_level="read",
+                tags=["trace", "projection", "specialist_private"],
+                required_capabilities=["memory.read"],
+                handler=query_trace,
             )
         )
         self.registry.register(
@@ -600,6 +631,7 @@ class MainAgent:
             top_k=int(arguments.get("top_k", 5)),
             domain=arguments.get("domain"),
             identity=context.get("memory_identity"),
+            metadata_filter=arguments.get("metadata_filter"),
         )
         hooks = context.get("hooks")
         if hooks:
@@ -744,6 +776,9 @@ class MainAgent:
         trace_writer = TraceWriter(run_dir / "trace.jsonl", run_id)
         hooks = HookManager()
         hooks.register("*", TraceHook(trace_writer))
+        # Decision Ledger is a projection written into the same JSONL stream;
+        # trace.jsonl remains the only mutable run-history source of truth.
+        hooks.register("*", DecisionTraceHook(trace_writer))
         telemetry = TelemetryHook(run_dir / "otel_spans.jsonl", run_id)
         hooks.register("*", telemetry)
         if self.console:

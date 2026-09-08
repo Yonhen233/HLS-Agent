@@ -19,9 +19,10 @@ def run_task_llm(
     user_id: str = "local-user",
     project_id: str | None = None,
 ) -> AgentState:
+    active_agent = agent or MainAgent()
     runtime = LLMFirstRuntime(
-        agent or MainAgent(),
-        llm_client=llm_client,
+        active_agent,
+        llm_client=llm_client or active_agent.llm_client,
         session_id=session_id,
         user_id=user_id,
         project_id=project_id,
@@ -30,5 +31,6 @@ def run_task_llm(
 
 
 def resume_task_llm(session_id: str, agent: MainAgent | None = None, llm_client=None) -> AgentState:
-    runtime = LLMFirstRuntime(agent or MainAgent(), llm_client=llm_client, session_id=session_id)
+    active_agent = agent or MainAgent()
+    runtime = LLMFirstRuntime(active_agent, llm_client=llm_client or active_agent.llm_client, session_id=session_id)
     return runtime.resume(session_id)

@@ -108,6 +108,8 @@ class TodoManager:
             return None
         if tool_name.startswith("hls4ml."):
             return "HLS4MLSpecialist"
+        if tool_name in {"llm.generate_candidate", "llm.generate_hls_candidate"}:
+            return "CodegenSpecialist"
         if tool_name.startswith("vivado."):
             return "VivadoSpecialist"
         if tool_name.startswith("verify"):

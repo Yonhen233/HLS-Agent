@@ -31,13 +31,15 @@ Specialist responsibilities:
 - Call allowed tools through ToolRegistry.
 - Return summaries, metrics, errors, artifact refs, suggested todos, memory candidates, and context_usage.
 
-Specialists do not own global state, directly edit TodoList, or decide final run status.
+Specialists do not own global state, directly edit TodoList, or decide final run status. `CodegenSpecialist` is the isolated owner of `llm.generate_candidate`; it may produce an unverified candidate, but `VerificationSpecialist` remains the only path that can provide independent verification evidence.
 
 ## Why This Is Not a Multi-agent Chat System
 
 The goal is not free-form conversation between agents. The project uses specialists for context isolation and domain-specific execution. Each specialist receives an input envelope and returns a structured result. The Main Agent remains the single global decision maker.
 
 ## Specialists
+
+CodegenSpecialist handles sandboxed LLM HLS candidate generation. Its only private capability is candidate generation, and it returns `candidate` evidence rather than `verified` status.
 
 HLS4MLSpecialist handles model inspection, support checks, hls4ml config generation, conversion, and lightweight hls4ml warnings.
 

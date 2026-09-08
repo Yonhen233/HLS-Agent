@@ -259,6 +259,25 @@ class MetadataRepository:
             rows = connection.execute("SELECT id, source_id, source_type, chunk_text, metadata_json, created_at FROM rag_chunks").fetchall()
             return [dict(row) for row in rows]
 
+    def update_rag_source_metadata(self, source_id: str, metadata: dict[str, Any]) -> int:
+        """Merge metadata into existing chunks without re-chunking the source."""
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, metadata_json FROM rag_chunks WHERE source_id = ?",
+                (source_id,),
+            ).fetchall()
+            for row in rows:
+                current = json.loads(row["metadata_json"] or "{}")
+                merged_json = json.dumps({**current, **metadata}, ensure_ascii=False)
+                row_id = int(row["id"])
+                connection.execute("UPDATE rag_chunks SET metadata_json = ? WHERE id = ?", (merged_json, row_id))
+                try:
+                    connection.execute("UPDATE rag_chunks_fts SET metadata_json = ? WHERE rowid = ?", (merged_json, row_id))
+                except Exception:
+                    pass
+            connection.commit()
+        return len(rows)
+
     def search_rag_fts(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         if not query.strip():
             return []

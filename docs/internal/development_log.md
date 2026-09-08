@@ -6,6 +6,369 @@
 
 ---
 
+## 2026-09-08：面试展示版 README 与发布仓库整理
+
+### 1. 发布整理
+- 将 README 重写为用户视角：先说明能解决的问题、运行方式、真实工具链、证据约束和已知边界，再提供架构与开发文档入口。
+- 将持续开发记录归档到 `docs/internal/development_log.md`，保留完整历史和审计可追溯性，不把内部迭代日志作为 README 的主入口。
+- 忽略本地生成的 CIFAR-10 权重、HLS 生成目录、pytest 临时目录和 egg-info，避免把约 446 MB 实验缓存提交到代码仓库。
+
+### 2. 验证
+- 完整 `pytest` 回归通过，包含 MCP 官方 SDK 传输、Trace/Memory、Specialist、RAG 评测和新增 benchmark 测试。
+- `git diff --cached --check` 通过；暂存区敏感信息扫描仅命中预期的 fake-secret 测试夹具，没有真实 API key。
+
+### 3. 未改变的边界
+- 本次只整理发布入口和仓库内容，不改变 HLS 工具链、LLM 调用策略或实验结论。
+- 模型权重和 Vivado 运行产物仍需按 README 的说明在本地准备，不随源码仓库发布。
+
+---
+
+## 2026-09-08 13:02:25 +08:00：MCP 协议层升级为官方 SDK 生产实现
+
+### 1. 改造范围
+- 用官方 `mcp[cli] 2.2.x` low-level Server 替换自研最小 JSON-RPC 循环，保留现有 hls4ml/Vivado adapter 与 ToolRegistry 架构。
+- 同时提供标准 stdio 和 Streamable HTTP；HTTP 未配置 OAuth 时强制绑定 loopback，并启用官方 SDK 的 Host/Origin、请求体、会话数和空闲超时保护。
+- `tools/list` 增加输入/输出 JSON Schema、annotations、风险元数据和带 HMAC 的游标分页；`tools/call` 返回 `structuredContent`、兼容文本和 `isError`。
+- MCP Server 内部再次通过 ToolRegistry 与 PermissionGate 执行，形成客户端和服务端两层权限检查。
+
+### 2. 真实暴露的问题与修复
+- 旧服务端直接回显客户端版本，没有真正的协议协商和生命周期状态机；改由官方 SDK 处理当前协议与 `2025-11-25` 兼容模式。
+- 旧客户端在连接失败后可能重放 `tools/call`，对写文件或综合操作存在重复副作用；现禁止传输层重试工具调用，安全重试只由 ToolRegistry 的 `idempotent` 契约控制。
+- 旧客户端丢弃 MCP Server stderr；现保留 200 行 bounded tail，并可持续写入 `runs/mcp/*.stderr.log`。
+- 第三方库向 stdout 打印可能破坏 stdio JSON-RPC；官方 SDK v2 使用独立协议文件描述符隔离工具输出。
+- 初版分页游标把二进制签名与 payload 一起用句点分隔，签名自身可能包含句点导致验签失败；改为 payload/signature 分别 Base64URL 编码后再分隔。
+
+### 3. 测试结果
+- MCP、ToolRegistry、hls4ml 和 Vivado 定向测试共 `48` 项通过。
+- 覆盖 outputSchema/annotations、分页防篡改、HTTP 非 loopback 拒绝、Streamable HTTP 初始化、真实 stdio 子进程握手、动态工具发现、进度通知和结构化工具调用。
+- 额外完成 Main Agent -> MCP Proxy -> stdio 子进程 -> hls4ml MCP Server 的端到端调用，返回 `supported`，代理 server 标识为 `hls4ml`。
+
+### 4. 保留边界
+MCP Tasks 在当前规范中仍是实验能力，本轮没有虚假声明该 capability。现有长综合继续由 Agent Harness 的 durable queue/checkpoint 管理；后续需要跨连接查询任务时，可再将其映射为标准 `tasks/get/result/cancel`。公网 HTTP 需要部署方提供 OAuth 2.1 身份系统，本仓库默认不提供不安全的静态 token 替代方案。
+
+---
+
+## 2026-09-08 11:52:14 +08:00：真实 LLM 校准后的最终回归确认
+
+### 1. 回归范围
+对真实 LLM 验证涉及的 Trace、MemorySpecialist、Hybrid Runtime、Vivado 候选文件复制、Candidate Sandbox、Conv2D candidate contract、LLM Runtime 和 LLM Trace 事件执行定向回归，共收集 `103` 个测试，全部通过；`git diff --check` 通过。
+
+### 2. 运行结果复核
+`runs/trace_memory_real_llm_20260908_v2` 最终状态为 `success`，路径为 `llm_candidate_path`，`functional_verified=true`、`synthesis_success=true`、`deployment_ready_candidate=true`、`errors=0`，并完成 `1` 条长期 Memory promotion。Trace 中所有模型字段均为 `DeepSeek-V4-Pro`，`DecisionRecorded` 事件的 `ts` 缺失数为 `0`。
+
+### 3. 失败恢复与边界
+同一 run 的 Trace 保留了早期候选 JSON 截断和验证文件缺失造成的失败事件，并记录后续 repair/resume 后的成功事件；历史累计包含 `2` 次可恢复 LLM 调用失败，不代表最终 continuation 失败。该 run 使用真实 LLM，但 HLS/Vivado 工具链仍为 mock，不能作为真实 Vivado 综合证据。
+
+### 4. 未完成原因
+MemorySpecialist 的 bounded candidate projection 已通过本地回归，但尚未用新的压缩实现再次消耗完整真实 LLM + 真实 Vivado 链路；后续若要验证综合器行为，必须单独运行 `--real-tools` 并保留真实工具 receipt。LLM 延迟和输出截断风险仍需通过 adaptive 调用、严格输出预算和 checkpoint resume 控制。
+
+---
+
+## 2026-09-08 11:31:16 +08:00：真实 DeepSeek-V4-Pro LLM Agent 验证、失败恢复与 Memory 结果压缩校准
+
+### 1. 真实验证范围
+使用本次进程注入的 `https://llmapi.paratera.com`、模型 `DeepSeek-V4-Pro`，运行 `run-llm examples/dense_operator.json`。本轮只隔离 hls4ml/Vivado 工具链为 mock，用于验证真实 LLM 编排、Main Agent Planner/ReAct、CodegenSpecialist、VerificationSpecialist、MemorySpecialist、checkpoint resume 和 Trace；因此不能把本轮的 HLS 数值报告宣称为真实 Vivado 结果。
+
+### 2. 首轮真实暴露的问题
+- CodegenSpecialist 生成 Dense 候选时把 `32x16` 权重表全部展开，响应达到 `4096` output tokens，返回未闭合 JSON；根因是候选 prompt 没有明确区分“真实参数已提供”和“参数缺失的演示算子”。
+- `llm.generate_candidate` 工具内部使用了独立 `LLMClient`，与 Planner/Specialist 的 run-scoped client 不一致，导致 call id、配置和 Token 预算分裂。
+- Verification adapter 只复制 `.h/.hpp`，没有复制候选生成的 `.inc` 参数文件，真实候选的 testbench 因 `weights.inc` 缺失而失败。
+- `_decision_from_observation()` 在生成失败描述时意外修改 `state.status`，使已安排 repair Todo 的 `partial_success` 被覆盖为 `failed`，提前终止恢复链。
+- MemoryExperienceSelection 严格 schema 遇到真实模型返回 `fact: null` 时正确拒绝，但 promotion 输入还包含过多重复 Trace/候选结构。
+
+### 3. 修复与真实结果
+- 候选 prompt 增加紧凑代码契约：没有真实权重时禁止虚构/展开大常量表，使用 bounded deterministic formula；真实参数只引用已提供 artifact。
+- `run_task_llm`、Specialist 和 `llm.generate_candidate` 统一使用同一 run-scoped LLM client。
+- Vivado 工程复制范围扩展为 `.h/.hpp/.inc`，保留参数文件的独立 artifact，不放宽 sandbox。
+- 将决策描述函数改为纯函数，并增加回归测试，repair Todo 会继续执行。
+- Memory schema 允许 `fact` 省略或为 null；为空时保留源候选事实，不把 null 当作新事实。Trace query 输入收窄为 12 条 decision、8 条 Todo、8 条 failure、8 条 evidence；Memory 返回给 Main Agent 的候选只保留 bounded projection，完整 evidence 仍在 SQLite/RAG。
+- 从 checkpoint 恢复后，真实 LLM 完成了候选重生成、验证修复、CSim/CSynth 验证链和 Memory promotion，最终 `RunFinished=success`，`selected_path=llm_candidate_path`，`functional_verified=true`，`deployment_ready_candidate=true`，`timing_met=true`，`promoted_memories=1`，`errors=0`。
+
+### 4. Token 与质量证据
+本次最终 run 的 `run_budget.json` 记录 `10` 次 LLM 调用、输入 `23,185`、输出 `19,603`、总计 `42,788` tokens；包含之前失败/回滚重试的同一 run Trace 历史共记录 `85,466` tokens。模型字段始终为 `DeepSeek-V4-Pro`，没有降级模型。候选第一次触顶后通过客户端 finalization retry 恢复；验证失败后由 Reflector 自动追加 repair/re-verify/re-synthesis Todo；Memory LLM 最终选择 `4/5` 个候选并完成 promotion。
+
+### 5. 测试
+Trace、Specialist、候选 sandbox、Vivado 文件复制、Hybrid Runtime 定向回归通过；最终补充的 Memory null-fact、bounded candidate projection 和 Trace 测试通过。真实 LLM run 的关键 Trace 检查：`DecisionRecorded.ts` 空值数量为 `0`，模型为 `DeepSeek-V4-Pro`，LLM 调用无 HTTP/API 失败。
+
+### 6. 未完成与边界
+本轮为真实 LLM + mock HLS 工具链验证，没有重新消耗一次完整真实 Vivado HLS 综合；下一次要宣称“真实 LLM + 真实 Vivado”必须使用 `--real-tools` 并单独记录 Vivado evidence receipt。LLM 响应延迟仍偏高，单次调用约几十秒到两分钟；adaptive Specialist 路由和严格 output budget 仍应保留，不能让所有 Todo 都额外调用局部 LLM。
+
+---
+
+## 2026-09-08 09:49:53 +08:00：完成单一 Trace Decision Ledger 与 LLM 驱动的 MemorySpecialist 经验抽取改造
+
+### 1. 设计调整
+保留 `runs/<run_id>/trace.jsonl` 作为唯一物理运行事实源，不新增 `decision_ledger.json`。Hook 在普通事件之外向同一 JSONL 追加结构化 `DecisionRecorded`，记录 todo、decision、trigger、before/after、outcome、status 和 artifact evidence refs。Runtime 在每个 Todo 执行与 Reflect 后统一记录决策，因此确定性路径、Specialist 路径和 LLM 路径都具有一致的决策审计结构。
+
+### 2. Trace 投影与权限隔离
+新增 `TraceReader` 和 ToolRegistry 工具 `trace.query`，支持 bounded `decision_ledger`、`todo_history`、`failures`、`evidence` 和聚合 `memory_context` 视图。读取器一次扫描 Trace、保留长任务最新事件，并删除 raw log、stdout/stderr、完整代码和完整 Trace 等字段。工具只允许 Specialist 查询当前 run，跨 run 请求返回 `PermissionDeniedError`；MemorySpecialist 获得的是结构化投影和 Trace artifact ref，不是完整 Trace 内容。
+
+### 3. MemorySpecialist 与 LLM 职责
+Memory promotion 流程调整为 `trace.query -> compress -> extract candidates -> LLM select/summarize -> MemoryPolicy promote`。新增严格 `MemoryExperienceSelectionSchema` 与专用 prompt：LLM 自主决定保留 0-8 条设计经验及其标题、summary、fact，但必须使用 `source_index` 引用确定性候选，并使用 `decision_indexes` 引用 Decision Ledger；代码保留原 candidate 的 verification/report/evidence，LLM 不能改变证据。LLM 输出失败时停止 promotion 并返回 structured error，不静默用规则结果冒充 LLM；未启用 LLM 的确定性 runtime 明确记录 deterministic candidate mode。
+
+### 4. 测试与真实环境问题
+Trace、Specialist、Memory 定向套件共 `65` 个测试全部通过；新增单文件 Ledger、最新事件 bounded projection、敏感字段移除、跨 run 权限拒绝、MemorySpecialist `trace.query` 顺序、ContextEnvelope 不暴露 Trace artifact、Fake LLM 选择与证据继承、实际 Agent run 出现 `DecisionRecorded` 且不生成第二份 Ledger 文件等测试。首次 pytest 未进入业务逻辑，Windows 默认临时目录 `C:\Users\IC\AppData\Local\Temp\pytest-of-IC` 和旧 `.pytest_cache` 所有权不匹配导致 `WinError 5`；改用项目内全新 `--basetemp` 并禁用 cacheprovider 后完整通过。语法检查与 `git diff --check` 通过。
+
+随后 56 个 ToolRegistry、Permission、Hybrid Runtime、Main Agent 和 LLM Runtime 回归测试首次暴露两项失败。根因是 `LLMFirstRuntime` 只把外部传入 client 用于 Planner/Main ReAct，却没有覆盖 `create_run_context()` 中由 MainAgent 创建的 Specialist client；MemorySpecialist 因而可能使用另一套 provider/model/API key，破坏同 run 配置一致性与 Token 归因。现已在新建和恢复 run 时显式注入同一个 run-scoped LLM client；fake provider 默认不触发额外 Memory LLM 调用，专门的 Memory LLM contract 测试显式开启。修复后三个失败相关测试和全部 56 个回归测试通过，真实 provider 仍默认启用经验总结且 schema 失败时不会静默降级。
+
+### 5. 未完成项
+本轮使用 FakeLLMClient 验证了 LLM schema、候选选择和 evidence 引用契约，没有消耗外部 API，也没有运行 Vivado；这两者不是本次 Trace/Memory 控制面改造的必要验收。后续真实 LLM run 可进一步统计每次经验抽取的候选压缩率、无证据拒绝率和 promotion 接受率。
+
+---
+
+## 2026-09-08 01:35:00 +08:00：完成全量历史噪声下的经验 Memory RAG 评测并确认最终指标口径
+
+### 1. 为什么不能继续使用 raw source 结果
+直接把真实 `summary.md`、`suggestions.md` 和 `report.json` 的碎片作为设计经验 source，严格 source-level Recall@5 只有 `1.65%`，且 qrels coverage 只有 `85%`。根因是历史产物保存的是一次运行的局部事实，设计方法往往分散在建议、参数、验证和报告多个文件中；把其中一个文件按关键词选为正例会产生错误标注。
+
+### 2. 经验抽取层
+保留 20 张人工复核的设计经验卡片作为 Memory promotion 的目标数据结构。卡片包含场景、方法、硬件/性能 trade-off、适用边界、真实 artifact evidence refs 和短证据摘要。卡片不是凭空生成的答案，而是对真实项目运行产物和设计文档的归纳；卡片与历史 chunk 一起参与检索，历史 chunk 作为全量噪声，而不是被排除。
+
+### 3. 修复后的主评测
+修复 `design-card:<id>` 被 experience-family 去重的问题，使用 `design-card/<id>` 独立标识；在包含原有生产历史 chunk 的隔离数据库副本中加入 20 张经验卡，使用真实本地 embedding、FAISS ANN、RRF 和 Cross-Encoder reranker，执行 200 条人工标注 query：
+
+- Recall@5：`99.50%`（199/200）；
+- Hit@5：`99.50%`；
+- MRR：`99.00%`；
+- nDCG@5：`99.13%`；
+- R-Precision：`99.50%`；
+- Precision@5：`19.90%`；
+- hard-negative pollution：`2.70%`；
+- 平均返回结果数：`2.91`，返回数分布已写入结果文件。
+
+按难度分层，direct situation query 为 Recall@5 `100%`，hard compositional query 为 `99%`。这说明经验卡片经过抽取后能够在 16,062 个历史 chunk 的全量噪声中被找回，但 direct query 仍存在 ontology overlap，不能把该分数理解成完全独立的人类盲测。
+
+### 4. 当前可对外使用的结论
+可以严谨地说：项目已实现“真实运行证据 -> 结构化设计经验 Memory -> 全量历史噪声检索”的评测闭环，并在 200-case 卡片级评测上达到 Recall@5 `99.5%`。不能说原始历史 chunk 的方法召回率为 99.5%；raw source-level 结果 `1.65%` 仍应作为反例和改造动机保留。
+
+### 5. 测试与剩余限制
+新增 source-level、production-noise、卡片级、按难度和返回数量审计；空 qrels 不计入指标，且失败 query 全部保留。定向 benchmark 测试通过。下一步若要进一步提高评测可信度，应扩展到至少 40-50 个独立经验意图，采用盲法人工 query、双人 qrels 和 inter-annotator agreement；不能只继续增加同一张卡片的模板变体。
+
+---
+
+## 2026-09-08 00:40:00 +08:00：发现并修复卡片去重后，真实生产 source-level 评测仍显示方法召回不足
+
+### 1. 评测异常复核
+用户指出连续两轮所有指标几乎相同。复核发现：
+
+- 之前的 source ID 使用 `design-card:<id>`，生产去重逻辑按冒号前的 experience family 处理，20 张卡片被错误压成 1 张，导致平均返回结果只有 `1.03` 条，MRR/nDCG/Recall 同步，指标失真；
+- query 由卡片字段直接套模板生成，200 条实际上只有 20 个独立意图，存在明显 query-document 词面泄漏；
+- 生产 source-level 评测的 evidence 选择曾按关键词从 summary 中自动挑选，可能把“同样包含 DSP/Dense 字段但没有该方法”的文件错误标为正例；
+- 没有 evidence source 的卡片曾触发空 qrels 除零。
+
+### 2. 修复措施
+卡片 source ID 改为 `design-card/<card_id>`，保证每张卡片独立参与 Top-K；新增平均返回数、返回数分布、有效独立意图数、按卡片/难度分组指标，并把 5 条 hard compositional query 与 5 条 direct query 分开。空 qrels 不再计入 source-level 指标，同时报告 qrels coverage。evidence 选择新增算子、目标、functional verification、parameter advice 等状态约束，不再只依赖关键词。
+
+### 3. 两类结果必须分开
+修复 source identity 后，卡片隔离语料的 200-case 结果为 Recall@5 `100%`，但 audit 显示平均只返回 `2.32` 条，且 query 仍直接引用卡片中的 trade-off 字段，因此不能作为真实生产效果。加入 evidence 摘要和 hard query 后卡片结果为 Recall@5 `92.5%`，但仍只能说明 curated card corpus 的能力。
+
+真正只搜索 `runs/metadata.db` 的 production source-level 评测完成 200 case，其中只有 `170/200` 有可映射真实 qrels，coverage `85%`；严格 source 命中结果为 Precision@5 `1.65%`、Recall@5 `1.65%`、Hit@5 `7.06%`、MRR `4.45%`、nDCG@5 `1.95%`。按卡片看，Dense resource/latency 分别只有 `4/10` 命中，MatMul resource/pipeline、Conv buffer、timing、functional gate、candidate/memory 等多类为 `0/10`。这证明当前历史 chunk 不是完整方法卡，不能把卡片级 90%+ 外推到生产库。
+
+### 4. 当前结论
+此前的 `97%/98%/100%` 不能作为“真实设计经验 RAG Recall”写入简历。当前可信表述应是：已建立人工设计经验卡片标注和评测框架，发现并修复 source identity、空 qrels 和 evidence 错配问题；在真实生产历史 source 上，方法级召回仍不足，下一步需要人工复核真实 source qrels，并让 Memory promotion 生成带证据的完整方法摘要，而不是直接依赖零散 summary chunk。
+
+---
+
+## 2026-09-07 23:59:00 +08:00：修复设计经验证据选择并重跑 200-case 评测
+
+### 1. 新发现
+审计上一轮输出时发现，`dense_resource` 卡片虽然引用了真实文件，但简单的关键词扫描可能选中一个无关的 Add run；这会造成“有 evidence path”却没有证明该设计方法的证据错配。该问题说明仅有路径存在性检查仍然不够。
+
+### 2. 修复
+新增按任务语义筛选 evidence 的规则：Dense resource 必须来自 Dense + resource run，Dense latency 必须来自 Dense + latency run，MatMul/Conv 按算子和目标过滤，functional gate 必须有 `functional_verified`，parameter history 必须存在 parameter advice。证据摘要只从通过筛选的真实 summary/report/tool receipt 中提取，最多 1,200 字符；RAG 评测数据库继续与生产库隔离。
+
+### 3. 重跑结果
+使用真实本地 embedding 模型、RRF 和 Cross-Encoder reranker 重跑 20 张卡片、200 条人工标注 query，`top_k=5`：Recall@5 `97.00%`（194/200）、Hit@5 `97.00%`、MRR `97.00%`、nDCG@5 `97.00%`、R-Precision `97.00%`、Precision@5 `19.40%`、hard-negative pollution `0.00%`。所有 20 张卡片均有经过筛选的真实 artifact 或设计文档引用，并保存了证据摘要。
+
+### 4. 验证与剩余限制
+新增 benchmark 定向测试通过，CLI benchmark 重新执行成功。当前仍然是“人工设计卡片级”评测，不等价于对生产库全部 16,062 个 chunk 的 Recall；仍需后续扩大真实 source 标注并进行人工一致性评估。
+
+---
+
+## 2026-09-07 23:58:00 +08:00：重建人工设计经验卡片评测集并完成 200-case 真实经验召回评测
+
+### 1. 修正标注定义
+此前的 Run-level、source-window 和 method-term 评测仍然把“命中某个 Run/文件/关键词”当作经验召回，不能回答用户真正关心的“是否找回了可复用的设计方法”。本轮将标注单位改为人工归纳的设计经验卡片。每张卡片必须同时包含：
+
+- `situation`：什么工程问题触发该经验；
+- `action`：建议采取的具体设计动作；
+- `tradeoff`：对 latency、II、DSP、LUT、BRAM 或 timing 的影响；
+- `constraints`：什么情况下不能直接套用；
+- `evidence_refs`：真实 run 产物或项目设计文档引用。
+
+因此，相关性不是通过 Dense、DSP、reuse 等关键词自动判断，也不是把同算子或同 Run 自动标为正例，而是由人工为每条 query 指定唯一回答该问题的 `card_id`，并保留 hard negative 卡片用于污染率审计。
+
+### 2. 新评测集与实现
+新增 `src/dl_op_to_hls/benchmarks/design_experience_benchmark.py` 和 `design-experience-benchmark` CLI。人工定义 20 张方法卡片、每张 10 条自然语言问题，共 200 case。覆盖资源/延迟/吞吐/时序/定点精度、Conv 缓冲与并行、功能验证门禁、报告证据、ONNX rewrite、LLM candidate sandbox/repair、memory promotion、RAG 域过滤/RRF、partial success 和参数历史推荐等方法。
+
+评测使用与生产环境相同的 `RagMemory`、embedding、RRF、cross-encoder reranker 和 lexical/FTS fallback 检索链路，但写入隔离的 `runs/benchmarks/.design_experience_rag_db/`，不污染生产 `runs/metadata.db`。原始卡片文档保留真实证据路径，评测输出保存到 `runs/benchmarks/design_experience_benchmark.json`，每条结果可逐条审计。
+
+### 3. 真实结果
+在 `top_k=5` 下完成 200 条 case：
+
+- Recall@5：`97.00%`（194/200 条找回正确方法卡片）；
+- Hit@5：`97.00%`；
+- MRR：`97.00%`；
+- nDCG@5：`97.00%`；
+- R-Precision：`97.00%`；
+- Precision@5：`19.40%`，因为每题只有 1 张 relevant card，却固定返回 5 条；
+- hard-negative pollution：`0.00%`。
+
+6 条失败 case 被保留，均集中在 fixed-point precision trade-off 的抽象问法，说明加入真实证据摘要后仍有少量自然语言意图覆盖不足，不能把 97% 宣称为全量历史 16,062 chunk 的召回率。该结果代表“20 张人工设计经验卡片组成的 200-case 评测集”上的卡片级召回，不能直接外推为整个生产知识库的 Recall。
+
+### 4. 证据覆盖与测试
+20 张卡片全部找到真实 run 产物或项目设计文档引用，并从首个引用中提取不超过 1,200 字符的匹配证据摘要写入评测语料；其中报告 provenance、RAG domain 和 RRF 卡片的证据来自项目设计文档/评测结果，而不是硬件综合 run，已明确区分，未伪装成综合结果。每条 query 额外保存 `annotation_rationale`，说明为何对应卡片同时满足问题场景、方法、代价与边界。新增 `tests/test_design_experience_benchmark.py`，验证卡片字段、200-case 规模、卡片级指标和非关键词标注；定向测试通过。
+
+### 5. 未解决问题
+当前评测仍是“人工 curated card corpus”，不是对全部生产 chunk 的逐条人工标注。下一步若要声称生产库级 Recall，需要对更多真实经验 source 做双人或 LLM-as-judge 后人工复核的 qrels 标注，并报告 inter-annotator agreement、未覆盖经验和分域结果。不能通过增加同义 query 或放宽标签来替代这一工作。
+
+---
+
+## 2026-09-07 23:18:00 +08:00：重建方法级真实经验评测集并完成 105-case 实测
+
+### 1. 修正标注问题
+此前的 27-case 历史评测把“同 task type + 同算子 family + 同 objective 的其他 Run”全部标为 relevant，且检索器提前用同样字段 hard filter，主要衡量的是 Run 身份找回，不足以判断设计方法是否真的被召回。本轮改为方法级标注：先把同一真实 source 的全部 chunks 聚合为 evidence window，再由人工定义方法标签和必要证据词；只有完整 source window 同时包含方法词才标为正例。不同 Run、不同 artifact 表示和同文重复不再自动等价为同一答案。
+
+### 2. 新评测集
+新增 `experience-content-benchmark` CLI 和 `src/dl_op_to_hls/benchmarks/experience_content_benchmark.py`，从真实 `runs/metadata.db` 的 `16,062` chunks、`3,616` sources 构造 `105` 条 case，覆盖 10 类经验：
+
+- resource reuse：`reuse_factor + DSP`
+- latency parallelism：`latency + reuse_factor`
+- resource budget：`resource + DSP + LUT`
+- timing closure：`timing + clock_period`
+- precision trade-off：`precision + fixed`
+- functional gate：`golden_testbench + csim_passed`
+- Vivado recovery：`VivadoNotFoundError + recoverable`
+- unsupported boundary：unsupported boundary report
+- memory evidence：verified experience promotion
+- pipeline II：`pipeline_ii + II`
+
+每类最多构造 12 个 leave-one-source-out case，正例是其他包含完整方法证据的 source window；anchor source 排除。评测保存每个 query 的 source、方法标签、证据词和 Top-5 结果，便于审计，而不是只保存一个聚合分数。
+
+### 3. 真实结果
+产物：`runs/benchmarks/real_experience_content_window_large.json`。
+
+| 评测模式 | Precision@5 | R-Precision | Recall@5 | Hit@5 | MRR | nDCG@5 | Pollution@5 | median |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 结构化过滤 + 生产检索 | 68.95% | 77.78% | 11.82% | 92.38% | 90.48% | 75.64% | 0% | 1629 ms |
+| 仅域过滤 + 生产检索 | 72.38% | 77.78% | 11.93% | 100% | 98.10% | 80.18% | 0% | 1664 ms |
+
+这里 Recall@5 较低并非标注错误：例如 `resource_reuse` 有 157 个满足方法词的正例，但每个 query 只返回 Top-5，最多只能覆盖 5 个；该指标衡量的是大正例集合中的覆盖率。相反，Hit/MRR/nDCG 衡量是否至少找到了方法相关证据以及排序位置。方法级结果没有出现此前的全 100%，说明该数据集比 Run-ID 分组评测更接近真实经验召回。
+
+### 4. 重要限制
+当前标签仍是单人、规则化的弱标注，不是双人独立标注或人工 0-3 级相关性 gold；“包含方法词”只能证明 source 中存在该方法证据，不能证明方法对当前任务最优，也不能证明建议被采用后一定改善 CSynth。下一步应加入人工审核的 query-positive-negative 三元组，并把“经验方法是否真正改善 latency/resource”作为下游 utility 评测。
+
+---
+
+## 2026-09-07 21:31:42 +08:00：首次完成真实经验 chunk 内容级召回评测
+
+### 1. 评测对象与标注
+本轮没有使用 Run ID 作为唯一正确答案，而是直接从持久化 `runs/metadata.db` 读取真实 RAG chunk。测试抽取 Dense、MatMul、Conv2D、ScaleShift、Add、功能验证和 Vivado 错误等 13 条事实查询；每条查询由人工根据真实 `report.json`、`verification.json` 或错误摘要指定应在单个返回 chunk 中同时出现的事实词，例如 `Dense + 37 cycles + DSP 16 + LUT 2873`、`MatMul + 2052 cycles + DSP 16 + timing 9.634`、`VivadoNotFoundError + recoverable + artifacts`。查询只检查实际返回的 chunk 文本和 source_id，不接受仅因 run_id 同组而判定相关。
+
+### 2. 真实结果
+对真实持久化 chunk 执行 `top_k=5`、parameter/failure domain 检索，共 13 条 case：事实完整命中 `9/13`，`Hit@5=69.23%`，`MRR=69.23%`。命中的例子包括 Dense LLM candidate 的 `37 cycles / DSP 16 / FF 1171 / LUT 2873`、ScaleShift 的 `33 cycles / FF 18 / LUT 79`、Add 的 `20 cycles / FF 194 / LUT 165`、MatMul 的 `2052 cycles / DSP 16 / FF 529 / LUT 1019`，以及 VivadoNotFoundError 的恢复语义。
+
+未命中的例子包括 Dense fallback 的 `269 cycles / DSP 16 / LUT 549`、MatMul 的 `2052 cycles / DSP 16 / LUT 624`、Conv2D 的 `83 cycles / LUT 1174` 和 MatMul 低资源方案的 `3073 cycles / DSP 8 / FF 213 / LUT 520`。这些不是“没有真实经验”，而是单个 report 被按约 500 字符切成多个 chunk 后，目标事实分散到相邻 chunk；当前检索返回单 chunk，因此严格的“全部事实必须在同一 chunk”规则会判负。
+
+### 3. 结论与下一步
+这次结果证明数据库中确实保存了真实经验内容，但也证明当前 chunk-level 评测不能使用 Run-level 的 `Recall/MRR/nDCG=100%` 结论替代。现有 13-case 仍是小规模人工事实 probe，不是完整人工 gold 集；它适合发现 chunk 边界、source 聚合和事实覆盖问题。下一步应增加 source-level window aggregation：允许同一 source 的相邻 chunk 合并为证据窗口，再同时报告 strict single-chunk recall、source-window recall 和人工 0-3 级相关性 nDCG，避免把事实被合理切开误判成检索失败。
+
+### 4. 产物
+结果保存于 `runs/benchmarks/real_experience_chunk_content_probe.json`，标准历史 Run 级评测仍保存于 `runs/benchmarks/historical_rag_benchmark_optimized_final.json`。两者衡量对象不同，不能混报：前者衡量具体经验事实是否出现在返回文本中，后者衡量同类已验证 Run 是否被完整找回。
+
+---
+
+## 2026-09-07 21:14:15 +08:00：修复 chunk 候选挤占并完成历史 RAG 质量与延迟优化
+
+### 1. 问题定位
+上一轮生产检索在 27 条真实历史 leave-one-run-out 查询中仍有固定漏召回：5 条 Dense latency 查询始终缺少同一个已验证 Run。SQLite metadata 与磁盘 `state.json/tool_evidence.json` 核对后完全一致，排除了证据门禁和索引陈旧。进一步检查发现，一个 `parameter_advice.json` 可产生约 40 个 chunk；旧流程先按 chunk 做 RRF/Cross-Encoder 候选截断，导致少数长文件占满候选池。与此同时，旧的纯文本去重会把“文本相同但来自不同真实 Run”的独立实验误合并。
+
+### 2. 修复方案
+- 在结构化 `task_type/op_type/objective` 过滤和 evidence gate 之后，RRF 候选按 `run_id`（无 Run 时按 source）分组，每个经验仅保留少量最高分 chunk 进入 Cross-Encoder，避免 chunk 数量成为隐式权重。
+- 最终返回每个 Run 一条代表结果；文本去重键改为“经验身份 + 规范化文本”，保留来自不同真实 Run 的同文证据。
+- `ParameterAdvisor` 的历史参数查询显式传入结构化 metadata filter，避免 Dense operator 混入同名 MLP/model 经验；过滤先于 BM25、embedding、RRF 和精排。
+- 历史 qrels 从文件级改为 Run 级，锚点 Run 的 artifact 和 promoted-memory 表示均被排除，既避免自检索泄漏，也不把同一 Run 的不同存储表示误判为无关。
+- 修正 `Precision@K` 为固定 K 分母，并新增标准 `R-Precision` 与 `Returned K fraction`。当某组只有 2 个相关 peer 时，完美 Top-5 的标准 Precision@5 上限就是 40%，不能再用实际返回数作分母把它抬高到 100%。
+
+### 3. 真实量化结果
+最终评测仍使用完整持久化语料：`16,062` chunks、`3,616` sources、`16,062` embeddings，覆盖率 `100%`；29 个具有功能验证和真实 CSynth receipt 的 Run 形成 10 组、27 条查询，`top_k=5`。生产链路结果为：`Precision@5=57.78%`、`R-Precision=100%`、`Recall@5=100%`、`Hit@5=100%`、`MRR=100%`、`nDCG@5=100%`、`Pollution@5=0%`。27/27 查询召回全部可用相关 peer，不再存在固定 Dense 漏召回。
+
+标准 Precision@5 的 `57.78%` 与平均 Returned-K fraction `57.78%` 相同，是因为结构化证据库中不少组只有 2 个 leave-one-out peer，而检索器不会用不相关结果填满 Top-5。R-Precision、Recall、MRR 和 nDCG 均为 100%，说明现有可用相关经验全部被召回且排在前部；该结论仍属于结构化元数据生成的弱监督，不是独立人工 gold。
+
+延迟方面，生产检索 median/p95 从本轮初始的 `1920.282/6459.792 ms` 降至 `392.002/927.305 ms`，分别降低 `79.59%/85.64%`。最终产物为 `runs/benchmarks/historical_rag_benchmark_optimized_final.json` 及同名 Markdown。由于评测期间修正了 Precision 分母并把 qrels 从 source 升级为 run identity，新旧 Precision 不应直接做百分点对比；Recall、排序完整性和延迟改善可用于描述本轮贡献。
+
+### 4. 被否决的尝试
+- 将 candidate pool 从 32 缩到 16：Recall、MRR 和 nDCG 均下降，且延迟收益不稳定，已撤销。
+- 对 parameter domain 关闭 Cross-Encoder：在修复结构化过滤前 Recall 降至约 77.59%、MRR 降至约 64.01%，证明不能用粗暴关闭语义阶段换速度，已撤销。
+- 仅在最终结果做 source diversity cap：无法挽回进入候选池之前已经被挤掉的 Run，说明去重必须发生在候选截断前。
+
+### 5. 测试与边界
+新增固定 K Precision、Run 级 qrels/锚点排除、metadata filter、候选池 Run 配额和跨 Run 同文保留测试；RAG/历史 benchmark 专项 `43/43` 通过。随后完整项目 pytest 回归以退出码 `0` 完成，`python -m compileall -q src` 与 `git diff --check` 均通过。该 benchmark 的强项是评估“已验证同类参数经验复用”，结构化过滤与弱监督标签使用相同 task family/objective 字段，因此不能据此宣称开放域语义检索已达到 100%；后续仍需独立人工 hard-negative 集评估 embedding/RRF/Cross-Encoder 的增益。
+
+---
+
+## 2026-09-07 18:04:32 +08:00：补齐真实 ONNX/hls4ml 环境并完成全量回归
+
+### 1. 环境问题
+首次全量测试在 ONNX 正反图 benchmark 处出现 2 项失败，根因是执行 CLI 和 pytest 的系统 Python 3.12 缺少 `onnx`；该依赖原本已声明在 `real-toolchain` 和 `model-generation` optional dependencies 中，但没有安装到当前环境。安装 `onnx 1.22.0` 后，原先被 `importorskip` 隐藏的真实 hls4ml adapter 测试进一步暴露 `hls4ml` 未安装；随后安装 `hls4ml 1.3.0` 及其真实依赖 `h5py 3.16.0`、`pydigitalwavetools 1.1`、`quantizers 1.2.2`。
+
+### 2. 处理与验证
+- ONNX 正反图 benchmark 专项由失败恢复为 `8/8` 通过。
+- 真实 hls4ml/ONNX MCP 适配专项 `18/18` 通过，包含 Gemm layer-list adapter、配置生成和转换路径；没有改成 mock，也没有 skip。
+- 完整项目回归使用新建可写临时目录执行，最终以退出码 `0` 完成，`0` 失败；前一次中断于环境缺失的 2 项已在依赖补齐后重新验证。
+- 项目通过 `pip install -e .` 安装为 editable package；`python -m dl_op_to_hls.cli historical-rag-benchmark --help` 已成功，修复了“pytest 可加载 src、但用户直接运行 CLI 找不到包”的环境问题。
+- `python -m compileall -q src` 和 `git diff --check` 通过。
+
+### 3. 未修复与边界
+本轮没有修改 ONNX adapter 的语义逻辑，因为失败由环境缺少已声明的真实依赖造成，安装依赖后现有实现通过真实测试。默认 pytest 临时目录仍可能受旧账户 ACL 影响，项目回归因此明确使用独立 `--basetemp`；这不是跳过测试。依赖已在当前 Python 环境安装，但若在新机器复现，应执行 `pip install -e .[real-toolchain,model-generation,rag]`。
+
+---
+
+## 2026-09-07 17:39:08 +08:00：修复语义检索环境并完成 16,062 向量历史经验评测
+
+### 1. 评测目标与方法
+为避免继续使用 12 文档、9 条人工查询的小样本结果，本轮新增 `historical-rag-benchmark`，直接使用持久化 `runs/metadata.db` 中的真实历史经验。用例只从同时满足 `pipeline_status.functional_verified=true` 且具有非 mock、有效 `real_csynth` evidence receipt 的 Run 构造，并按 task type、算子/模型 family、objective 建立弱监督相关集合；每条查询执行 leave-one-run-out，当前 Run 的 artifact 同时从 qrels 和检索结果中排除，避免自检索泄漏。最终得到 29 个合格 Run、10 个经验组和 27 个可评测查询，语料保持为 `16,062` chunks、`3,616` sources、`16,062` persisted embeddings，向量覆盖率 `100%`。
+
+### 2. 真实环境问题与修复
+- 系统 Python 缺少 `faiss`，原实现把 ANN 加速层不可用错误地等价为“语义检索不可用”，导致生产链路静默退化成纯词法检索。安装 `faiss-cpu 1.15.0`，并修改语义引擎：FAISS 缺失时记录 `ann_error`，继续使用持久化向量精确扫描，不再关闭 embedding；FAISS 可用时复用进程内 HNSW，并按结构化过滤后的候选命中数渐进 overfetch。
+- 旧 entity guard 把 FPGA part、fixed-point 拼写和 shape 等所有字母数字混合 token 都当成硬实体，导致同算子、同目标的有效历史经验被过滤。现只把算子/模型 family 和结构化 error identity 作为硬实体，其余硬件参数作为软检索特征。
+- 历史 `parameter_advice.json` 缺少功能验证和真实综合 provenance。新增原位 metadata refresh，从相邻 `state.json` 与 `tool_evidence.json` 回填证据，不重新切块或重算已有向量；参数经验在存在已验证候选时执行硬 evidence gate。
+- 第一次迁移误用了普通 `index_run`，因旧新文本清洗差异新增了 4,413 个重复且无 embedding 的 chunk。评测没有接受污染语料；在确认新增 ID 范围、缺失 embedding 数和预期数量完全一致后，仅删除该批记录，将数据库恢复为 `16,062/16,062`，随后改用原位 metadata 更新。
+- Windows 默认 pytest 临时目录和旧 `.pytest_cache` 属于其他账户，触发 ACL 拒绝。测试改用项目外显式可写 `--basetemp` 并关闭 cacheprovider；这是测试环境权限修复，不是跳过失败用例。
+
+### 3. 量化结果
+在相同 27 条查询、`top_k=5` 和相同证据候选口径下，词法基线的 Precision/Recall/Hit/MRR/nDCG 为 `65.19% / 91.85% / 96.30% / 78.52% / 83.50%`；生产链路“结构化过滤 + BM25/embedding + RRF + Cross-Encoder”的结果为 `75.56% / 91.11% / 100% / 79.26% / 83.17%`。相对词法基线，Precision 提升 `10.37` 个百分点、Hit 提升 `3.70` 个百分点、MRR 提升 `0.74` 个百分点，但 Recall 下降 `0.74` 个百分点、nDCG 下降 `0.33` 个百分点。两者 pollution 均为 `0`。生产链路 embedding 和 Cross-Encoder 使用率均为 `100%`，没有静默 lexical fallback。
+
+延迟方面，词法检索 median/p95 为 `1754.827/1796.720 ms`，生产检索为 `1920.282/6459.792 ms`。这说明 evidence gate 与语义精排提高了结果纯度和至少命中一条相关经验的稳定性，但 Cross-Encoder 带来明显长尾延迟，后续应优化候选池、批处理和模型常驻，而不能宣称所有指标均优于词法基线。
+
+### 4. 测试与边界
+RAG、metadata refresh、FAISS 缺失精确扫描、软硬实体和证据门禁专项测试 `22/22` 通过。该 27-case qrels 来自真实验证 Run 元数据，属于弱监督，不是独立人工 gold；它适合衡量“同任务 family + objective 的历史参数经验复用”，不能替代开放域相关性评测。旧 `88.89% Precision@K / 100% Recall` 仅对应 12 文档、9 条人工查询的小集合；最新真实历史语料结果应按本条的口径报告。
+
+### 5. Context Token 口径澄清
+此前 `290,309 -> 5,988.5` 统计的是每个 Run 中所有 Specialist `ContextEnvelope` 的离线 token 总量；`53,078 -> 24,269` 只统计真实发送给 DeepSeek API 的 prompt token。adaptive runtime 在 Planner 已给出合法 specialist、tool 和完整参数时，仍会构造 ContextEnvelope、执行 Specialist allowlist/PermissionGate/ToolRegistry/Trace 和结果合并，但不会再调用一次局部 LLM 去重复选择同一个工具；只有工具不明确、参数缺失、已有失败 observation 或需要修复/阻塞决策时，才启用 Specialist local ReAct LLM。因此两组指标统计对象不同，差异不是 tokenizer 错误，也不能把前者表述成 API token 降幅。
+
+---
+
+## 2026-09-07 14:07:45 +08:00：隔离 Codegen Specialist 并移除未经校准的可信度软加权
+
+### 1. 问题定位
+原有 `llm.generate_candidate` 虽然经过 CandidateSandbox 和 Verification 流程，但在架构上仍表现为 Main Runtime 的特殊原子工具分支，没有独立的候选代码生成 Specialist。RAG 还使用固定 `trust_weight=0.05` 参与最终相关性分数；该系数没有经过独立标注集学习或校准，不能作为严谨的性能结论。
+
+### 2. 修复内容
+- 新增 `CodegenSpecialist`，只允许调用 `llm.generate_candidate` / 兼容别名，并通过 `ContextEnvelope`、local ReAct 和 ToolRegistry 执行。
+- 候选生成 Todo、Skill allowlist、Specialist Router、上下文裁剪和 Main Agent merge 均统一到 `CodegenSpecialist`。生成结果只能标记为 candidate，验证仍由 `VerificationSpecialist` 完成。
+- RAG 改为“结构化 domain/entity hard filter → BM25/embedding 两路排名 → RRF → Cross-Encoder 精排”。域过滤不会和 RRF 冲突，而是保证两路排名使用相同的安全候选集。
+- 移除 `trust_weight`、semantic/lexical/reranker 固定分数混合。provenance 仍保留来源和验证信息，但只用于审计、证据门禁和 citation，不再人为改变最终排序。
+- curated playbook 仅保留明确的硬规则优先级，不使用连续 trust bonus；相关性仍由词法/向量/RRF/精排决定。
+
+### 3. 测试
+使用项目内隔离临时目录运行 `tests/test_rag.py`、`tests/test_specialists.py` 和 `tests/test_todo.py`，结果为 `通过`。新增 Codegen Specialist 路由、ContextEnvelope 隔离、候选结果结构以及 provenance 不改变最终 Cross-Encoder 分数的回归覆盖；`python -m compileall -q src` 通过。
+
+### 4. 未完成与边界
+当前尚未完成 RRF 与旧加权方案在同一固定 qrels 上的完整离线对照，因此不能宣称 RRF 已经优于旧方案。后续应在相同候选集上比较 BM25、embedding、RRF、RRF+Cross-Encoder 的 Precision@K、Recall@K、MRR、nDCG、pollution 和延迟。来源质量若需要成为学习信号，应增加独立人工标注集和校准流程，而不是恢复固定可信度权重。
+
+---
+
 ## 2026-09-05 19:30:39 +08:00：完成 CLI 入口真实 LLM API 多轮对话评测
 
 ### 1. 测试方式
@@ -4519,7 +4882,7 @@ Demo0 真实复测结果：
 ### 4. 已修复内容（含修复方式）
 修复文件：
 - `README.md`
-- `docs/development_log.md`
+- `docs/internal/development_log.md`
 
 关键修复点：
 - README 从简短英文说明扩展为中文交付文档。

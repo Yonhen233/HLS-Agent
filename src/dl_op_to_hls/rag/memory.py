@@ -70,8 +70,15 @@ class RagMemory:
         top_k: int = 5,
         domain: str | None = None,
         identity: dict | None = None,
+        metadata_filter: dict | None = None,
     ) -> list[dict]:
-        return self.retriever.retrieve(query, top_k=top_k, domain=domain, identity=identity)
+        return self.retriever.retrieve(
+            query,
+            top_k=top_k,
+            domain=domain,
+            identity=identity,
+            metadata_filter=metadata_filter,
+        )
 
     def retrieve_corrective(
         self,
@@ -79,17 +86,32 @@ class RagMemory:
         top_k: int = 5,
         domain: str | None = None,
         identity: dict | None = None,
+        metadata_filter: dict | None = None,
     ) -> dict:
         result = self.corrective_retriever.retrieve(
             query,
             top_k=top_k,
             domain=domain,
             identity=identity,
+            metadata_filter=metadata_filter,
         )
         return {**result, "retrieval_diagnostics": dict(self.retriever.last_diagnostics)}
 
     def index_text(self, source_id: str, text: str, metadata: dict) -> dict:
         return self.indexer.index_text(source_id, text, metadata=metadata)
+
+    def refresh_artifact_metadata(self, run_id: str, artifact_paths: list[str]) -> dict:
+        """Backfill evidence metadata without changing chunk or embedding identity."""
+        updated = 0
+        sources = 0
+        for raw_path in artifact_paths:
+            path = Path(raw_path)
+            metadata = {"run_id": run_id, **self._metadata_for_path(str(path))}
+            count = self.repository.update_rag_source_metadata(str(path), metadata)
+            if count:
+                sources += 1
+                updated += count
+        return {"status": "success", "sources_updated": sources, "chunks_updated": updated}
 
     def backfill_embeddings(self, *, batch_size: int = 256, max_chunks: int | None = None) -> dict:
         if not self.semantic_engine.config.enabled:
@@ -132,14 +154,53 @@ class RagMemory:
 
     def _metadata_for_path(self, path: str) -> dict:
         lowered = str(path).replace("\\", "/").lower()
+        run_metadata = self._run_evidence_metadata(Path(path))
         if lowered.endswith("suggestions.md"):
-            return {"domain": "optimization", "source_type": "suggestions"}
+            return {**run_metadata, "domain": "optimization", "source_type": "suggestions"}
         if lowered.endswith("verification.json") or lowered.endswith("report.json") or lowered.endswith("parameter_advice.json"):
-            return {"domain": "parameter", "source_type": "parameter_experience"}
+            return {**run_metadata, "domain": "parameter", "source_type": "parameter_experience"}
         if lowered.endswith("unsupported_report.md"):
-            return {"domain": "failure", "source_type": "unsupported_report"}
+            return {**run_metadata, "domain": "failure", "source_type": "unsupported_report"}
         if lowered.endswith("compressed_context.json"):
-            return {"domain": "episodic", "source_type": "compressed_context"}
+            return {**run_metadata, "domain": "episodic", "source_type": "compressed_context"}
         if lowered.endswith("summary.md"):
-            return {"domain": "episodic", "source_type": "summary"}
-        return {"domain": "general", "source_type": "artifact"}
+            return {**run_metadata, "domain": "episodic", "source_type": "summary"}
+        return {**run_metadata, "domain": "general", "source_type": "artifact"}
+
+    @staticmethod
+    def _run_evidence_metadata(path: Path) -> dict:
+        state_path = path.parent / "state.json"
+        evidence_path = path.parent / "tool_evidence.json"
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            state = {}
+        try:
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8")) if evidence_path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            evidence = {}
+        task = state.get("task") or {}
+        pipeline = state.get("pipeline_status") or {}
+        evidence_classes = sorted(
+            {
+                str(receipt.get("evidence_class"))
+                for receipt in evidence.get("receipts", [])
+                if isinstance(receipt, dict)
+                and receipt.get("valid") is True
+                and receipt.get("mock_evidence") is not True
+                and receipt.get("evidence_class")
+            }
+        )
+        real_csynth = "real_csynth" in evidence_classes
+        functional_verified = pipeline.get("functional_verified") is True
+        return {
+            "task_type": task.get("task_type"),
+            "op_type": task.get("op_type"),
+            "name": task.get("name"),
+            "objective": state.get("objective") or task.get("objective"),
+            "selected_path": state.get("selected_path"),
+            "functional_verified": functional_verified,
+            "real_csynth": real_csynth,
+            "evidence_verified": functional_verified and real_csynth,
+            "evidence_classes": evidence_classes,
+        }

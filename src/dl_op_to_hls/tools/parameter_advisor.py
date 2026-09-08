@@ -275,8 +275,14 @@ def _rag_hints_for_task(task: dict[str, Any], context: dict[str, Any]) -> list[d
     if rag_memory is None:
         return []
     query = f"{task.get('name')} {_task_family(task) or ''} precision reuse_factor clock verified parameter"
+    metadata_filter = {
+        "task_type": task.get("task_type"),
+        "objective": _objective(task),
+    }
+    if task.get("task_type") == "operator" and task.get("op_type"):
+        metadata_filter["op_type"] = task.get("op_type")
     try:
-        return rag_memory.retrieve(query, top_k=3, domain="parameter")
+        return rag_memory.retrieve(query, top_k=3, domain="parameter", metadata_filter=metadata_filter)
     except TypeError:
         return rag_memory.retrieve(query, top_k=3)
 

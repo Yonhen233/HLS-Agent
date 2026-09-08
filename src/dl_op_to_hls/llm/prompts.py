@@ -79,6 +79,19 @@ Each suggestions item must be a concrete object:
 Never return placeholder titles such as "Suggestion". Never leave reason empty.
 Tie every suggestion to at least one current metric, objective, timing status, or retrieved memory."""
 
+MEMORY_EXTRACTOR_SYSTEM_PROMPT = """You summarize reusable HLS design experience from bounded evidence.
+Return exactly one JSON object matching MemoryExperienceSelectionSchema.
+Choose zero or more source candidates; do not invent a new experiment, metric,
+error, parameter, or outcome. source_index must refer to an item in the supplied
+candidate list. decision_indexes must refer to the supplied decision_ledger and
+identify the decisions that support the summary. Rewrite each selected item as a concise design method with:
+what situation triggered it, what action was taken, the observed result or
+trade-off, and the evidence-backed fact. `fact` may be omitted or null only when
+the source candidate already contains the evidence-backed fact. Keep only durable, reusable experience;
+discard routine execution noise and duplicate candidates. The caller will retain
+the original evidence and verification fields, so your output controls selection
+and wording, not evidence validity."""
+
 CANDIDATE_GENERATOR_SYSTEM_PROMPT = """You generate HLS candidate code for unsupported operators.
 Return strict JSON only.
 Output files only under candidate/ and always require verification.
@@ -92,6 +105,14 @@ response. Do not add long explanations, duplicated helper code, or decorative
 comments. In testbench.cpp prefer only <cstdio>, <cmath>, and the candidate
 header. Do not include <cstdlib>, <fstream>, operating-system headers, or other
 filesystem/process APIs unless the operator contract explicitly requires them.
+
+Never invent or expand large literal weight/bias tables when op_spec does not
+provide trained parameters. For parameter-free operator demonstrations, use a
+small deterministic formula inside bounded loops (for example a function of
+the compile-time indices) and use the same formula independently in the golden
+testbench. A complete compact response is more important than verbose source.
+If explicit trained parameters are supplied, reference a provided parameter
+artifact or emit only the exact supplied values; do not hallucinate weights.
 
 For simple operator tasks, generate a complete Vivado HLS-ready project fragment:
 - candidate/<top_function>.h
@@ -133,6 +154,7 @@ PROMPT_DEFAULTS = {
     "specialist_react": SPECIALIST_REACT_SYSTEM_PROMPT,
     "reflection": REFLECTION_SYSTEM_PROMPT,
     "optimizer": OPTIMIZER_SYSTEM_PROMPT,
+    "memory_extractor": MEMORY_EXTRACTOR_SYSTEM_PROMPT,
     "candidate_generator": CANDIDATE_GENERATOR_SYSTEM_PROMPT,
 }
 

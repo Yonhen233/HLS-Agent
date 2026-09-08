@@ -1363,29 +1363,37 @@ def evaluate_rag_case(case: dict[str, Any], results: list[dict[str, Any]], defau
     top_k = int(case.get("top_k") or default_top_k)
     top_results = results[:top_k]
     relevant_source_ids = {str(item) for item in case.get("relevant_source_ids", [])}
+    relevant_run_ids = {str(item) for item in case.get("relevant_run_ids", [])}
     relevant_terms = [str(item).lower() for item in case.get("relevant_terms", [])]
     required_terms = [str(item).lower() for item in case.get("required_terms", relevant_terms)]
     irrelevant_terms = [str(item).lower() for item in case.get("irrelevant_terms", [])]
     expect_abstain = bool(case.get("expect_abstain") or case.get("expect_no_results"))
 
-    if relevant_source_ids:
-        relevance = [1 if _matches_source_id(result, relevant_source_ids) else 0 for result in top_results]
+    relevant_labels = relevant_run_ids or relevant_source_ids
+    if relevant_labels:
+        relevance = [1 if _matches_source_id(result, relevant_labels) else 0 for result in top_results]
         relevant_hits = sum(relevance)
-        precision_at_k = relevant_hits / max(len(top_results), 1)
-        recall_at_k = relevant_hits / max(len(relevant_source_ids), 1)
+        # Precision@K has a fixed denominator. Returning fewer than K items is
+        # a partial retrieval, not permission to inflate the score.
+        precision_at_k = relevant_hits / max(top_k, 1)
+        recall_at_k = relevant_hits / max(len(relevant_labels), 1)
+        r_precision = None
+        if len(relevant_labels) <= top_k:
+            r_precision = sum(relevance[: len(relevant_labels)]) / max(len(relevant_labels), 1)
         hit_at_k = 1.0 if relevant_hits else 0.0
         mrr = 0.0
         for index, rel in enumerate(relevance, start=1):
             if rel:
                 mrr = 1.0 / index
                 break
-        ideal_relevance = [1] * min(len(relevant_source_ids), top_k)
+        ideal_relevance = [1] * min(len(relevant_labels), top_k)
         ndcg_at_k = _dcg(relevance) / max(_dcg(ideal_relevance), 1e-9)
     else:
         relevance = [1 if _matches_required_terms(result, required_terms) else 0 for result in top_results]
         relevant_hits = sum(relevance)
-        precision_at_k = relevant_hits / max(len(top_results), 1)
+        precision_at_k = relevant_hits / max(top_k, 1)
         recall_at_k = None
+        r_precision = None
         hit_at_k = 1.0 if relevant_hits else 0.0
         mrr = 0.0
         for index, rel in enumerate(relevance, start=1):
@@ -1423,7 +1431,9 @@ def evaluate_rag_case(case: dict[str, Any], results: list[dict[str, Any]], defau
         "query": case["query"],
         "top_k": top_k,
         "result_count": len(top_results),
+        "returned_k_fraction": round(len(top_results) / max(top_k, 1), 4),
         "precision_at_k": round(precision_at_k, 4),
+        "r_precision": round(r_precision, 4) if r_precision is not None else None,
         "recall_at_k": round(recall_at_k, 4) if recall_at_k is not None else None,
         "hit_at_k": hit_at_k,
         "mrr": round(mrr, 4),
@@ -1466,7 +1476,9 @@ def evaluate_rag_cases(cases: list[dict[str, Any]], retrieve_fn, default_top_k: 
     return {
         "case_count": len(case_metrics),
         "macro_precision_at_k": _mean("precision_at_k"),
+        "macro_r_precision": _mean("r_precision"),
         "macro_recall_at_k": _mean("recall_at_k"),
+        "macro_returned_k_fraction": _mean("returned_k_fraction"),
         "macro_hit_at_k": _mean("hit_at_k"),
         "macro_mrr": _mean("mrr"),
         "macro_ndcg_at_k": _mean("ndcg_at_k"),

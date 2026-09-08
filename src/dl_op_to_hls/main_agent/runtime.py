@@ -296,8 +296,10 @@ class PlanExecuteReactRuntime:
             todo = self.todo_manager.get_next_ready_item(self.todo_manager.todo_list)
             if todo is None:
                 break
+            decision_before = self._decision_snapshot(state, todo)
             observation = self.execute_todo_with_react(state, todo)
             state = self.reflect(state, todo, observation)
+            self._record_todo_decision(state, todo, observation, decision_before)
             self._update_plan_coverage(state)
             progress = self.progress_supervisor.observe(
                 state,
@@ -324,6 +326,49 @@ class PlanExecuteReactRuntime:
                 break
         update_status_from_todos(state)
         return state
+
+    @staticmethod
+    def _decision_snapshot(state: AgentState, todo: TodoItem) -> dict[str, Any]:
+        return {
+            "todo_status": todo.status,
+            "run_status": state.status,
+            "selected_path": state.selected_path,
+            "hls_project_dir": state.hls_project_dir,
+            "report_status": (state.report or {}).get("status"),
+            "verification_status": (state.verification or {}).get("status"),
+        }
+
+    def _record_todo_decision(
+        self,
+        state: AgentState,
+        todo: TodoItem,
+        observation: dict[str, Any],
+        before: dict[str, Any],
+    ) -> None:
+        observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
+        evidence_refs = []
+        for key in ("path", "report_path", "log_path", "config_path", "hls_project_dir"):
+            value = observed.get(key)
+            if value:
+                evidence_refs.append({"type": key, "path": str(value)})
+        decision = self._decision_from_observation(state, todo, observation)
+        react_step = todo.react_steps[-1] if todo.react_steps else {}
+        self.context["hooks"].emit(
+            "DecisionRecorded",
+            {
+                "run_id": state.run_id,
+                "todo_id": todo.id,
+                "decision": decision,
+                "trigger": react_step.get("reason") or react_step.get("reason_summary") or todo.title,
+                "before": before,
+                "after": self._decision_snapshot(state, todo),
+                "evidence_refs": evidence_refs,
+                "outcome": observed.get("summary") or observed.get("status") or observation.get("status"),
+                "status": todo.status,
+                "assigned_tool": todo.assigned_tool,
+                "assigned_specialist": todo.assigned_specialist,
+            },
+        )
 
     def execute_todo_with_react(self, state: AgentState, todo: TodoItem) -> dict[str, Any]:
         state.current_todo_id = todo.id
@@ -542,6 +587,23 @@ class PlanExecuteReactRuntime:
                     observation["status"] = "skipped"
             if result.verification:
                 state.verification = result.verification
+        if result.specialist_name == "CodegenSpecialist" and result.status == "success":
+            candidate_dir = self._first_artifact_path(result, "candidate_dir")
+            if candidate_dir:
+                state.selected_path = "llm_candidate_path"
+                state.hls_project_dir = candidate_dir
+            else:
+                generated_file = next(
+                    (
+                        artifact.get("path")
+                        for artifact in result.artifacts
+                        if artifact.get("type") in {"hls_cpp", "hls_header"} and artifact.get("path")
+                    ),
+                    None,
+                )
+                if generated_file:
+                    state.selected_path = "llm_candidate_path"
+                    state.hls_project_dir = str(Path(generated_file).parent)
         if result.specialist_name == "VerificationSpecialist" and result.errors:
             observation["error_type"] = result.errors[0].get("error_type")
             if observation["error_type"] == "VerificationFailedError":
@@ -1996,7 +2058,6 @@ class PlanExecuteReactRuntime:
             return "Mark todo as skipped and continue remaining ready todos."
         if status == "blocked":
             return "Keep todo blocked until a prerequisite implementation path is produced."
-        state.status = "failed" if status == "failed" and state.report is None else state.status
         return "Mark todo as failed and surface the structured error."
 
     def _write_short_term_for_todo(self, state: AgentState, todo: TodoItem, observation: dict) -> None:

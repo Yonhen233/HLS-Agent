@@ -6,8 +6,13 @@ import queue
 import subprocess
 import threading
 import time
+from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+# This synchronous bridge uses the handshake-based protocol. The official SDK
+# server also accepts the newer handshake-free 2026-07-28 request envelopes.
+LATEST_STABLE_PROTOCOL_VERSION = "2025-11-25"
 
 
 class MCPProtocolError(RuntimeError):
@@ -15,7 +20,12 @@ class MCPProtocolError(RuntimeError):
 
 
 class StdioMCPClient:
-    """Supervised MCP stdio client with negotiation, timeout, and one reconnect."""
+    """Supervised synchronous MCP stdio client for the Agent ToolRegistry.
+
+    The project runtime is synchronous, so this client provides a small bridge
+    to MCP stdio while preserving cancellation, notifications, diagnostics, and
+    at-most-once behavior for non-idempotent tool calls.
+    """
 
     def __init__(
         self,
@@ -26,6 +36,8 @@ class StdioMCPClient:
         timeout_seconds: float = 30.0,
         name: str = "mcp-server",
         secret_env_names: list[str] | None = None,
+        stderr_path: str | Path | None = None,
+        notification_handler: Callable[[dict[str, Any]], None] | None = None,
     ):
         self.command = list(command)
         self.cwd = str(cwd) if cwd else None
@@ -33,17 +45,26 @@ class StdioMCPClient:
         self.timeout_seconds = max(0.1, float(timeout_seconds))
         self.name = name
         self.secret_env_names = set(secret_env_names or [])
+        self.stderr_path = Path(stderr_path) if stderr_path else None
+        self.notification_handler = notification_handler
         self._process: subprocess.Popen[str] | None = None
         self._reader: threading.Thread | None = None
+        self._stderr_reader: threading.Thread | None = None
         self._pending: dict[int, queue.Queue[dict[str, Any]]] = {}
         self._pending_lock = threading.RLock()
         self._write_lock = threading.Lock()
         self._next_id = 1
+        self._stderr_tail: deque[str] = deque(maxlen=200)
+        self.notifications: deque[dict[str, Any]] = deque(maxlen=500)
         self.server_info: dict[str, Any] = {}
 
     @property
     def alive(self) -> bool:
         return self._process is not None and self._process.poll() is None
+
+    @property
+    def stderr_tail(self) -> list[str]:
+        return list(self._stderr_tail)
 
     def start(self) -> dict[str, Any]:
         if self.alive:
@@ -65,7 +86,7 @@ class StdioMCPClient:
             env=process_env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -73,24 +94,41 @@ class StdioMCPClient:
             creationflags=creationflags,
         )
         self._reader = threading.Thread(target=self._read_loop, name=f"{self.name}-reader", daemon=True)
+        self._stderr_reader = threading.Thread(
+            target=self._stderr_loop,
+            name=f"{self.name}-stderr",
+            daemon=True,
+        )
         self._reader.start()
+        self._stderr_reader.start()
         initialized = self.request(
             "initialize",
             {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": LATEST_STABLE_PROTOCOL_VERSION,
                 "capabilities": {},
                 "clientInfo": {"name": "dl-op-to-hls-agent", "version": "1.0.0"},
             },
             retry=False,
         )
+        negotiated = str(initialized.get("protocolVersion") or "")
+        if not negotiated:
+            self.close()
+            raise MCPProtocolError("MCP server did not return a negotiated protocolVersion")
         self.server_info = dict(initialized)
         self.notify("notifications/initialized", {})
         return self.server_info
 
     def list_tools(self) -> list[dict[str, Any]]:
         self.start()
-        result = self.request("tools/list", {})
-        return list(result.get("tools", []))
+        items: list[dict[str, Any]] = []
+        cursor: str | None = None
+        while True:
+            params = {"cursor": cursor} if cursor else {}
+            result = self.request("tools/list", params)
+            items.extend(result.get("tools", []))
+            cursor = result.get("nextCursor")
+            if not cursor:
+                return items
 
     def list_resources(self) -> list[dict[str, Any]]:
         self.start()
@@ -100,9 +138,28 @@ class StdioMCPClient:
         self.start()
         return list(self.request("prompts/list", {}).get("prompts", []))
 
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+        cancellation_token: Any = None,
+    ) -> dict[str, Any]:
         self.start()
-        result = self.request("tools/call", {"name": name, "arguments": arguments})
+        # tools/call is never transport-retried: the server may have completed a
+        # side effect before the connection failed. ToolRegistry owns safe retry.
+        result = self.request(
+            "tools/call",
+            {
+                "name": name,
+                "arguments": arguments,
+                "_meta": {"progressToken": f"{self.name}:{time.time_ns()}"},
+            },
+            timeout_seconds=timeout_seconds,
+            retry=False,
+            cancellation_token=cancellation_token,
+        )
         structured = result.get("structuredContent")
         if isinstance(structured, dict):
             return structured
@@ -123,6 +180,7 @@ class StdioMCPClient:
         *,
         timeout_seconds: float | None = None,
         retry: bool = True,
+        cancellation_token: Any = None,
     ) -> dict[str, Any]:
         if not self.alive and method != "initialize":
             self.start()
@@ -130,17 +188,29 @@ class StdioMCPClient:
         response_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=1)
         with self._pending_lock:
             self._pending[request_id] = response_queue
+        timeout = self.timeout_seconds if timeout_seconds is None else max(0.1, float(timeout_seconds))
+        deadline = time.monotonic() + timeout
         try:
             self._send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-            response = response_queue.get(timeout=timeout_seconds or self.timeout_seconds)
-        except (BrokenPipeError, OSError, queue.Empty) as exc:
-            with self._pending_lock:
-                self._pending.pop(request_id, None)
+            while True:
+                if cancellation_token is not None and cancellation_token.cancelled:
+                    self.cancel(request_id, str(cancellation_token.reason))
+                    raise InterruptedError(str(cancellation_token.reason))
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self.cancel(request_id, f"Client timeout after {timeout:.3f}s")
+                    raise TimeoutError(f"MCP request {method} timed out for {self.name}")
+                try:
+                    response = response_queue.get(timeout=min(0.1, remaining))
+                    break
+                except queue.Empty:
+                    continue
+        except (BrokenPipeError, OSError) as exc:
             if retry:
                 self.close()
                 self.start()
-                return self.request(method, params, timeout_seconds=timeout_seconds, retry=False)
-            raise TimeoutError(f"MCP request {method} failed for {self.name}: {exc}") from exc
+                return self.request(method, params, timeout_seconds=timeout, retry=False)
+            raise MCPProtocolError(f"MCP request {method} failed for {self.name}: {exc}") from exc
         finally:
             with self._pending_lock:
                 self._pending.pop(request_id, None)
@@ -154,6 +224,10 @@ class StdioMCPClient:
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
+
+    def cancel(self, request_id: int, reason: str | None = None) -> None:
+        if self.alive:
+            self.notify("notifications/cancelled", {"requestId": request_id, "reason": reason})
 
     def close(self) -> None:
         process = self._process
@@ -188,6 +262,12 @@ class StdioMCPClient:
             try:
                 message = json.loads(line)
             except json.JSONDecodeError:
+                self._record_stderr(f"Invalid MCP stdout frame: {line.rstrip()}")
+                continue
+            if "method" in message and "id" not in message:
+                self.notifications.append(message)
+                if self.notification_handler is not None:
+                    self.notification_handler(message)
                 continue
             request_id = message.get("id")
             with self._pending_lock:
@@ -195,11 +275,27 @@ class StdioMCPClient:
             if target is not None:
                 target.put(message)
 
+    def _stderr_loop(self) -> None:
+        process = self._process
+        if process is None or process.stderr is None:
+            return
+        for line in process.stderr:
+            self._record_stderr(line.rstrip("\r\n"))
+
+    def _record_stderr(self, line: str) -> None:
+        if not line:
+            return
+        self._stderr_tail.append(line)
+        if self.stderr_path is not None:
+            self.stderr_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.stderr_path.open("a", encoding="utf-8") as stream:
+                stream.write(line + "\n")
+
     def _send(self, payload: dict[str, Any]) -> None:
         if self._process is None or self._process.stdin is None or self._process.poll() is not None:
             raise BrokenPipeError(f"MCP server {self.name} is not running")
         with self._write_lock:
-            self._process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            self._process.stdin.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
             self._process.stdin.flush()
 
     def _allocate_id(self) -> int:

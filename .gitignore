@@ -10,3 +10,11 @@ logs/
 tmp/
 vivado_hls.log
 models/mnist_recognition/data/
+
+# Local benchmark and release-validation output.
+.pytest_work/
+.test_tmp_*/
+.test_debug_*/
+tmp*/
+src/dl_op_to_hls.egg-info/
+models/cifar10_*/

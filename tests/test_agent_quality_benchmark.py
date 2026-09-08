@@ -34,6 +34,8 @@ def test_rag_eval_computes_standard_source_metrics():
     metrics = evaluate_rag_case(case, results)
 
     assert metrics["precision_at_k"] == 0.3333
+    assert metrics["r_precision"] == 0.0
+    assert metrics["returned_k_fraction"] == 1.0
     assert metrics["recall_at_k"] == 1.0
     assert metrics["hit_at_k"] == 1.0
     assert metrics["mrr"] == 0.5
@@ -74,6 +76,16 @@ def test_rag_eval_reports_embedding_and_cross_encoder_usage():
     assert metrics["semantic_score_avg"] == 0.765
     assert metrics["cross_encoder_score_avg"] == 0.495
     assert metrics["rerank_mean_position_gain"] == 0.0
+
+
+def test_rag_precision_at_k_uses_fixed_k_when_fewer_results_are_returned():
+    case = {"query": "Dense reuse", "top_k": 5, "relevant_source_ids": ["dense_doc"]}
+    metrics = evaluate_rag_case(case, [{"source_id": "dense_doc", "text": "Dense reuse factor"}])
+
+    assert metrics["result_count"] == 1
+    assert metrics["returned_k_fraction"] == 0.2
+    assert metrics["precision_at_k"] == 0.2
+    assert metrics["r_precision"] == 1.0
 
 
 def test_rag_eval_computes_term_coverage_and_pollution():

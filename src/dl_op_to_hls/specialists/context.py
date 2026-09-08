@@ -10,6 +10,10 @@ from ..core.token_budget import TokenBudgetManager
 
 
 SPECIALIST_ALLOWED_TOOLS = {
+    "CodegenSpecialist": [
+        "llm.generate_candidate",
+        "llm.generate_hls_candidate",
+    ],
     "HLS4MLSpecialist": [
         "hls4ml.inspect_model",
         "hls4ml.check_support",
@@ -45,6 +49,7 @@ SPECIALIST_ALLOWED_TOOLS = {
         "suggestion.suggest_optimization",
     ],
     "MemorySpecialist": [
+        "trace.query",
         "memory.write_short_term",
         "memory.compress_run_context",
         "memory.extract_memory_candidates",
@@ -207,6 +212,24 @@ class ContextBuilder:
                 "hls_project_dir": state.hls_project_dir,
                 "run_dir": str(self._run_dir_from_state(state)),
             }
+        if specialist_name == "CodegenSpecialist":
+            return {
+                "task": task,
+                "assigned_tool": getattr(todo, "assigned_tool", None),
+                "run_dir": str(self._run_dir_from_state(state)),
+                "candidate_dir": str(self._run_dir_from_state(state) + "/candidate"),
+                "previous_candidate_dir": state.hls_project_dir,
+                "rag_context": [
+                    {
+                        "source": item.get("source_run_id") or item.get("source") or item.get("id"),
+                        "summary": item.get("summary") or item.get("text", "")[:240],
+                        "text": item.get("text", "")[:400],
+                        "memory_type": item.get("memory_type"),
+                    }
+                    for item in state.retrieved_memories[:5]
+                ],
+                "todo_inputs": dict(getattr(todo, "inputs", None) or {}),
+            }
         if specialist_name == "VivadoSpecialist":
             return {
                 "hls_project_dir": state.hls_project_dir,
@@ -286,6 +309,7 @@ class ContextBuilder:
 
     def _artifact_relevant(self, artifact_type: str, specialist_name: str) -> bool:
         relevant = {
+            "CodegenSpecialist": {"input_task", "normalized_task", "summary", "suggestions", "report_json", "vivado_report", "compressed_logs", "hls_cpp", "hls_header", "testbench"},
             "HLS4MLSpecialist": {"input_task", "normalized_task", "hls4ml_config"},
             "VivadoSpecialist": {"hls_project", "tcl", "vivado_log", "vivado_report", "report_json", "compressed_logs"},
             "VerificationSpecialist": {"hls_cpp", "hls_header", "testbench", "tcl", "report_json"},

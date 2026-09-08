@@ -36,6 +36,8 @@ Hook 负责生命周期事件：
 
 Trace 以 `jsonl` 输出，便于逐行调试与后续分析。
 
+Trace 同时承载 Decision Ledger：关键路径选择、ReAct/Reflection、Todo 终态和验证门禁会形成 `DecisionRecorded` 事件。系统不维护第二份 ledger 文件，而是通过 `trace.query` 从唯一 Trace 中按需投影决策、Todo、失败与证据视图。MemorySpecialist 只接收有界投影，不读取完整 Trace。
+
 ## AgentState
 
 `AgentState` 保存：
@@ -86,5 +88,4 @@ RAG 只做辅助检索，不覆盖当前结构化 report 事实。它主要复�
 
 ## MCP 解耦
 
-MCP 风格适配把 Agent 与具体 EDA 工具解耦。当前 P0 用 in-process registry，后续可替换成真实 MCP client/server。
-
+MCP 把 Agent 与具体 EDA 工具解耦。生产路径使用官方 Python SDK 提供标准 stdio 与 Streamable HTTP Server，Main Agent 通过动态 `tools/list` 建立代理；MCP 工具仍统一进入 ToolRegistry，因此传输切换不会绕过 Permission Gate、Trace、Schema 校验和证据门禁。单元测试可使用进程内 registry，但它被明确视为测试/低开销模式，而不是 MCP 网络传输。

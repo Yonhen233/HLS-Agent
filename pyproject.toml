@@ -9,7 +9,9 @@ description = "DL-Operator-to-HLS-Agent prototype for hls4ml and Vivado HLS work
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "OpenAI Codex" }]
-dependencies = []
+dependencies = [
+  "mcp[cli]>=2.2,<3",
+]
 
 [project.optional-dependencies]
 real-toolchain = [

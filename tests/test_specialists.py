@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 
 from dl_op_to_hls.main_agent.agent import MainAgent
+from dl_op_to_hls.llm.client import FakeLLMClient
 from dl_op_to_hls.main_agent.state import AgentState
 from dl_op_to_hls.main_agent.todo import TodoItem
 from dl_op_to_hls.main_agent.workflow import run_task
 from dl_op_to_hls.specialists import (
+    CodegenSpecialist,
     ContextBuilder,
     HLS4MLSpecialist,
     MemorySpecialist,
@@ -114,6 +116,18 @@ def test_context_builder_excludes_full_trace(temp_workspace):
     assert all(ref["type"] != "trace" for ref in envelope.artifact_refs)
 
 
+def test_memory_context_uses_trace_tool_without_exposing_trace_artifact(temp_workspace):
+    state = _dense_state(temp_workspace)
+    envelope = ContextBuilder().build_for_specialist(
+        state,
+        _todo("Promote memories", "memory.promote_to_long_term"),
+        "MemorySpecialist",
+    )
+    assert "trace.query" in envelope.allowed_tools
+    assert all(ref["type"] != "trace" for ref in envelope.artifact_refs)
+    assert "trace_ref" not in envelope.scoped_state
+
+
 def test_context_builder_includes_artifact_refs(temp_workspace):
     state = _dense_state(temp_workspace)
     envelope = ContextBuilder().build_for_specialist(state, _todo("Run Vivado HLS synthesis", "vivado.run_csynth"), "VivadoSpecialist")
@@ -184,6 +198,41 @@ def test_router_routes_optimization_todo():
 def test_router_routes_memory_todo():
     router = SpecialistRouter([HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()])
     assert router.route(_todo("Promote memories", "memory.promote_to_long_term")).name == "MemorySpecialist"
+
+
+def test_router_routes_llm_candidate_to_codegen_specialist():
+    router = SpecialistRouter(
+        [CodegenSpecialist(), HLS4MLSpecialist(), VivadoSpecialist(), VerificationSpecialist(), OptimizationSpecialist(), MemorySpecialist()]
+    )
+    assert router.route(_todo("Generate LLM candidate", "llm.generate_candidate")).name == "CodegenSpecialist"
+
+
+def test_codegen_specialist_receives_envelope_and_returns_candidate_result(temp_workspace):
+    class FakeRegistry:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, name, arguments, context):
+            self.calls.append((name, arguments, context))
+            return {
+                "status": "candidate_generated",
+                "files": [str(temp_workspace / "runs" / "r1" / "candidate" / "candidate.cpp")],
+            }
+
+    class AllowAll:
+        pass
+
+    state = _dense_state(temp_workspace)
+    todo = _todo("Generate LLM candidate", "llm.generate_candidate")
+    envelope = ContextBuilder().build_for_specialist(state, todo, "CodegenSpecialist")
+    registry = FakeRegistry()
+    result = CodegenSpecialist().handle(envelope, registry, AllowAll())
+    assert isinstance(result, SpecialistResult)
+    assert result.specialist_name == "CodegenSpecialist"
+    assert registry.calls[0][0] == "llm.generate_candidate"
+    assert "task" in envelope.scoped_state
+    assert "tool_results" not in envelope.to_dict()
+    assert all(call[0] in CodegenSpecialist.allowed_tools for call in registry.calls)
 
 
 def test_hls4ml_specialist_mock_success(temp_workspace):
@@ -417,6 +466,111 @@ def test_memory_specialist_promotes_candidates(temp_workspace):
     result = specialist.handle(envelope, agent.registry, agent.permission_gate)
     assert result.status == "success"
     assert result.metrics["promoted_memories"]
+    called_tools = [item.get("tool") for item in result.observations if item.get("tool")]
+    assert called_tools[0] == "trace.query"
+
+
+def test_memory_specialist_uses_llm_to_select_experience_without_changing_evidence(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    context["hooks"].emit(
+        "PathSelected",
+        {
+            "run_id": "r1",
+            "todo_id": "todo_001",
+            "decision": "select_fallback_template",
+            "reason": "Dense has an approved local implementation",
+            "evidence_refs": ["runs/r1/report.json"],
+        },
+    )
+    context["llm_client"] = FakeLLMClient(
+        json_responses=[
+            {
+                "summary": "Selected one reusable design decision.",
+                "selected_candidates": [
+                    {
+                        "source_index": 0,
+                        "title": "Reuse an approved Dense implementation",
+                        "summary": "For a supported Dense shape, reuse the verified local implementation before generating new code.",
+                        "fact": "The run selected the fallback template path from recorded evidence.",
+                        "decision_indexes": [0],
+                    }
+                ],
+            }
+        ]
+    )
+    context["memory_llm_summarization_enabled"] = True
+    state = _dense_state(temp_workspace)
+    state.status = "partial_success"
+    state.selected_path = "fallback_template_path"
+    context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+
+    specialist = MemorySpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(
+        state,
+        _todo("Promote memories", "memory.promote_to_long_term"),
+        "MemorySpecialist",
+    )
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+
+    assert result.status == "success"
+    summary_observation = next(item for item in result.observations if item.get("type") == "memory_summary")
+    assert summary_observation["mode"] == "llm"
+    assert summary_observation["selected_count"] == 1
+    selected = result.metrics["memory_candidates"][0]
+    assert selected["llm_selected"] is True
+    assert selected["decision_evidence"]["source_of_truth"] == "trace.jsonl"
+    assert selected["decision_evidence"]["record_count"] > 0
+    assert "raw_log" not in json.dumps(selected)
+
+
+def test_memory_specialist_returns_bounded_candidate_projection(temp_workspace):
+    candidate = {
+        "kind": "verified_implementation",
+        "key": "verified.one",
+        "summary": "short summary",
+        "fact": "verified fact",
+        "value": {"report": {"large": "x" * 20000}},
+        "decision_evidence": {"source": "trace.jsonl", "source_of_truth": "trace.jsonl", "records": [{"decision": "x"}] * 20},
+    }
+    compact = MemorySpecialist._compact_candidate(candidate)
+    assert "value" not in compact
+    assert compact["decision_evidence"]["record_count"] == 20
+    assert len(json.dumps(compact)) < 1000
+
+
+def test_memory_specialist_accepts_missing_llm_fact_without_losing_source_evidence(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    context["llm_client"] = FakeLLMClient(
+        json_responses=[
+            {
+                "summary": "Keep the verified implementation experience.",
+                "selected_candidates": [{"source_index": 0, "summary": "Reuse the verified path.", "fact": None}],
+            }
+        ]
+    )
+    context["memory_llm_summarization_enabled"] = True
+    state = _dense_state(temp_workspace)
+    state.status = "partial_success"
+    state.selected_path = "fallback_template_path"
+    context["artifact_manager"].write_json("state.json", state.to_dict(), "state")
+    specialist = MemorySpecialist(context)
+    envelope = ContextBuilder().build_for_specialist(state, _todo("Promote memories", "memory.promote_to_long_term"), "MemorySpecialist")
+
+    result = specialist.handle(envelope, agent.registry, agent.permission_gate)
+
+    assert result.status == "success"
+    assert result.metrics["memory_candidates"][0]["llm_selected"] is True
+
+
+def test_trace_query_rejects_cross_run_access(temp_workspace):
+    agent = MainAgent(temp_workspace, console=False)
+    context = agent.create_run_context("r1")
+    result = agent.registry.call("trace.query", {"run_id": "another_run", "view": "decisions"}, context)
+
+    assert result["status"] == "error"
+    assert result["error"]["error_type"] == "PermissionDeniedError"
 
 
 def test_each_specialist_local_react_contract_uses_only_envelope_and_allowed_tools(temp_workspace):
@@ -469,9 +623,12 @@ def test_main_agent_does_not_merge_raw_log(temp_workspace):
 
 def test_trace_specialist_events_written(temp_workspace):
     state = run_task(str(temp_workspace / "examples" / "dense_operator.json"), agent=MainAgent(temp_workspace, console=False))
-    trace = (temp_workspace / "runs" / state.run_id / "trace.jsonl").read_text(encoding="utf-8")
+    run_dir = temp_workspace / "runs" / state.run_id
+    trace = (run_dir / "trace.jsonl").read_text(encoding="utf-8")
     for event in ["SpecialistSelected", "ContextEnvelopeCreated", "SpecialistStarted", "SpecialistFinished", "SpecialistResultMerged"]:
         assert event in trace
+    assert "DecisionRecorded" in trace
+    assert not (run_dir / "decision_ledger.json").exists()
 
 
 def test_summary_contains_specialist_execution_summary(temp_workspace):

@@ -15,14 +15,23 @@ def register_mcp_proxy_tools(registry, local_specs: list[ToolSpec], client) -> N
             cancellation = context.get("cancellation_token")
             if cancellation is not None and cancellation.cancelled:
                 return {"status": "interrupted", "reason": cancellation.reason}
-            return client.call_tool(tool_name, arguments)
+            return client.call_tool(
+                tool_name,
+                arguments,
+                timeout_seconds=local.timeout_seconds,
+                cancellation_token=cancellation,
+            )
+
+        remote_output_schema = manifest.get("outputSchema")
+        if remote_output_schema and remote_output_schema != local.output_schema:
+            raise ValueError(f"MCP output schema mismatch for {local.name}")
 
         registry.register(
             ToolSpec(
                 name=local.name,
                 description=str(manifest.get("description") or local.description),
                 input_schema=dict(manifest.get("inputSchema") or local.input_schema),
-                output_schema=local.output_schema,
+                output_schema=dict(remote_output_schema or local.output_schema),
                 permission_level=local.permission_level,
                 handler=handler,
                 server=client.name,

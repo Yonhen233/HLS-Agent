@@ -54,10 +54,11 @@ class SemanticRagConfig:
     candidate_pool_size: int = 32
     embedding_batch_size: int = 32
     rerank_batch_size: int = 16
-    semantic_weight: float = 0.30
-    lexical_weight: float = 0.10
-    reranker_weight: float = 0.55
-    trust_weight: float = 0.05
+    # Rank fusion is scale-independent. Legacy score weights are intentionally
+    # not part of the ranking contract because they were not learned from a
+    # held-out relevance set.
+    fusion_method: str = "rrf"
+    rrf_k: int = 60
     min_embedding_score: float = 0.12
     min_reranker_score: float = 0.02
     local_files_only: bool = True
@@ -75,7 +76,13 @@ class SemanticRagConfig:
     def from_mapping(cls, value: dict[str, Any] | None) -> "SemanticRagConfig":
         value = value or {}
         fields = cls.__dataclass_fields__
-        return cls(**{key: item for key, item in value.items() if key in fields})
+        payload = {key: item for key, item in value.items() if key in fields}
+        fusion_method = str(payload.get("fusion_method", "rrf")).lower()
+        if fusion_method != "rrf":
+            raise ValueError(f"Unsupported RAG fusion_method: {fusion_method}; only rrf is supported")
+        payload["fusion_method"] = fusion_method
+        payload["rrf_k"] = max(1, int(payload.get("rrf_k", 60)))
+        return cls(**payload)
 
 
 class SentenceTransformerBackend:
@@ -197,6 +204,8 @@ class SemanticRagEngine:
         self._rerank_cache: OrderedDict[str, float] = OrderedDict()
         self._embedding_error: str | None = None
         self._reranker_error: str | None = None
+        self._ann_error: str | None = None
+        self._ann_index_count: int | None = None
         self._lock = threading.RLock()
         self.calibrated_min_reranker_score: float | None = None
         self.calibration_diagnostics: dict[str, Any] = {}
@@ -305,23 +314,49 @@ class SemanticRagEngine:
     def _ann_recall(self, query_vector: list[float], rows: list[dict[str, Any]], repository: Any):
         if self.vector_index is None or len(rows) < self.config.ann_min_rows or not hasattr(repository, "list_rag_embeddings"):
             return None
-        records = repository.list_rag_embeddings(self.embedder.model_id)
-        if not records:
+        try:
+            coverage = repository.rag_embedding_coverage(self.embedder.model_id) if hasattr(repository, "rag_embedding_coverage") else {}
+            embedded_count = int(coverage.get("embedded_chunks") or 0)
+            index_loaded = getattr(self.vector_index, "_index", None) is not None
+            if index_loaded and self._ann_index_count == embedded_count and embedded_count > 0:
+                record_count = embedded_count
+                index_stats = {"status": "reused_in_process", "count": embedded_count}
+            else:
+                records = repository.list_rag_embeddings(self.embedder.model_id)
+                if not records:
+                    return None
+                index_stats = self.vector_index.ensure(records)
+                record_count = len(records)
+                self._ann_index_count = record_count
+            allowed = {int(row["id"]): index for index, row in enumerate(rows) if row.get("id") is not None}
+            target = min(len(allowed), max(self.config.candidate_pool_size, 1))
+            overfetch = min(record_count, max(self.config.candidate_pool_size * 16, 128))
+            neighbors: list[tuple[int, float]] = []
+            scores: dict[int, float] = {}
+            while overfetch > 0:
+                neighbors = self.vector_index.search(query_vector, overfetch)
+                scores = {allowed[chunk_id]: score for chunk_id, score in neighbors if chunk_id in allowed}
+                if len(scores) >= target or overfetch >= record_count:
+                    break
+                overfetch = min(record_count, overfetch * 2)
+            if not scores:
+                return None
+            self._ann_error = None
+            return scores, {
+                **self.diagnostics("faiss_hnsw"),
+                "candidate_count": len(rows),
+                "ann_neighbor_count": len(neighbors),
+                "filtered_neighbor_count": len(scores),
+                "ann_overfetch": overfetch,
+                "ann_index": index_stats,
+            }
+        except (ImportError, ModuleNotFoundError) as exc:
+            # ANN is an acceleration backend, not the semantic-retrieval
+            # contract. Keep the failure observable and use exact persisted
+            # vector scan rather than incorrectly degrading to lexical search.
+            self._ann_error = f"{type(exc).__name__}: {exc}"
+            self.vector_index = None
             return None
-        index_stats = self.vector_index.ensure(records)
-        allowed = {int(row["id"]): index for index, row in enumerate(rows) if row.get("id") is not None}
-        overfetch = min(len(records), max(self.config.candidate_pool_size * 16, 128))
-        neighbors = self.vector_index.search(query_vector, overfetch)
-        scores = {allowed[chunk_id]: score for chunk_id, score in neighbors if chunk_id in allowed}
-        if not scores:
-            return None
-        return scores, {
-            **self.diagnostics("faiss_hnsw"),
-            "candidate_count": len(rows),
-            "ann_neighbor_count": len(neighbors),
-            "filtered_neighbor_count": len(scores),
-            "ann_index": index_stats,
-        }
 
     def rerank(self, query: str, rows: list[dict[str, Any]]) -> tuple[dict[int, float], dict[str, Any]]:
         if not self.config.enabled or not rows:
@@ -358,6 +393,7 @@ class SemanticRagEngine:
             "reranker_model": self.reranker.model_id,
             "embedding_error": self._embedding_error,
             "reranker_error": self._reranker_error,
+            "ann_error": self._ann_error,
             "lexical_fallback_allowed": self.config.allow_lexical_fallback,
             "min_reranker_score": self.min_reranker_score,
             "calibration": self.calibration_diagnostics,
