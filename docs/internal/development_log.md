@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-09-08：移除面向面试的展示材料
+
+### 1. 处理内容
+- 将根目录 `DL_HLS_AGENT_*.md`、面试准备指南、MNIST 面试笔记、算子面试指南、Demo 讲解文档、项目 Pitch PPT/讲稿和 PPT 生成脚本从 Git 索引移除。
+- 以上文件保留在本地并加入 `.gitignore`，便于个人继续使用，但新 clone 的仓库不会包含这些面试展示材料。
+- 保留 `src/dl_op_to_hls/benchmarks/agent_interview_benchmark.py` 及其机器可读 JSON 输入/回归夹具；这些属于可复现的 Agent 评测实现和测试数据，不是面向面试官的说明文档。
+- README 的评测文档链接改为通用的 `docs/benchmark_metrics.md`，不再指向被移除的面试文档。
+
+### 2. 验证结果
+- 完整 `pytest` 回归通过，`100%` 通过。
+- `git diff --cached --check` 通过。
+- 删除面试材料后，Agent、MCP、Memory、RAG、Specialist 和 Benchmark 相关测试仍可运行。
+
+### 3. 未完成项
+无。面试展示材料仍保留在本地忽略路径中；仓库公开内容保留项目正式文档、源代码和可复现测试输入。
+
+---
+
 ## 2026-09-08：完成全仓库代码可读性与面试导览改造
 
 ### 1. 改造范围

@@ -18,3 +18,16 @@ models/mnist_recognition/data/
 tmp*/
 src/dl_op_to_hls.egg-info/
 models/cifar10_*/
+
+# Local interview preparation and presentation material.
+DL_HLS_AGENT_*.md
+docs/agent_interview_benchmark.md
+docs/interview_prep_guide.md
+docs/mnist_recognition_demo_interview_notes.md
+docs/operator_interview_guide.md
+docs/demo_examples.md
+docs/demo_script.md
+docs/presentations/
+benchmarks/agent_interview_*.json
+benchmarks/agent_interview_*.md
+scripts/create_advisor_pitch_ppt.py

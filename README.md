@@ -269,7 +269,6 @@ python -m pytest -q
 常用评测入口：
 
 ```powershell
-dl-op-to-hls agent-interview-benchmark --output runs\benchmarks\agent_interview_release.json
 dl-op-to-hls experience-content-benchmark --output runs\benchmarks\experience_content.json
 dl-op-to-hls bad-case-benchmark --output runs\benchmarks\bad_case.json
 ```
@@ -279,7 +278,7 @@ dl-op-to-hls bad-case-benchmark --output runs\benchmarks\bad_case.json
 - [仓库结构与代码导览](docs/repository_guide.md)
 - [Agent 架构](docs/mature_llm_agent_architecture.md)
 - [MCP 设计](docs/mcp_tools.md)
-- [Agent Benchmark](docs/agent_interview_benchmark.md)
+- [Benchmark 指标](docs/benchmark_metrics.md)
 - [上下文消融](docs/context_ablation_final_report.md)
 - [RAG 设计](docs/rag_design.md)
 - [交互式 CLI](docs/interactive_chat.md)
