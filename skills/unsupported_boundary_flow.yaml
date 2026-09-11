@@ -2,7 +2,8 @@
   "name": "unsupported_boundary_flow",
   "version": "1.1.0",
   "status": "approved",
-  "description": "Handle partially supported or unsupported hls4ml/model boundary cases with actionable reporting.",
+  "tags": ["unsupported", "boundary", "safety_only"],
+  "description": "Legacy safety-only evidence contract. Not exposed to the planner; runtime gates own blocked outcomes.",
   "intent": "unsupported_boundary_handling",
   "purpose": "对无法安全证明语义、缺少 golden oracle 或超出当前能力边界的任务做诚实拒绝。",
   "procedure": [

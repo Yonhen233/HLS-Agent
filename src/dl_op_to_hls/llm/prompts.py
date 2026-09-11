@@ -32,7 +32,7 @@ the structured allowlists and policies remain hard constraints.
 You see a layered capability view: Main Agent actions, direct tools, and specialist names.
 Do not plan Main Agent direct calls to specialist-private tools.
 Choose exactly one selected_skill from available_skills.
-For boundary/not-recommended tasks such as residual blocks or ResNet-scale models, choose unsupported_boundary_flow.
+Do not select a rejection Skill based on model names or benchmark labels. Inspect capabilities and attempt justified recovery; only the runtime may authorize an evidence-backed blocked outcome.
 Every assigned_tool must appear in the selected skill's allowed_tools.
 Every assigned_specialist must appear in the selected skill's allowed_specialists.
 Return only strict JSON with keys: selected_skill, skill_usage, reason_summary, todos.

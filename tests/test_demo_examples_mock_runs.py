@@ -178,7 +178,8 @@ def test_tiny_residual_boundary_mock_run(temp_workspace):
     _assert_common_outputs(run_dir)
     assert (run_dir / "suggestions.md").exists()
     assert (run_dir / "unsupported_report.md").exists()
-    assert state.selected_path == "unsupported_path"
+    assert state.selected_path is None
+    assert state.terminal_outcome == "blocked"
     assert state.status in {"partial_success", "completed_with_warning"}
     summary = (run_dir / "summary.md").read_text(encoding="utf-8")
     assert "partially_supported" in summary
@@ -198,6 +199,7 @@ def test_resnet18_boundary_mock_run(temp_workspace):
     state, run_dir = _run_demo(temp_workspace, "resnet18_boundary.json")
     _assert_common_outputs(run_dir)
     assert (run_dir / "unsupported_report.md").exists()
-    assert state.selected_path == "unsupported_path"
+    assert state.selected_path is None
+    assert state.terminal_outcome == "blocked"
     trace = (run_dir / "trace.jsonl").read_text(encoding="utf-8")
     assert '"tool":"vivado.run_csynth"' not in trace

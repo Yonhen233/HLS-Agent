@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-09-12：unsupported_path 迁移为运行时能力门禁
+
+### 目标
+
+- 将 `unsupported_path` 从正常 Skill/实现路径中移除，避免 LLM 通过选择“拒绝 Skill”提前结束任务。
+- 保留安全拒绝、可追溯证据和历史 checkpoint 兼容，保证不支持任务不会伪造 HLS、Vivado、延迟或资源结果。
+
+### 实现
+
+- 新增 `terminal_outcome` / `terminal_reason` 状态字段，阻塞结果统一为 `blocked`，`selected_path` 保持为空。
+- `unsupported_boundary_flow` 标记为 `safety_only`，保留为历史证据契约但不再进入 Skill 候选、Prompt 或 LLM 计划。
+- LLM 能力门禁在 planner 前执行：记录 capability-gate 计划、调用一次报告工具写入证据，然后跳过 planner/ReAct 的无效调用。
+- CompletionGate、状态汇总、反思器、摘要、优化建议和评测指标改为识别终态；旧 checkpoint/历史评测仍能读取 `unsupported_path`。
+- 评测口径把安全拒绝作为 `unsupported_honesty`/terminal outcome 处理，不再作为正常实现路径或任务成功路径。
+
+### 验证
+
+- `python -m compileall -q src tests`：通过。
+- 重点回归集（Skill 路由、LLM candidate contract、LLM plan schema、Bad Case、runtime hybrid、demo mock）：通过。
+- 完整 `pytest`：通过（全量回归通过；仅有 pytest cache 目录权限 warning，不影响测试结果）。
+
+---
+
 ## 2026-09-12｜Agent 评测集审计、开放任务扩展与真实 LLM 运行阻塞记录
 
 ### 1. 本次目标

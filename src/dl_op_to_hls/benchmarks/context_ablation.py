@@ -710,17 +710,18 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
     verification = _current_run_verification(run_dir, events)
     csim_passed = verification["golden_csim_passed"]
     csynth_passed = verification["real_csynth_completed"]
-    false_success = base.get("status") == "success" and not (base.get("agent_task_success") and (csynth_passed or base.get("selected_path") == "unsupported_path"))
+    false_success = base.get("status") == "success" and not (base.get("agent_task_success") and (csynth_passed or base.get("terminal_outcome") == "blocked" or base.get("selected_path") == "unsupported_path"))
     retention = _retention(run_dir)
     coverage = set(case.get("coverage") or [])
     task_category = str(case.get("category") or ("unsupported" if "unsupported" in coverage or "boundary" in coverage else "supported"))
     unsupported_case = task_category == "unsupported"
     recovery_challenge = task_category == "recovery_challenge"
     selected_path = base.get("selected_path")
+    boundary_outcome = base.get("terminal_outcome") == "blocked" or selected_path == "unsupported_path"
     path_selection_matches_case = (
-        selected_path == "unsupported_path"
+        boundary_outcome
         if task_category in {"unsupported", "recovery_challenge"}
-        else selected_path != "unsupported_path"
+        else not boundary_outcome
     )
     post_tool_events = [item for item in events if item.get("event") == "PostToolUse"]
     tool_duration_ms = sum(float(item.get("duration_ms") or 0) for item in post_tool_events)
@@ -736,7 +737,7 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
     evidence_rate = base.get("bad_case_governance", {}).get("tool_evidence_valid_rate", 0)
     evidence_count = base.get("bad_case_governance", {}).get("tool_evidence_receipt_count", 0)
     evidence_complete = bool(
-        base.get("selected_path") == "unsupported_path"
+        boundary_outcome
         or (evidence_count > 0 and evidence_rate == 1.0 and (csim_passed or csynth_passed))
     )
     return {
@@ -766,10 +767,10 @@ def analyze_run(run_dir: Path, mode: str, case: dict[str, Any], tokenizer: DeepS
         "critical_constraint_retention": retention,
         "evidence_complete": evidence_complete,
         "false_success": false_success,
-        "correct_rejection": bool(base.get("selected_path") == "unsupported_path" and base.get("status") in {"partial_success", "unsupported", "success"}),
+        "correct_rejection": bool(boundary_outcome and base.get("status") in {"partial_success", "unsupported", "success"}),
         "recovery_challenge_handled": bool(
             recovery_challenge
-            and base.get("selected_path") == "unsupported_path"
+            and boundary_outcome
             and base.get("status") in {"partial_success", "unsupported"}
             and base.get("repair_quality", {}).get("failure_stage_count", 0) > 0
         ),

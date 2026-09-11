@@ -1,7 +1,10 @@
+"""Regression tests for the generated Agent evaluation suite."""
+
 import json
 
 
 def test_checked_in_expansion_suite_is_partitioned():
+    """Ensure the checked-in suite has stable IDs and dev/test partitions."""
     payload = json.loads(open("benchmarks/agent_interview_open_tasks_v2.json", encoding="utf-8").read())
     cases = payload["cases"]
     assert len(cases) == 30

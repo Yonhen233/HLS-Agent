@@ -137,7 +137,7 @@ def test_llm_candidate_required_prompt_context_exposes_only_candidate_skill():
     assert "do not route back to fallback_template" in context["selection_notes"][0]
 
 
-def test_unverifiable_capability_boundary_exposes_only_unsupported_skill():
+def test_unverifiable_capability_boundary_exposes_no_planner_skill():
     """Verify the test_unverifiable_capability_boundary_exposes_only_unsupported_skill contract.
 
     The test should fail on a real contract regression rather than hide an unsupported path.
@@ -159,8 +159,8 @@ def test_unverifiable_capability_boundary_exposes_only_unsupported_skill():
         registry,
     )
 
-    assert [skill["name"] for skill in context["available_skills"]] == ["unsupported_boundary_flow"]
-    assert "do not call LLM candidate or Vivado tools" in context["selection_notes"][0]
+    assert context["available_skills"] == []
+    assert "runtime capability gate owns this terminal outcome" in context["selection_notes"][0]
 
 
 def test_unsupported_boundary_skill_allows_schema_validation():

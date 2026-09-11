@@ -125,7 +125,8 @@ def run_bad_case_benchmark(workspace_root: str | Path, output_path: str | Path) 
     summary_path = probe_dir / "summary.md"
     summary_path.write_text("Partial success: unsupported.", encoding="utf-8")
     unsupported = AgentState(run_id="unsupported", task=task, status="success")
-    unsupported.selected_path = "unsupported_path"
+    unsupported.terminal_outcome = "blocked"
+    unsupported.terminal_reason = {"kind": "capability_gate", "reason": "No safe path."}
     unsupported.artifacts = {"unsupported_report": str(unsupported_path), "summary": str(summary_path)}
     unsupported.todos = [_todo("todo_001", "task.validate_schema"), _todo("todo_002", "report.write_unsupported")]
     unsupported_result = CompletionGate().evaluate(unsupported, contract, [])

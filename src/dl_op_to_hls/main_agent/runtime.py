@@ -481,6 +481,7 @@ class PlanExecuteReactRuntime:
             "todo_status": todo.status,
             "run_status": state.status,
             "selected_path": state.selected_path,
+            "terminal_outcome": state.terminal_outcome,
             "hls_project_dir": state.hls_project_dir,
             "report_status": (state.report or {}).get("status"),
             "verification_status": (state.verification or {}).get("status"),
@@ -974,8 +975,7 @@ class PlanExecuteReactRuntime:
                         },
                         "Graph rewrite did not produce a hls4ml-compatible model; switching to unsupported report.",
                     )
-                    state.selected_path = "unsupported_path"
-                    state.status = "partial_success"
+                    self._mark_blocked(state, "Graph rewrite did not produce a hls4ml-compatible model.")
                     if state.report is None:
                         state.report = empty_report("missing")
                 else:
@@ -1032,8 +1032,7 @@ class PlanExecuteReactRuntime:
             for item in self.todo_manager.todo_list.items:
                 if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                     self.todo_manager.mark_skipped(item.id, "Boundary demo selected: skip full synthesis and emit boundary report.")
-            state.selected_path = "unsupported_path"
-            state.status = "partial_success"
+            self._mark_blocked(state, "Model is only partially supported by hls4ml.")
             state.todos = self.todo_manager.todo_list.items
         elif is_hls4ml_support and observation.get("hls4ml_status") == "not_recommended":
             recommendation = state.hls4ml_support.get("recommendation") if state.hls4ml_support else "Model is outside MVP scope."
@@ -1064,8 +1063,7 @@ class PlanExecuteReactRuntime:
             for item in self.todo_manager.todo_list.items:
                 if item.title == "Run Vivado HLS synthesis" and item.status in {"pending", "blocked"}:
                     self.todo_manager.mark_skipped(item.id, "Not recommended boundary demo: skip full synthesis.")
-            state.selected_path = "unsupported_path"
-            state.status = "partial_success"
+            self._mark_blocked(state, "Model is outside the recommended hls4ml capability envelope.")
             state.todos = self.todo_manager.todo_list.items
         elif is_hls4ml_support and observation.get("hls4ml_status") == "supported" and state.task["task_type"] == "model":
             config_todo = self._ensure_active_todo(
@@ -1173,8 +1171,7 @@ class PlanExecuteReactRuntime:
                     if item.title in {"Generate hls4ml config", "Convert with hls4ml", "Run Vivado HLS synthesis", "Parse synthesis report"}:
                         if item.status in {"pending", "blocked"}:
                             self.todo_manager.mark_cancelled(item.id, "No safe graph rewrite was available.")
-                state.selected_path = "unsupported_path"
-                state.status = "partial_success"
+                self._mark_blocked(state, "No safe graph rewrite was available.")
                 if state.report is None:
                     state.report = empty_report("missing")
                 state.todos = self.todo_manager.todo_list.items
@@ -1221,8 +1218,7 @@ class PlanExecuteReactRuntime:
                         }
                     ):
                         self.todo_manager.mark_cancelled(item.id, "Recovered hls4ml path failed; switching to unsupported report.")
-                state.selected_path = "unsupported_path"
-                state.status = "partial_success"
+                self._mark_blocked(state, "Recovered hls4ml path failed.")
             else:
                 graph_todo = self.todo_manager.append_item(
                     title="Try graph rewrite",
@@ -1620,8 +1616,21 @@ class PlanExecuteReactRuntime:
         """
         if state.status == "failed":
             return True
-        terminal_todos = [item for item in state.todos if item.title == "Generate unsupported report" and item.status == "completed"]
-        return bool(terminal_todos and state.selected_path == "unsupported_path")
+        terminal_todos = [item for item in state.todos if item.status in {"pending", "in_progress", "blocked"}]
+        return bool(state.terminal_outcome == "blocked" and not terminal_todos)
+
+    @staticmethod
+    def _mark_blocked(state: AgentState, reason: str, details: dict[str, Any] | None = None) -> None:
+        """Record a capability-gate outcome without fabricating an implementation path."""
+        state.selected_path = None
+        state.terminal_outcome = "blocked"
+        state.terminal_reason = {
+            "kind": "capability_gate",
+            "reason": str(reason),
+            "details": details or {},
+        }
+        if state.status not in {"failed", "interrupted"}:
+            state.status = "partial_success"
 
     def _max_candidate_repair_attempts(self, state: AgentState) -> int:
         """Return the verification-failure budget before switching to unsupported."""
@@ -1952,7 +1961,7 @@ class PlanExecuteReactRuntime:
                 {"verify_candidate.run", "vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"},
                 "No valid HLS candidate was available after the repair budget was exhausted.",
             )
-            state.selected_path = "unsupported_path"
+            self._mark_blocked(state, "LLM candidate generation repair budget was exhausted.")
             if state.report is None:
                 state.report = empty_report("missing")
             state.status = "partial_success"
@@ -2455,7 +2464,7 @@ class PlanExecuteReactRuntime:
                 "report.write_unsupported",
                 {"reason": todo.inputs.get("reason") or "No safe path was available for this task."},
             )
-            state.selected_path = "unsupported_path"
+            self._mark_blocked(state, todo.inputs.get("reason") or "No safe implementation path was available.")
             if result.get("path"):
                 state.artifacts["unsupported_report"] = result["path"]
             self.todo_manager.mark_completed(todo.id, result)

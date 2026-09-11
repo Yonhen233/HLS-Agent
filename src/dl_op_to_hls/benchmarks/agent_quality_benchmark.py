@@ -846,9 +846,10 @@ def _unsupported_honesty(state: dict[str, Any], synthesis: dict[str, Any]) -> di
         The structured value promised by the function signature.
     """
     selected_path = state.get("selected_path")
+    terminal_outcome = state.get("terminal_outcome")
     report = state.get("report") or {}
     verification = state.get("verification") or report.get("verification") or {}
-    unsupported_like = selected_path == "unsupported_path" or report.get("status") == "unsupported"
+    unsupported_like = terminal_outcome == "blocked" or selected_path == "unsupported_path" or report.get("status") == "unsupported"
     no_synthesis_metrics = not any(synthesis.get(key) is not None for key in ["latency_max_cycles", "dsp", "bram", "lut", "ff"])
     no_verification_claim = not verification or verification.get("status") in {"skipped", "unsupported", "not_applicable", "missing"}
     honest_status = (not unsupported_like) or state.get("status") in {"partial_success", "unsupported"}
@@ -964,11 +965,12 @@ def collect_run_metrics(run_dir: str | Path) -> dict[str, Any]:
     report = state.get("report") or {}
     report_status = report.get("status")
     selected_path = state.get("selected_path")
+    terminal_outcome = state.get("terminal_outcome")
     status = state.get("status")
     retrieved_text = _flatten_text(state.get("retrieved_memories", [])) + "\n" + _flatten_text(state.get("rag_context", []))
     retrieved_text_lower = retrieved_text.lower()
     suggestions = state.get("suggestions", [])
-    is_unsupported_missing = selected_path == "unsupported_path" and report_status in {"missing", "skipped", "report_missing", None}
+    is_unsupported_missing = (terminal_outcome == "blocked" or selected_path == "unsupported_path") and report_status in {"missing", "skipped", "report_missing", None}
     is_boundary = "boundary" in str(task.get("name") or state.get("run_id") or run_dir.name).lower()
     is_resnet = "resnet" in str(task.get("name") or state.get("run_id") or run_dir.name).lower()
     latency = report.get("latency") or {}
@@ -1092,7 +1094,7 @@ def collect_run_metrics(run_dir: str | Path) -> dict[str, Any]:
             **rag_score,
         },
         "semantic_quality": {
-            "unsupported_status_correct": selected_path != "unsupported_path" or status in {"partial_success", "unsupported"},
+            "unsupported_status_correct": (terminal_outcome != "blocked" and selected_path != "unsupported_path") or status in {"partial_success", "unsupported"},
             "unsupported_metric_suggestion_error": bool(is_unsupported_missing and _has_metric_specific_suggestion(suggestions)),
             "unsupported_suggestion_count": len(suggestions) if is_unsupported_missing else None,
         },

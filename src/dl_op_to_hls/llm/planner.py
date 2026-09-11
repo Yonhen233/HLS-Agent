@@ -111,7 +111,7 @@ class LLMTodoPlanner:
                 "Each todo should include title, assigned_tool, assigned_specialist, dependencies, and inputs.",
                 "Main Agent can only directly use direct_tools and tools listed in the selected skill contract.",
                 "For specialist-owned work, assign the specialist and the intended tool, but do not expose or invoke specialist private tools from Main Agent ReAct.",
-                "Boundary/not-recommended demos should select unsupported_boundary_flow and only use that skill contract.",
+                "A blocked outcome is owned by runtime capability/recovery gates, not a selectable Skill or implementation path. Do not infer rejection from benchmark labels.",
                 "Every plan_required Goal Contract requirement must be covered by at least one todo; the runtime will reject or repair incomplete plans.",
             ], priority=100, pinned=True, source="system"),
         ]

@@ -39,7 +39,9 @@ class LLMGuard:
             errors.append("skill_usage must be exactly 'strict' or 'adapted'.")
         if selected_skill:
             try:
-                skill_registry.get(selected_skill)
+                skill = skill_registry.get(selected_skill)
+                if skill.name == "unsupported_boundary_flow" or "safety_only" in skill.tags:
+                    errors.append("Safety-only Skills cannot be selected by the planner; terminal outcomes belong to runtime gates.")
             except KeyError:
                 errors.append(f"Unknown selected_skill: {selected_skill}")
 

@@ -226,7 +226,7 @@ def run_open_task_planning(workspace_root: str | Path, suite_path: str | Path = 
             expected_outcome = str(case.get("expected_outcome") or "planned")
             task_correct = _matches_expected_task(state.task, case)
             skill_correct = not case.get("allowed_skills") or state.selected_skill in case["allowed_skills"]
-            unsupported_plan = state.selected_skill == "unsupported_boundary_flow" or any(
+            unsupported_plan = state.terminal_outcome == "blocked" or any(
                 todo.assigned_tool == "report.write_unsupported" for todo in state.todos
             )
             outcome_correct = expected_outcome != "structured_rejection" and (

@@ -188,7 +188,7 @@ class SkillRegistry:
         """
         candidates: list[tuple[int, Skill]] = []
         for skill in self._skills.values():
-            if skill.status != "approved":
+            if skill.status != "approved" or skill.name == "unsupported_boundary_flow" or "safety_only" in skill.tags:
                 continue
             score = self._match_score(skill, task)
             if score > 0:
@@ -307,8 +307,6 @@ class SkillRegistry:
             if not evaluate_conditions(conditions, task):
                 return 0
             score += 1
-            if skill.name == "unsupported_boundary_flow":
-                score += 10
         if not score:
             score = 1
         return score

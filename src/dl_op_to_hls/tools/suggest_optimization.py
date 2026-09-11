@@ -377,7 +377,7 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
     report = arguments["report"]
     rag_context = arguments.get("rag_context", [])
     objective = arguments.get("objective") or state.get("objective")
-    if state.get("selected_path") == "unsupported_path" and report.get("status") in {"missing", "skipped", "report_missing"}:
+    if (state.get("terminal_outcome") == "blocked" or state.get("selected_path") == "unsupported_path") and report.get("status") in {"missing", "skipped", "report_missing"}:
         suggestions = [
             "Optimization is not applicable yet because no synthesizable HLS implementation/report is available.",
             "Use the unsupported report to choose a safe next engineering step: graph rewrite, custom hls4ml layer, fallback template, or smaller subgraph.",
@@ -386,7 +386,7 @@ def suggest_optimization(arguments: dict[str, Any], context: dict[str, Any]) -> 
         path = _write_suggestions_markdown(context, markdown)
         return {
             "status": "skipped",
-            "reason": "No synthesis metrics are available for unsupported_path; LLM optimization was intentionally skipped.",
+            "reason": "No synthesis metrics are available after the capability gate; LLM optimization was intentionally skipped.",
             "suggestions": suggestions,
             "markdown": markdown,
             "path": str(path) if path else None,

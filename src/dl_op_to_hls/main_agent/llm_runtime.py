@@ -378,7 +378,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                 "decision": "reject_before_llm_or_vivado",
             }
             normalized["generation_policy"] = {
-                "primary_path": "unsupported",
+                "primary_path": "capability_gate",
                 "hls4ml_allowed": False,
                 "template_role": "not_applicable",
             }
@@ -507,6 +507,33 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         Returns:
             The structured value promised by the function signature.
         """
+        if isinstance(state.task.get("capability_boundary"), dict):
+            boundary = state.task["capability_boundary"]
+            reason = "; ".join(str(item) for item in boundary.get("reasons", [])) or str(
+                boundary.get("kind") or "The task cannot be independently verified."
+            )
+            self._mark_blocked(state, reason, {"decision": boundary.get("decision")})
+            state.plan = ["Capability gate: record an evidence-backed blocked outcome."]
+            gate_todo = self.todo_manager.append_item(
+                title="Record capability gate outcome",
+                description="Write an actionable report without selecting an implementation Skill or path.",
+                priority=1,
+                assigned_tool="report.write_unsupported",
+                inputs={"reason": reason},
+            )
+            report_result = self._call_tool(state, "report.write_unsupported", {"reason": reason})
+            self.todo_manager.mark_completed(gate_todo.id, report_result)
+            if report_result.get("path"):
+                state.artifacts["unsupported_report"] = report_result["path"]
+            state.todos = self.todo_manager.todo_list.items
+            state.plan_coverage = {"status": "terminal_gate", "covered_requirements": []}
+            emit_llm_event(
+                self.context,
+                "CapabilityGateBlocked",
+                {"run_id": state.run_id, "reason": reason, "report": report_result.get("path")},
+            )
+            return state
+
         layered_tool_view = build_layered_tool_view(self.agent.registry, self.specialist_router)
         available_tools = list(layered_tool_view["direct_tools"])
         available_specialists = [item["name"] for item in layered_tool_view["specialists"]]

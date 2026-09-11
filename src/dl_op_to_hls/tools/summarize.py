@@ -77,8 +77,8 @@ def _memory_section(state: dict[str, Any]) -> str:
         skills_used.append("vivado_synthesis_skill")
     if selected_path == "hls4ml_path":
         skills_used.append("hls4ml_path_skill")
-    if selected_path == "unsupported_path":
-        skills_used.append("unsupported_operator_skill")
+    if state.get("terminal_outcome") == "blocked" or selected_path == "unsupported_path":
+        skills_used.append("capability_gate")
 
     retrieved_lines = "\n".join(f"- {item.get('text', '')[:160]}" for item in retrieved) or "- None"
     short_term_lines = "\n".join(f"- {key}: {value.get('summary', value.get('status', ''))}" for key, value in short_term.items()) or "- None"

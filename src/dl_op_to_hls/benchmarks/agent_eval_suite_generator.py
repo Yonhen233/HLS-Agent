@@ -191,6 +191,7 @@ def generate_open_task_suite(base_path: str | Path, output_path: str | Path) -> 
 
 
 def main() -> int:
+    """Generate the checked-in evaluation-suite expansion from the CLI."""
     parser = argparse.ArgumentParser(description="Generate the LLM Agent evaluation expansion suite.")
     parser.add_argument("--base", default="benchmarks/agent_interview_open_tasks.json")
     parser.add_argument("--output", default="benchmarks/agent_interview_open_tasks_v2.json")

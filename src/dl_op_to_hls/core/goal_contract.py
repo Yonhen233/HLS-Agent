@@ -326,7 +326,7 @@ class CompletionGate:
         receipts = list(receipts or [])
         checks = [self._evaluate_requirement(state, item, receipts) for item in contract.get("requirements", [])]
         required_failures = [item for item in checks if item["required"] and item["status"] != "satisfied"]
-        unsupported = getattr(state, "selected_path", None) == "unsupported_path"
+        unsupported = getattr(state, "terminal_outcome", None) == "blocked" or getattr(state, "selected_path", None) == "unsupported_path"
         critical_receipts = [
             item
             for item in receipts
@@ -427,7 +427,7 @@ class CompletionGate:
             satisfied = bool(matched)
             evidence = matched
         elif verifier == "implementation_or_boundary":
-            if selected_path == "unsupported_path":
+            if getattr(state, "terminal_outcome", None) == "blocked" or selected_path == "unsupported_path":
                 boundary = artifacts.get("unsupported_report") or self._completed_tool(state, "report.write_unsupported")
                 satisfied = bool(boundary)
                 evidence = [boundary] if boundary else []
@@ -436,7 +436,7 @@ class CompletionGate:
                 satisfied = selected_path in SUCCESS_PATHS and bool(project_dir or self._completed_any_tool(state, accepted_tools))
                 evidence = [selected_path, project_dir]
         elif verifier == "functional_verification_or_boundary":
-            if selected_path == "unsupported_path":
+            if getattr(state, "terminal_outcome", None) == "blocked" or selected_path == "unsupported_path":
                 satisfied = bool(artifacts.get("unsupported_report") or self._completed_tool(state, "report.write_unsupported"))
                 evidence = ["not_applicable_for_honest_boundary"] if satisfied else []
             else:
@@ -446,7 +446,7 @@ class CompletionGate:
                 satisfied = is_functionally_verified(verification)
                 evidence = [verification] if verification else []
         elif verifier == "report_or_boundary":
-            if selected_path == "unsupported_path":
+            if getattr(state, "terminal_outcome", None) == "blocked" or selected_path == "unsupported_path":
                 boundary = artifacts.get("unsupported_report") or self._completed_tool(state, "report.write_unsupported")
                 satisfied = bool(boundary)
                 evidence = [boundary] if boundary else []
@@ -455,7 +455,7 @@ class CompletionGate:
                 satisfied = report.get("status") == "success"
                 evidence = [report] if report else []
         elif verifier == "timing_or_boundary":
-            if selected_path == "unsupported_path":
+            if getattr(state, "terminal_outcome", None) == "blocked" or selected_path == "unsupported_path":
                 satisfied = bool(artifacts.get("unsupported_report") or self._completed_tool(state, "report.write_unsupported"))
                 evidence = ["not_applicable_for_honest_boundary"] if satisfied else []
             else:

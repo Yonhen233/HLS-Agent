@@ -41,7 +41,7 @@ def test_primary_skill_routing_on_realistic_task_distribution():
     assert _selected("examples/mnist_recognition_mlp.json") == "hls4ml_model_flow"
     assert _selected("examples/dense_operator.json") == "operator_fallback_flow"
     assert _selected("examples/existing_hls_project.json") == "existing_hls_project_flow"
-    assert _selected("examples/resnet18_boundary.json") == "unsupported_boundary_flow"
+    assert _selected("examples/resnet18_boundary.json") == "hls4ml_model_flow"
     assert _selected("examples/scale_shift_llm_candidate.json") == "llm_candidate_verification_flow"
 
 

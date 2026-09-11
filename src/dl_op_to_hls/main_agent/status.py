@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..core.termination import terminal_outcome
+
 
 VERIFIED_MODES = {"golden_testbench", "hls4ml_reference_compare", "reference_compare"}
 
@@ -46,6 +48,7 @@ def compute_pipeline_status(state: Any) -> dict[str, Any]:
     report = getattr(state, "report", None) or {}
     verification = getattr(state, "verification", None) or {}
     selected_path = getattr(state, "selected_path", None)
+    terminal = terminal_outcome(state)
     hls_project_dir = getattr(state, "hls_project_dir", None)
     errors = getattr(state, "errors", []) or []
     timing = report.get("timing") if isinstance(report, dict) else {}
@@ -68,9 +71,11 @@ def compute_pipeline_status(state: Any) -> dict[str, Any]:
         and functional_verified
         and timing_met is not False
         and not errors
-        and selected_path != "unsupported_path"
+        and terminal is None
     )
-    if deployment_ready_candidate:
+    if terminal:
+        level = "blocked" if terminal == "blocked" else terminal
+    elif deployment_ready_candidate:
         level = "deployment_ready_candidate"
     elif functional_verified:
         level = "functional_verified"
@@ -78,8 +83,6 @@ def compute_pipeline_status(state: Any) -> dict[str, Any]:
         level = "synthesis_success"
     elif conversion_success:
         level = "conversion_success"
-    elif selected_path == "unsupported_path":
-        level = "unsupported"
     else:
         level = "initialized"
     return {
@@ -92,5 +95,7 @@ def compute_pipeline_status(state: Any) -> dict[str, Any]:
         "verification_mode": verification.get("mode") if isinstance(verification, dict) else None,
         "verification_status": verification.get("status") if isinstance(verification, dict) else None,
         "selected_path": selected_path,
+        "terminal_outcome": terminal,
+        "terminal_reason": getattr(state, "terminal_reason", {}) or {},
         "task_type": task.get("task_type"),
     }

@@ -66,6 +66,8 @@ class SkillPolicy:
             return {"status": "invalid" if errors else "valid", "errors": errors}
         if selected_skill.status != "approved":
             errors.append(f"Skill {selected_skill.name} is {selected_skill.status}; only approved skills may execute.")
+        if selected_skill.name == "unsupported_boundary_flow" or "safety_only" in selected_skill.tags:
+            errors.append("Safety-only Skills are legacy evidence contracts, not executable LLM plans.")
         max_steps = int(selected_skill.budget_policy.get("max_steps", 24))
         if len(todos) > max_steps:
             errors.append(f"Skill {selected_skill.name} plan exceeds max_steps={max_steps}.")

@@ -28,6 +28,8 @@ class AgentState:
     todos: list[TodoItem] = field(default_factory=list)
     current_todo_id: str | None = None
     selected_path: str | None = None
+    terminal_outcome: str | None = None
+    terminal_reason: dict[str, Any] = field(default_factory=dict)
     selected_skill: str | None = None
     skill_usage_mode: str | None = None
     hls4ml_support: dict | None = None
@@ -89,6 +91,12 @@ class AgentState:
             }
             todos.append(TodoItem(**normalized))
         updated = dict(payload)
+        if updated.get("selected_path") == "unsupported_path":
+            updated["selected_path"] = None
+            updated["terminal_outcome"] = updated.get("terminal_outcome") or "blocked"
+            updated["terminal_reason"] = updated.get("terminal_reason") or {
+                "kind": "legacy_boundary", "reason": "Migrated legacy unsupported_path checkpoint."
+            }
         updated["todos"] = todos
         return cls(**updated)
 

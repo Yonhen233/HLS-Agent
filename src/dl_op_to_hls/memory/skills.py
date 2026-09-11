@@ -90,7 +90,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                 "success_criteria": {"hls_project_generated": True},
             }
         )
-    if selected_path == "unsupported_path":
+    if state.get("terminal_outcome") == "blocked" or selected_path == "unsupported_path":
         skills.append(
             {
                 "kind": "skill",
@@ -102,7 +102,7 @@ def build_skill_candidates(state: dict) -> list[dict]:
                     "Suggest rewrite/custom layer/fallback/reference implementation.",
                     "Persist unsupported report artifact.",
                 ],
-                "trigger_conditions": {"selected_path": "unsupported_path"},
+                "trigger_conditions": {"terminal_outcome": "blocked"},
                 "success_criteria": {"unsupported_report_written": True},
             }
         )

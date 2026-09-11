@@ -6,6 +6,7 @@ This module is part of the DL-to-HLS Agent Harness. It owns the boundary named b
 from __future__ import annotations
 
 from ..core.errors import unresolved_errors
+from ..core.termination import is_blocked, terminal_outcome
 
 
 def reflect_on_errors(state) -> None:
@@ -22,7 +23,7 @@ def reflect_on_errors(state) -> None:
     if state.status == "interrupted":
         return
     if unresolved_errors(state.errors) and state.status not in {"partial_success", "failed"}:
-        state.status = "partial_success" if state.report or state.selected_path else "failed"
+        state.status = "partial_success" if state.report or state.selected_path or terminal_outcome(state) else "failed"
 
 
 def _is_superseded_cancellation(item) -> bool:
@@ -60,7 +61,7 @@ def update_status_from_todos(state) -> None:
         item.assigned_tool == "report.write_unsupported" and item.status in {"completed", "completed_with_warning"}
         for item in state.todos
     )
-    if state.selected_path == "unsupported_path" and unsupported_report_completed:
+    if is_blocked(state) and unsupported_report_completed:
         meaningful_unfinished = [
             item
             for item in state.todos
@@ -112,7 +113,7 @@ def update_status_from_todos(state) -> None:
     if meaningful_skips or "completed_with_warning" in statuses or active_errors:
         state.status = "partial_success" if state.status != "failed" else state.status
         return
-    if state.selected_path == "unsupported_path":
+    if terminal_outcome(state):
         state.status = "partial_success"
         return
     if statuses.issubset({"completed", "skipped"}):

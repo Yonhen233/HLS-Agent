@@ -171,7 +171,7 @@ def test_runtime_rejects_unknown_operator_without_golden_oracle_before_candidate
 
     normalized = LLMFirstRuntime._apply_generation_policy(runtime, task)
 
-    assert normalized["generation_policy"]["primary_path"] == "unsupported"
+    assert normalized["generation_policy"]["primary_path"] == "capability_gate"
     assert normalized["llm_candidate"]["eligible"] is False
     assert normalized["demo"]["expected_path"] == "unsupported_report"
     assert normalized["capability_boundary"]["decision"] == "reject_before_llm_or_vivado"
