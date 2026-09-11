@@ -1,9 +1,33 @@
 {
   "name": "report_parse_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Parse csynth report and log summaries into structured metrics.",
   "intent": "report_parse",
+  "purpose": "把真实 Vivado HLS 报告和日志转换为可供 Agent 使用的结构化事实。",
+  "procedure": [
+    "确认 report path 来自当前 run 的 synthesis artifact。",
+    "解析 latency、II、DSP、BRAM、LUT、FF、target clock 和 estimated clock。",
+    "单独解析 Vivado log 中的 errors、warnings 和完成状态。",
+    "将原文保留为 artifact，只把结构化结果交给 Main Agent。",
+    "解析失败时返回具体错误并触发 Reflector，而不是填充默认指标。"
+  ],
+  "decision_rules": [
+    "报告不存在时状态必须是 report_missing。",
+    "字段无法解析时状态必须是 report_parse_error。",
+    "只有报告和日志证据一致时才允许更新 synthesis metrics。"
+  ],
+  "pitfalls": [
+    "不要用 mock fixture 或历史结果替代真实报告。",
+    "不要只看返回码而忽略报告中的错误。",
+    "不要把 timing met 和 synthesis success 混为一谈。"
+  ],
+  "verification_guidance": [
+    "检查必需指标是否全部存在且类型正确。",
+    "检查报告路径和 top function 与当前工程一致。",
+    "将解析结果与 log summary 和 evidence receipt 关联。"
+  ],
+  "examples": [{"scenario": "valid csynth report", "expected_outcome": "structured metrics are returned without raw report injection"}],
   "trigger": {
     "task_type": ["model", "operator", "hls_project"]
   },

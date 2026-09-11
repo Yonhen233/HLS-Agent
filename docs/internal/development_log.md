@@ -6,6 +6,113 @@
 
 ---
 
+## 2026-09-12｜Agent 评测集审计、开放任务扩展与真实 LLM 运行阻塞记录
+
+### 1. 本次目标
+
+从 Agent Harness 角度复核当前评测集，区分真实 Agent 评测、组件回归、确定性探针和仅有数据集但未形成独立统计证据的部分；补充可直接接入现有 Runner 的开放任务扩展集，并记录真实模型运行结果。
+
+### 2. 当前已存在的评测覆盖
+
+- 冻结真实 HLS cohort：22 次运行，覆盖路径选择、工具链证据、任务成功、trace/artifact 完整性、repair、RAG evidence、运行时、tool/LLM calls 和 token 成本。
+- 原始开放任务：10 条真实 LLM 单轮规划任务，覆盖 Dense、MatMul、ReLU、Add、ScaleShift、Conv2D、已有工程、ONNX 模型、动态形状拒绝和 grouped Conv 拒绝。
+- LLM Harness 固定集：6 条路径与治理案例。
+- 算子功能集：120 条确定性功能案例。
+- Bad case：20 条，覆盖 stale artifact、unsafe candidate、unsupported fake metric 等。
+- ONNX graph 边界：26 条正负例。
+- LLM candidate：15 条真实候选/修复路径案例。
+- Context ablation：90 次真实 DeepSeek/Vivado 运行，比较 full/raw、scoped/raw、scoped/compressed。
+- RAG：12 文档/9 查询 smoke corpus、16,062 chunks/3,616 sources 的历史 leave-one-run-out、设计经验集和生产噪声集。
+
+### 3. 审计结论
+
+现有分数不能整体解释为 Agent 泛化能力：
+
+- 原始开放任务为 10/10，但 Wilson 95% 下界为 0.7225，样本量不足，统计报告标记为不可用。
+- 22 次真实 cohort 的 task success 为 0.9091，toolchain/path selection accuracy 为 0.8636，false success 为 0；该结果能说明工程链路质量，但仍不是通用 Agent 能力证明。
+- 120/120 功能集和 20/20 bad-case 集主要验证确定性契约与门禁，不能替代开放任务。
+- Context ablation 的三组 task completion 均为 0.1333，golden CSim 与 real CSynth 均为 0/30；上下文压缩显著降低 token，但不能据此宣称功能等价。
+- 固定小语料 RAG 只有 9 个 query；历史 RAG 标签来自 verified run metadata 的弱监督，不能冒充人工金标。
+- 设计经验评测的 200 queries 只有 20 个独立意图，报告中保留了 effective_independent_intents，避免重复改写造成虚高置信度。
+
+### 4. 新增评测扩展
+
+新增：
+
+- `benchmarks/agent_interview_open_tasks_v2.json`
+- `src/dl_op_to_hls/benchmarks/agent_eval_suite_generator.py`
+- `tests/test_agent_eval_suite_generator.py`
+- `docs/agent_eval_expansion.md`
+
+扩展集共 30 条：
+
+- 10 条 `dev` 人工基线。
+- 20 条 `test_semantic_variation` 变体。
+- 变体覆盖自然语言改写、目标歧义、旧报告污染、提示注入、提前停止、unsupported honesty、工具边界、证据边界和结构化拒绝。
+- 每条变体保存 `source_case_id`、`case_family`、`mutation_tags`；变体使用独立 v2 run id，避免覆盖原有结果。
+- 文档明确声明语义变体不能当作完全独立统计样本，应按 family 聚合或使用 leave-one-family-out 统计。
+
+### 5. Runner 与 CLI 改动
+
+- `agent-interview-benchmark` 新增 `--open-task-suite` 和 `--rag-corpus`，可指定评测输入。
+- 新增 `generate-agent-eval-suite` 命令，可从固定基线生成可审计扩展集。
+- 统一报告新增 `evaluation_inputs`，记录实际使用的 open-task suite、RAG corpus 和 case count。
+- `.gitignore` 为 v2 评测集增加白名单，避免生成数据集被规则误忽略。
+
+### 6. 真实 LLM 运行结果
+
+使用配置：
+
+- Provider endpoint：DeepSeek OpenAI-compatible API。
+- Model：`deepseek-v4-pro`。
+- Suite：`agent_interview_open_tasks_v2.json`。
+- Case count：30。
+
+运行在第一次 LLM 调用前由服务端返回 HTTP 402 `Insufficient Balance`：
+
+- `llm_calls=0`
+- `tokens=0`
+- 30 条均为运行配置/额度失败，不是模型能力失败。
+- 该批结果排除出成功率、token 和泛化统计，不写成 0% 能力分数。
+
+### 7. 验证
+
+- `python -m pytest tests/test_agent_eval_suite_generator.py tests/test_skill_registry.py -q`：通过。
+- `python -m compileall -q src/dl_op_to_hls/benchmarks/agent_eval_suite_generator.py src/dl_op_to_hls/benchmarks/agent_interview_benchmark.py src/dl_op_to_hls/cli.py`：通过。
+- `git diff --check`：通过。
+
+### 8. 后续评测计划
+
+1. 额度恢复后重跑 v2，并按 dev/test_semantic_variation、case family、负例类型分别统计。
+2. 增加多轮会话集：初始要求、追加要求、撤回要求、中断、恢复、回滚。
+3. 增加工具状态依赖集：approval、artifact id、stale report、timeout、idempotency key 和 partial commit。
+4. 建立至少 50 条人工标注 HLS RAG query，每条包含正例和 hard negative，区分人工金标与弱监督。
+5. 用跨模型/跨 seed 重复运行估计方差，避免把一次固定提示词成功误判为泛化能力。
+
+---
+
+## 2026-09-11 11:44:37 +08:00：统一升级十个 Skill 为“执行契约 + Playbook 指导”结构
+
+### 1. 改造内容
+- 盘点 `skills/*.yaml`，确认当前 10 个发布 Skill 都是可加载的 JSON-compatible YAML 文档，并逐一补齐 `purpose`、`procedure`、`decision_rules`、`pitfalls`、`verification_guidance` 和 `examples`。
+- 扩展 `Skill` 数据模型和 `SkillValidator`。结构化字段仍负责 allowlist、前置条件、预算、并发、验证和失败策略；自然语言字段负责告诉 Planner/Specialist “做什么、如何判断和容易犯什么错”。
+- 将 9 个仍为 `1.0.0` 的内置 Skill 统一升级到 `1.1.0`；这是新增指导字段的向后兼容次版本变更，已有 `llm_candidate_verification_flow` 保持 `1.1.0`。
+- `SkillPromptContextBuilder` 和 Planner prompt 现在明确把 Skill 当作 playbook prior，而不是固定状态机；`recommended_todos` 仍是建议，最终计划必须经过既有的 `SkillPolicy`、`LLMGuard` 和证据门禁。
+- `ContextBuilder` 接入选中 Skill 的角色相关指导，只把当前 Specialist 需要的指导放入 `ContextEnvelope`，不泄漏完整 AgentState、其他 Specialist 的权限、raw log、full report 或完整代码。
+- Skill invocation artifact 增加每个允许 Specialist 的指导投影，便于回放当时使用的 playbook。
+- 更新 `docs/skills_design.md`，说明理想 Skill contract、运行生命周期、10 个 Skill 的职责和 candidate/approved 生命周期。
+
+### 2. 测试
+- 定向 Skill/Prompt/Policy 回归：`17 passed`。
+- 完整项目回归：`516 passed`，退出码 `0`。
+- 首次直接运行完整 pytest 时，Windows 默认临时目录 `C:\Users\IC\AppData\Local\Temp\pytest-of-IC` 返回 `WinError 5`，这是测试环境目录权限问题，不是代码失败；将 pytest basetemp 显式设到项目临时目录后完整回归通过。
+
+### 3. 当前未完成项
+- 自动从历史运行生成并自动批准新的 Skill 仍未开启。自动提炼结果必须保持 `candidate`，经过人工/测试审核后才能进入 `approved`，避免经验记忆自行扩大工具权限。
+- 现有 Skill 文件仍使用 `.yaml` 扩展名下的 JSON-compatible 文本，功能上可被当前加载器读取；后续若统一为真正 YAML，需要同步解析器和格式回归，不影响本轮功能。
+
+---
+
 ## 2026-09-08：移除面向面试的展示材料
 
 ### 1. 处理内容

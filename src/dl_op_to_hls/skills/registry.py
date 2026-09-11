@@ -209,7 +209,7 @@ class SkillRegistry:
         """
         candidates = self.find_candidates(task)
         return {
-            "available_skills": [skill.to_prompt_summary() for skill in candidates[:5]],
+            "available_skills": [skill.to_catalog_summary() for skill in candidates[:5]],
             "total_loaded_skills": len(self._skills),
         }
 

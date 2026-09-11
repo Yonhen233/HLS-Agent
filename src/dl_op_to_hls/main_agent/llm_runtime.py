@@ -59,6 +59,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         self.controller = LLMController()
         self.guard = LLMGuard()
         self.skill_registry = SkillRegistry(agent.config.workspace_root / "skills")
+        self.context_builder.skill_registry = self.skill_registry
         self.skill_policy = SkillPolicy()
         self.skill_prompt_builder = SkillPromptContextBuilder()
         self.skill_expander = SkillExpander()
@@ -622,6 +623,10 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                         "context_policy": selected_skill.context_policy,
                         "budget_policy": selected_skill.budget_policy,
                         "concurrency_policy": selected_skill.concurrency_policy,
+                        "guidance": {
+                            name: selected_skill.to_execution_guidance(name)
+                            for name in selected_skill.allowed_specialists
+                        },
                     }
                     path = self.context["artifact_manager"].write_json("skill_invocation.json", invocation, "skill_invocation")
                     state.artifacts["skill_invocation"] = str(path)

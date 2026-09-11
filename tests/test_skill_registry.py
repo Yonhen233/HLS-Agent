@@ -7,6 +7,10 @@ from pathlib import Path
 
 from dl_op_to_hls.skills.prompt_context import SkillPromptContextBuilder
 from dl_op_to_hls.skills.registry import SkillRegistry
+from dl_op_to_hls.skills.schema import SkillValidator
+from dl_op_to_hls.main_agent.state import AgentState
+from dl_op_to_hls.main_agent.todo import TodoItem
+from dl_op_to_hls.specialists.context import ContextBuilder
 
 
 def test_skill_registry_loads_yaml():
@@ -172,3 +176,109 @@ def test_unsupported_boundary_skill_allows_schema_validation():
     skill = registry.get("unsupported_boundary_flow")
     assert "task.validate_schema" in skill.allowed_tools
     assert skill.recommended_todos[0]["assigned_tool"] == "task.validate_schema"
+
+
+def test_all_approved_skills_include_playbook_guidance():
+    """Every shipped skill exposes both a contract and execution guidance."""
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+
+    assert len(registry.list_skills()) >= 10
+    for skill in registry.list_skills():
+        assert skill.purpose
+        assert skill.procedure
+        assert skill.decision_rules
+        assert skill.pitfalls
+        assert skill.verification_guidance
+        assert skill.examples
+
+
+def test_skill_prompt_context_exposes_guidance_to_planner():
+    """Planner context includes the natural-language layer, not only tool names."""
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    context = SkillPromptContextBuilder().build(
+        {"task_type": "operator", "op_type": "Dense", "objective": "latency"},
+        registry,
+    )
+
+    skill = next(item for item in context["available_skills"] if item["name"] == "operator_fallback_flow")
+    assert skill["purpose"]
+    assert skill["procedure"]
+    assert skill["decision_rules"]
+    assert skill["pitfalls"]
+    assert skill["verification_guidance"]
+
+
+def test_skill_guidance_schema_rejects_non_text_procedure():
+    """Guidance remains machine-checkable even though it is written for the LLM."""
+    payload = {
+        "name": "guidance_test",
+        "version": "1.0.0",
+        "status": "candidate",
+        "description": "A test skill",
+        "intent": "test",
+        "trigger": {},
+        "recommended_todos": [{"title": "Run", "assigned_tool": "tool.run"}],
+        "allowed_tools": ["tool.run"],
+        "allowed_specialists": [],
+        "required_artifacts": [],
+        "failure_policy": {},
+        "verification_policy": {},
+        "memory_policy": {},
+        "purpose": "Test guidance",
+        "procedure": ["valid", 42],
+        "decision_rules": ["valid"],
+        "pitfalls": ["valid"],
+        "verification_guidance": ["valid"],
+        "examples": [{"scenario": "test"}],
+    }
+    report = SkillValidator().validate_document(payload)
+    assert not report.valid
+    assert any("procedure" in error for error in report.errors)
+
+
+def test_selected_skill_guidance_is_scoped_into_specialist_context():
+    """Only the selected role's playbook guidance enters ContextEnvelope."""
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    state = AgentState(
+        run_id="skill-guidance-run",
+        task={"task_type": "operator", "name": "dense", "op_type": "Dense", "target": {}},
+        objective="latency",
+    )
+    state.selected_skill = "operator_fallback_flow"
+    todo = TodoItem(
+        id="todo_001",
+        title="Generate fallback HLS",
+        description="Generate fallback HLS",
+        status="pending",
+        priority=1,
+        dependencies=[],
+        assigned_tool="fallback.generate_operator_hls",
+        assigned_specialist="CodegenSpecialist",
+        inputs={},
+        outputs=None,
+        error=None,
+    )
+    envelope = ContextBuilder(skill_registry=registry).build_for_specialist(state, todo, "CodegenSpecialist")
+    guidance = envelope.scoped_state.get("skill_guidance")
+    assert "skill_guidance" not in envelope.scoped_state
+
+    todo.assigned_specialist = "VivadoSpecialist"
+    envelope = ContextBuilder(skill_registry=registry).build_for_specialist(state, todo, "VivadoSpecialist")
+    guidance = envelope.scoped_state["skill_guidance"]
+    assert guidance["name"] == "operator_fallback_flow"
+    assert "allowed_tools" not in guidance
+
+
+def test_skill_catalog_is_compact_first_disclosure():
+    """Candidate selection receives a bounded preview, not the full playbook."""
+    registry = SkillRegistry(Path("skills"))
+    registry.load_all()
+    skill = registry.get("operator_fallback_flow")
+    catalog = skill.to_catalog_summary()
+    assert catalog["disclosure_level"] == "catalog"
+    assert len(catalog["procedure"]) <= 3
+    assert len(catalog["decision_rules"]) <= 3
+    assert len(catalog["verification_guidance"]) <= 2

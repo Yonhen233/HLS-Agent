@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .benchmarks.agent_quality_benchmark import main as benchmark_main
 from .benchmarks.agent_interview_benchmark import run_interview_benchmark
+from .benchmarks.agent_eval_suite_generator import generate_open_task_suite
 from .benchmarks.bad_case_benchmark import run_bad_case_benchmark
 from .benchmarks.context_ablation import run_benchmark as run_context_ablation_benchmark
 from .benchmarks.historical_rag_benchmark import run_historical_rag_benchmark
@@ -195,8 +196,24 @@ def build_parser() -> argparse.ArgumentParser:
     agent_interview_parser.add_argument(
         "--run-open-llm",
         action="store_true",
-        help="Call the configured real LLM once for every fixed open-task case.",
+        help="Call the configured real LLM once for every open-task case.",
     )
+    agent_interview_parser.add_argument(
+        "--open-task-suite",
+        default="benchmarks/agent_interview_open_tasks.json",
+        help="Open-task suite path relative to the workspace.",
+    )
+    agent_interview_parser.add_argument(
+        "--rag-corpus",
+        default="benchmarks/agent_interview_rag_corpus.json",
+        help="RAG evaluation corpus path relative to the workspace.",
+    )
+    suite_generator_parser = subparsers.add_parser(
+        "generate-agent-eval-suite",
+        help="Generate the auditable LLM Agent evaluation expansion suite.",
+    )
+    suite_generator_parser.add_argument("--base", default="benchmarks/agent_interview_open_tasks.json")
+    suite_generator_parser.add_argument("--output", default="benchmarks/agent_interview_open_tasks_v2.json")
 
     context_ablation_parser = subparsers.add_parser(
         "context-ablation-benchmark",
@@ -629,8 +646,18 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
     if args.command == "agent-interview-benchmark":
-        payload = run_interview_benchmark(Path.cwd(), args.output, run_open_llm=args.run_open_llm)
+        payload = run_interview_benchmark(
+            Path.cwd(),
+            args.output,
+            run_open_llm=args.run_open_llm,
+            open_suite_path=args.open_task_suite,
+            rag_corpus_path=args.rag_corpus,
+        )
         print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "generate-agent-eval-suite":
+        payload = generate_open_task_suite(Path.cwd() / args.base, Path.cwd() / args.output)
+        print(json.dumps({"output": args.output, "case_count": len(payload["cases"]), "suite_name": payload["suite_name"]}, ensure_ascii=False))
         return 0
     if args.command == "context-ablation-benchmark":
         payload = run_context_ablation_benchmark(args)

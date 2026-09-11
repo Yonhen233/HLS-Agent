@@ -1,9 +1,33 @@
 {
   "name": "operator_fallback_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Generate fallback HLS implementation for supported operators, then run Vivado synthesis and reporting.",
   "intent": "operator_to_hls_fallback",
+  "purpose": "在任务明确选择本地模板路径且算子语义受支持时，生成可验证的 HLS 工程。",
+  "procedure": [
+    "先确认用户任务经过 schema 校验且算子属于已实现模板集合。",
+    "根据输入输出形状和 dtype 渲染 HLS header、C++、TCL 与 golden testbench。",
+    "登记所有生成文件并执行 CSim/reference compare。",
+    "将通过功能验证的工程交给 VivadoSpecialist 执行 CSynth。",
+    "解析真实报告，再生成建议和带证据的记忆候选。"
+  ],
+  "decision_rules": [
+    "模板路径必须由任务策略或 Planner 明确选择，不能静默替代 LLM candidate。",
+    "不支持的算子必须进入 unsupported 或 candidate 路径，不能套用错误模板。",
+    "任何生成代码都必须先验证，再进入 synthesis_success 或 verified。"
+  ],
+  "pitfalls": [
+    "不要把模板渲染成功当作 HLS 工程验证成功。",
+    "不要共享不同 run 的 generated 目录。",
+    "不要遗漏独立 golden reference。"
+  ],
+  "verification_guidance": [
+    "确认 Dense、MatMul、ReLU 或 Add 的参考输出独立于待测函数。",
+    "确认 CSim 通过后才执行 CSynth。",
+    "确认 report 指标和 implementation source 均写入数据库。"
+  ],
+  "examples": [{"scenario": "Dense with static shape", "expected_outcome": "golden testbench passes before real synthesis"}],
   "trigger": {
     "task_type": "operator",
     "op_types": ["Dense", "MatMul", "ReLU", "Add"]

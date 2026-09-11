@@ -88,7 +88,7 @@ class LegacyWorkflowExtractor:
         planner = self.inspect_legacy_planner()
         reflector = self.inspect_legacy_reflector()
         suggestions = self.inspect_legacy_suggestions()
-        return [
+        skills = [
             {
                 "name": "legacy_operator_flow",
                 "description": "Extracted skeleton from deterministic operator planner/runtime path.",
@@ -174,6 +174,44 @@ class LegacyWorkflowExtractor:
                 "source": "legacy_extractor",
             },
         ]
+        # Extracted playbooks are drafts: add the guidance layer, but never
+        # silently publish them as executable approved skills.
+        for skill in skills:
+            skill["status"] = "candidate"
+            skill.setdefault("purpose", skill.get("description", ""))
+            skill.setdefault(
+                "procedure",
+                [
+                    str(todo.get("title") or todo.get("assigned_tool") or "Inspect the next bounded step.")
+                    for todo in skill.get("recommended_todos", [])[:8]
+                ],
+            )
+            skill.setdefault(
+                "decision_rules",
+                [
+                    "Treat extracted steps as starting guidance and re-check the current task contract.",
+                    "Do not claim success without the artifacts and verification evidence required by the skill.",
+                ],
+            )
+            skill.setdefault(
+                "pitfalls",
+                [
+                    "Do not copy legacy behavior blindly when current tool or permission contracts differ.",
+                    "Do not turn a candidate playbook into an approved skill without review and regression tests.",
+                ],
+            )
+            skill.setdefault(
+                "verification_guidance",
+                [
+                    "Validate the extracted document against the Skill schema and runtime allowlists.",
+                    "Run the relevant tool, artifact, and failure-path regression tests before approval.",
+                ],
+            )
+            skill.setdefault(
+                "examples",
+                [{"scenario": "legacy flow extracted", "expected_outcome": "candidate skill awaits review"}],
+            )
+        return skills
 
     def write_skill_yaml(self, skeleton: dict[str, Any], path: str | Path) -> None:
         """Execute write_skill_yaml at the extractor boundary.

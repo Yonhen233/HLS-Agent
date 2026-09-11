@@ -38,6 +38,13 @@ class Skill:
     permissions: dict[str, Any] = field(default_factory=dict)
     tests: list[dict[str, Any]] = field(default_factory=list)
     integrity: dict[str, Any] = field(default_factory=dict)
+    # Natural-language guidance complements the machine-enforced contract.
+    purpose: str = ""
+    procedure: list[str] = field(default_factory=list)
+    decision_rules: list[str] = field(default_factory=list)
+    pitfalls: list[str] = field(default_factory=list)
+    verification_guidance: list[str] = field(default_factory=list)
+    examples: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], source: str = "extracted_from_legacy_workflow") -> "Skill":
@@ -86,6 +93,12 @@ class Skill:
             permissions=dict(payload.get("permissions", {"risk_level": "low", "capabilities": []})),
             tests=[dict(item) for item in payload.get("tests", [])],
             integrity=dict(payload.get("integrity", {})),
+            purpose=str(payload.get("purpose", payload.get("description", ""))),
+            procedure=[str(item) for item in payload.get("procedure", [])],
+            decision_rules=[str(item) for item in payload.get("decision_rules", [])],
+            pitfalls=[str(item) for item in payload.get("pitfalls", [])],
+            verification_guidance=[str(item) for item in payload.get("verification_guidance", [])],
+            examples=[dict(item) for item in payload.get("examples", []) if isinstance(item, dict)],
         )
 
     def to_prompt_summary(self) -> dict[str, Any]:
@@ -128,4 +141,39 @@ class Skill:
             "dependencies": self.dependencies,
             "permissions": self.permissions,
             "integrity": self.integrity,
+            "purpose": self.purpose,
+            "procedure": self.procedure[:8],
+            "decision_rules": self.decision_rules[:8],
+            "pitfalls": self.pitfalls[:6],
+            "verification_guidance": self.verification_guidance[:6],
+            "examples": self.examples[:3],
+        }
+
+    def to_catalog_summary(self) -> dict[str, Any]:
+        """Return the compact first-disclosure view used for candidate selection."""
+        summary = self.to_prompt_summary()
+        summary["procedure"] = self.procedure[:3]
+        summary["decision_rules"] = self.decision_rules[:3]
+        summary["pitfalls"] = self.pitfalls[:2]
+        summary["verification_guidance"] = self.verification_guidance[:2]
+        summary["examples"] = self.examples[:1]
+        summary["disclosure_level"] = "catalog"
+        return summary
+
+    def to_execution_guidance(self, specialist_name: str) -> dict[str, Any]:
+        """Project the selected playbook without exposing other specialists' tools."""
+        if self.status != "approved" or specialist_name not in self.allowed_specialists:
+            return {}
+        return {
+            "name": self.name,
+            "version": self.version,
+            "purpose": self.purpose,
+            "procedure": list(self.procedure[:8]),
+            "decision_rules": list(self.decision_rules[:8]),
+            "pitfalls": list(self.pitfalls[:6]),
+            "verification_guidance": list(self.verification_guidance[:6]),
+            "role_scope": (
+                "Apply this playbook only to your assigned Todo and allowed tools. "
+                "Return cross-specialist follow-up proposals to Main Agent; do not execute them locally."
+            ),
         }

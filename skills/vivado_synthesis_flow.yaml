@@ -1,9 +1,33 @@
 {
   "name": "vivado_synthesis_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Create Vivado project and run csynth with structured error handling.",
   "intent": "vivado_synthesis",
+  "purpose": "在隔离工作目录中执行 Vivado HLS 综合，并把真实报告转换为可验证的结构化结果。",
+  "procedure": [
+    "确认 hls_project_dir、top function、part、clock period 和 TCL 输入。",
+    "由 VivadoSpecialist 创建隔离工程并检查源文件、testbench 和 include。",
+    "先执行需要的 CSim，再执行 CSynth。",
+    "解析真实 csynth report 和 Vivado log，分别记录综合指标与诊断信息。",
+    "只有生成报告且解析通过，才允许将 synthesis 标记为成功。"
+  ],
+  "decision_rules": [
+    "Vivado HLS 不存在时只能标记 partial_success 或 skipped，不能伪造综合指标。",
+    "报告缺失时先查日志并触发 replan，不从历史经验补齐报告。",
+    "资源或 timing 超限时返回事实和优化方向，不擅自改变模型语义。"
+  ],
+  "pitfalls": [
+    "不要在用户原工程目录直接运行或写入中间文件。",
+    "不要把 TCL return code 作为唯一成功条件。",
+    "不要把 report parse success 当成功综合的替代证据。"
+  ],
+  "verification_guidance": [
+    "确认 csynth report 存在并包含 latency、II 和资源指标。",
+    "确认日志中没有隐藏的 synthesis error。",
+    "确认报告、日志和工程 artifact 均属于同一 run。"
+  ],
+  "examples": [{"scenario": "generated HLS project", "expected_outcome": "real csynth report parsed or a structured Vivado error"}],
   "trigger": {
     "task_type": ["model", "operator", "hls_project"]
   },

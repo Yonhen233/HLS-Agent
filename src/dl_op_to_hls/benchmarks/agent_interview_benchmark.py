@@ -625,6 +625,8 @@ def build_interview_report(
     workspace_root: str | Path,
     *,
     open_planning: dict[str, Any] | None = None,
+    open_suite_path: str | Path = OPEN_TASK_SUITE,
+    rag_corpus_path: str | Path = RAG_CORPUS,
 ) -> dict[str, Any]:
     """Execute build_interview_report at the agent_interview_benchmark boundary.
 
@@ -633,6 +635,8 @@ def build_interview_report(
     Args:
         workspace_root: Value supplied by the caller and validated by the surrounding schema.
         open_planning: Value supplied by the caller and validated by the surrounding schema.
+        open_suite_path: Open-task suite used for the optional LLM planning run.
+        rag_corpus_path: Corpus used by the RAG ablation.
 
     Returns:
         The structured value promised by the function signature.
@@ -641,7 +645,7 @@ def build_interview_report(
     run_ids = _frozen_run_ids(root)
     run_dirs = [root / "runs" / run_id for run_id in run_ids if (root / "runs" / run_id / "state.json").exists()]
     historical = aggregate_metrics([collect_run_metrics(path) for path in run_dirs])
-    rag = run_rag_ablation(root)
+    rag = run_rag_ablation(root, corpus_path=rag_corpus_path)
     guard = run_guard_ablation(root)
     context = run_context_ablation(run_dirs)
     recovery = run_recovery_idempotency_probes(root)
@@ -686,6 +690,11 @@ def build_interview_report(
         "benchmark_name": "agent_interview_evidence_v1",
         "interview_ready": all(release_gates.values()),
         "cohort": {"selection_policy": "operator_release_exact_runs_plus_latest_non_candidate_path_per_class", "run_ids": run_ids},
+        "evaluation_inputs": {
+            "open_task_suite": str(open_suite_path).replace("\\", "/"),
+            "rag_corpus": str(rag_corpus_path).replace("\\", "/"),
+            "open_task_case_count": len((_read_json(root / open_suite_path, {}) or {}).get("cases", [])),
+        },
         "historical_real_run_metrics": historical,
         "open_task_generalization": open_planning,
         "framework_improvement": framework_improvement,
@@ -762,6 +771,8 @@ def run_interview_benchmark(
     output_path: str | Path,
     *,
     run_open_llm: bool = False,
+    open_suite_path: str | Path = OPEN_TASK_SUITE,
+    rag_corpus_path: str | Path = RAG_CORPUS,
 ) -> dict[str, Any]:
     """Execute run_interview_benchmark at the agent_interview_benchmark boundary.
 
@@ -771,15 +782,22 @@ def run_interview_benchmark(
         workspace_root: Value supplied by the caller and validated by the surrounding schema.
         output_path: Value supplied by the caller and validated by the surrounding schema.
         run_open_llm: Value supplied by the caller and validated by the surrounding schema.
+        open_suite_path: Open-task suite used for the optional LLM planning run.
+        rag_corpus_path: Corpus used by the RAG ablation.
 
     Returns:
         The structured value promised by the function signature.
     """
     root = Path(workspace_root).resolve()
-    open_results = run_open_task_planning(root) if run_open_llm else None
+    open_results = run_open_task_planning(root, suite_path=open_suite_path) if run_open_llm else None
     if open_results is not None:
         _write_json(root / "runs" / "benchmarks" / "agent_open_task_results.json", open_results)
-    report = build_interview_report(root, open_planning=open_results)
+    report = build_interview_report(
+        root,
+        open_planning=open_results,
+        open_suite_path=open_suite_path,
+        rag_corpus_path=rag_corpus_path,
+    )
     output = Path(output_path)
     if not output.is_absolute():
         output = root / output

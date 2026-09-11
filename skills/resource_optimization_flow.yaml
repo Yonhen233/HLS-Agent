@@ -1,9 +1,34 @@
 {
   "name": "resource_optimization_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Optimize for resource usage (DSP/BRAM/LUT/FF) using report metrics and memory hints.",
   "intent": "resource_optimization",
+  "purpose": "在资源预算和真实报告约束下，降低 DSP、BRAM、LUT 和 FF 占用。",
+  "procedure": [
+    "读取当前综合报告和目标器件资源预算。",
+    "按 DSP、BRAM、LUT、FF 的瓶颈排序问题。",
+    "检索相同算子、数据类型和目标器件的历史方法经验。",
+    "提出带 trade-off 的 reuse、partition、precision 或存储建议。",
+    "任何改动都要重新做功能验证、综合和报告比较。"
+  ],
+  "decision_rules": [
+    "DSP 高时优先评估 reuse factor 和乘法资源绑定。",
+    "LUT 高时检查 unroll、控制逻辑和位宽。",
+    "BRAM 高时检查数组存储、partition 和权重布局。",
+    "任何建议都不能超过目标器件资源预算。"
+  ],
+  "pitfalls": [
+    "不要只看单一资源指标。",
+    "不要把 heuristic 估计当作真实综合结果。",
+    "不要为了降资源改变模型语义或精度要求而不重新验证。"
+  ],
+  "verification_guidance": [
+    "建议必须引用当前 report 或已验证历史经验。",
+    "确认优化后所有资源仍在器件预算内。",
+    "确认功能精度和 timing 没有被破坏。"
+  ],
+  "examples": [{"scenario": "Dense DSP bottleneck", "expected_outcome": "trade reuse factor against latency and re-synthesize"}],
   "trigger": {
     "task_type": ["model", "operator", "hls_project"],
     "conditions": ["objective_resource"]

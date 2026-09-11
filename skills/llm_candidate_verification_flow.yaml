@@ -4,6 +4,30 @@
   "status": "approved",
   "description": "Generate candidate HLS for unsupported operators with LLM and enforce verification loop.",
   "intent": "llm_generated_hls_candidate_verification",
+  "purpose": "在用户明确选择 LLM candidate 或现有转换器无法覆盖时，为语义已知且可独立验证的任务生成 HLS，并通过真实验证筛选。",
+  "procedure": [
+    "确认算子语义、静态形状、数据类型、top function 和 candidate contract。",
+    "检索相似的已验证实现，但只把它们作为参考而不是事实替代。",
+    "让 CodegenSpecialist 生成最小 candidate 和 header，由验证工具依据独立 reference 构建 golden testbench，不能由待测代码反推标准答案。",
+    "先执行 CSim 和 reference compare，再执行 CSynth 和报告解析。",
+    "失败时根据结构化错误进行有限次数 repair；超过预算后报告修复耗尽，只有能力边界确实不支持时才标记 unsupported。"
+  ],
+  "decision_rules": [
+    "LLM 生成结果初始只能是 candidate_generated，不能直接标记 verified。",
+    "没有独立 golden oracle 时不得进入候选代码验证。",
+    "修复只能保持原任务语义和接口，不能为了通过测试改变任务定义。"
+  ],
+  "pitfalls": [
+    "不要让 LLM 生成大段未提供的权重。",
+    "不要使用 system、文件系统或网络等非综合副作用。",
+    "不要把编译成功、CSim 成功和 CSynth 成功混成一个状态。"
+  ],
+  "verification_guidance": [
+    "testbench 必须独立计算 golden reference。",
+    "CSim 必须通过误差阈值并生成可追溯结果。",
+    "CSynth 必须生成真实报告，且候选只有同时通过功能和综合后才能晋升。"
+  ],
+  "examples": [{"scenario": "unsupported static operator", "expected_outcome": "candidate is generated, independently verified, or rejected with evidence"}],
   "trigger": {
     "task_type": ["operator", "model_subgraph"],
     "conditions": ["hls4ml_unsupported", "fallback_template_missing", "llm_enabled"]

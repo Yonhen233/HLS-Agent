@@ -1,9 +1,33 @@
 {
   "name": "latency_optimization_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Optimize for latency and II while preserving timing closure.",
   "intent": "latency_optimization",
+  "purpose": "在已有真实综合指标的前提下，降低 latency 和 II，同时保持时序可收敛。",
+  "procedure": [
+    "读取当前 report 中的 latency、II、timing 和资源指标。",
+    "结合 objective 和已验证的历史经验生成少量候选建议。",
+    "优先检查 pipeline dependency、数组分区和并行度。",
+    "明确每条建议的预期收益和资源/时序代价。",
+    "任何参数改变都必须重新执行功能验证和综合。"
+  ],
+  "decision_rules": [
+    "II 大于 1 时优先定位依赖和 memory access 冲突，而不是盲目增加 unroll。",
+    "timing 已接近上限时，不能用更高并行度换取 latency。",
+    "没有真实 report metrics 时只允许阻塞，不能根据默认值给出结论。"
+  ],
+  "pitfalls": [
+    "不要只优化 latency 而忽略板级资源预算。",
+    "不要把 heuristic 预测当作综合结果。",
+    "不要把建议直接修改为已验证实现。"
+  ],
+  "verification_guidance": [
+    "建议必须绑定当前 report 或历史证据。",
+    "重新综合后比较 latency、II、timing 和资源变化。",
+    "若 timing 失败，记录失败证据并回滚或重新规划。"
+  ],
+  "examples": [{"scenario": "II > 1", "expected_outcome": "diagnose dependency or partition before changing parallelism"}],
   "trigger": {
     "task_type": ["model", "operator", "hls_project"],
     "conditions": ["objective_latency"]

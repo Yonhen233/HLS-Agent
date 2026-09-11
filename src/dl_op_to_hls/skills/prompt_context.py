@@ -38,6 +38,7 @@ class SkillPromptContextBuilder:
                 candidates = [registry.get("llm_candidate_verification_flow")]
         selection_notes = [
             "Skills are playbook priors, not strict deterministic plans.",
+            "Use each selected skill's purpose, procedure, decision_rules, pitfalls, and verification_guidance as execution guidance; never bypass its structured contract.",
             "LLM may adapt or reorder recommended_todos under guardrails.",
             "For initial model-to-HLS tasks, choose the end-to-end hls4ml_model_flow even when the objective is resource or latency.",
             "Optimization-only skills require existing report metrics and must not replace conversion/synthesis steps.",
@@ -54,6 +55,6 @@ class SkillPromptContextBuilder:
                 "Candidate generation was rejected by the deterministic capability gate because no independent golden oracle exists; choose unsupported_boundary_flow and do not call LLM candidate or Vivado tools.",
             )
         return {
-            "available_skills": [skill.to_prompt_summary() for skill in candidates],
+            "available_skills": [skill.to_catalog_summary() for skill in candidates],
             "selection_notes": selection_notes,
         }

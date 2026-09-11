@@ -1,9 +1,33 @@
 {
   "name": "memory_promotion_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Compress run context, extract memory candidates, promote long-term memories, and index retrieval chunks.",
   "intent": "memory_promotion",
+  "purpose": "从本次运行的结构化决策、结果和证据中提炼可复用的长期经验。",
+  "procedure": [
+    "从 trace.query 读取 bounded Decision Ledger、Todo history 和 failure/evidence 视图。",
+    "写入短期记忆并压缩当前 run 的工具观察和报告摘要。",
+    "由 MemorySpecialist 使用 LLM 选择有长期价值的经验候选并改写为方法。",
+    "根据验证证据、来源、重复性和适用条件决定是否晋升。",
+    "将通过门禁的结构化记忆写入 SQLite，再异步索引到 RAG。"
+  ],
+  "decision_rules": [
+    "Specialist 只能提出 memory_candidates，只有 MemorySpecialist 可以执行晋升。",
+    "verified implementation、真实失败类型和真实综合指标优先级最高。",
+    "RAG 只能作为检索层，不能覆盖 SQLite 中的证据事实。"
+  ],
+  "pitfalls": [
+    "不要索引完整 Vivado 原始日志或未压缩 stdout。",
+    "不要从单次无证据的 LLM 判断总结成功经验。",
+    "不要把临时路径、重复输出和原始长日志写成长期记忆。"
+  ],
+  "verification_guidance": [
+    "每条长期经验必须保留 source_run_id 和 evidence refs。",
+    "实现类经验至少区分 functional_verified、synthesis_success 和 candidate。",
+    "RAG 索引失败不能回滚已提交的 SQLite 事实记录。"
+  ],
+  "examples": [{"scenario": "verified Dense implementation", "expected_outcome": "promote a parameterized method with evidence refs"}],
   "trigger": {
     "task_type": ["model", "operator", "hls_project"]
   },

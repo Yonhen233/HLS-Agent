@@ -102,6 +102,7 @@ class SkillValidator:
             if field_name in payload and not isinstance(payload[field_name], list):
                 report.errors.append(f"{field_name} must be a list")
         self._validate_todos(payload.get("recommended_todos", []), report)
+        self._validate_guidance(payload, report)
         self._validate_policy(payload, report)
         self._validate_dependencies(payload.get("dependencies", []), report)
         integrity = payload.get("integrity", {})
@@ -114,6 +115,23 @@ class SkillValidator:
             if actual != str(integrity["sha256"]):
                 report.errors.append("integrity.sha256 does not match the normalized skill document")
         return report
+
+    @staticmethod
+    def _validate_guidance(payload: dict[str, Any], report: SkillValidationReport) -> None:
+        """Validate the natural-language playbook layer without evaluating prose."""
+        list_fields = ("procedure", "decision_rules", "pitfalls", "verification_guidance", "examples")
+        if "purpose" in payload and not isinstance(payload["purpose"], str):
+            report.errors.append("purpose must be a string")
+        for field_name in list_fields:
+            if field_name in payload and not isinstance(payload[field_name], list):
+                report.errors.append(f"{field_name} must be a list")
+        for field_name in ("procedure", "decision_rules", "pitfalls", "verification_guidance"):
+            values = payload.get(field_name, [])
+            if isinstance(values, list) and any(not isinstance(item, str) or not item.strip() for item in values):
+                report.errors.append(f"{field_name} must contain non-empty strings")
+        examples = payload.get("examples", [])
+        if isinstance(examples, list) and any(not isinstance(item, dict) for item in examples):
+            report.errors.append("examples must contain objects")
 
     def validate_runtime(self, skill, tool_names: set[str], specialist_names: set[str]) -> SkillValidationReport:
         """Execute validate_runtime at the schema boundary.

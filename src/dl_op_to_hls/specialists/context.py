@@ -107,6 +107,7 @@ class ContextBuilder:
         self,
         token_budget_manager: TokenBudgetManager | None = None,
         mode_config: ContextModeConfig | None = None,
+        skill_registry=None,
     ):
         """Implement the internal __init__ helper.
 
@@ -121,6 +122,7 @@ class ContextBuilder:
         """
         self.token_budget_manager = token_budget_manager or TokenBudgetManager()
         self.mode_config = mode_config or ContextModeConfig.from_env()
+        self.skill_registry = skill_registry
 
     def build_for_specialist(self, state, todo, specialist_name: str) -> ContextEnvelope:
         """Execute build_for_specialist at the context boundary.
@@ -165,6 +167,11 @@ class ContextBuilder:
             if self.mode_config.input_context_mode == "full"
             else self._scoped_state(state, todo, specialist_name)
         )
+        if self.skill_registry is not None and getattr(state, "selected_skill", None):
+            skill = self.skill_registry.get(state.selected_skill)
+            guidance = skill.to_execution_guidance(specialist_name)
+            if guidance:
+                scoped_state["skill_guidance"] = guidance
         artifact_refs = (
             self._all_artifact_refs(state)
             if self.mode_config.input_context_mode == "full"

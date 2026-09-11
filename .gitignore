@@ -1,6 +1,7 @@
 __pycache__/
 .pytest_cache/
 .pytest_tmp*/
+.pytest-tmp*/
 *.pyc
 runs/*
 !runs/.gitkeep
@@ -29,5 +30,6 @@ docs/demo_examples.md
 docs/demo_script.md
 docs/presentations/
 benchmarks/agent_interview_*.json
+!benchmarks/agent_interview_open_tasks_v2.json
 benchmarks/agent_interview_*.md
 scripts/create_advisor_pitch_ppt.py

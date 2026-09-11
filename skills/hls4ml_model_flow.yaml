@@ -1,9 +1,33 @@
 {
   "name": "hls4ml_model_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Convert ONNX/Keras/QKeras models with hls4ml and run Vivado synthesis when available.",
   "intent": "model_to_hls_hls4ml",
+  "purpose": "将受支持的 ONNX、QONNX、Keras 或 QKeras 模型转换为可综合 HLS 工程。",
+  "procedure": [
+    "确认模型文件、frontend、target part、clock period 和精度配置。",
+    "先检查模型图和算子支持情况，再决定是否进入转换。",
+    "生成可复现的 hls4ml config，并把配置登记为 artifact。",
+    "执行转换并检查生成的 firmware、top function 和转换日志。",
+    "转换完成后交给 VivadoSpecialist 进行 CSim、CSynth 和报告解析。"
+  ],
+  "decision_rules": [
+    "支持状态为 unsupported 时不能直接调用 convert；先执行允许的 rewrite 或输出边界报告。",
+    "Shape、Flatten 和 Reshape 只有在静态形状可证明时才可消除。",
+    "frontend 与文件格式不匹配时返回结构化输入错误，不猜测模型格式。"
+  ],
+  "pitfalls": [
+    "不要把 hls4ml 能识别模型等同于 Vivado 一定能综合。",
+    "不要把转换日志全文注入 Main Agent，上下文只保留压缩摘要和 artifact ref。",
+    "不要遗漏生成工程的 testbench 和权重文件。"
+  ],
+  "verification_guidance": [
+    "确认 inspect 与 support 结果来自当前模型。",
+    "确认 config、HLS project 和 conversion log 均已保存。",
+    "确认后续综合报告真实存在并通过解析。"
+  ],
+  "examples": [{"scenario": "static ONNX MLP", "expected_outcome": "hls4ml config and HLS project are generated, then synthesized"}],
   "trigger": {
     "task_type": "model",
     "frontends": ["onnx", "qonnx", "keras", "qkeras"]

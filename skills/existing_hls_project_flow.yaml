@@ -1,9 +1,33 @@
 {
   "name": "existing_hls_project_flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "approved",
   "description": "Use an existing HLS project and run Vivado synthesis/report flow.",
   "intent": "existing_hls_project_synthesis",
+  "purpose": "对用户提供的已有 HLS 工程执行可追溯的综合、报告解析和经验沉淀。",
+  "procedure": [
+    "先校验工程目录、top function、器件型号和时钟约束。",
+    "复制工程输入到本次 run 的隔离工作目录，不修改用户原工程。",
+    "创建并检查 Vivado HLS TCL，再执行 CSim 或 CSynth。",
+    "只从真实生成的报告解析 latency、II、DSP、BRAM、LUT、FF 和 timing。",
+    "综合结果确认后再生成建议和记忆候选。"
+  ],
+  "decision_rules": [
+    "工程目录或 top function 不明确时先阻塞，不猜测入口。",
+    "Vivado 不存在时保留工程并标记 partial_success，不能声称综合成功。",
+    "报告缺失时转入日志诊断，不从日志或历史结果补造指标。"
+  ],
+  "pitfalls": [
+    "不要直接覆盖用户已有工程。",
+    "不要把 TCL 执行返回码为零等同于报告有效。",
+    "不要把综合成功等同于功能验证成功。"
+  ],
+  "verification_guidance": [
+    "确认 Vivado 日志没有综合错误。",
+    "确认 csynth report 存在且能够解析出结构化指标。",
+    "确认 artifact 路径和 top function 与本次任务一致。"
+  ],
+  "examples": [{"scenario": "existing HLS project", "expected_outcome": "synthesis report parsed or an actionable structured error"}],
   "trigger": {
     "task_type": "hls_project"
   },

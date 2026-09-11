@@ -26,7 +26,9 @@ Example:
 {"task":{"task_type":"operator","name":"dense_12x20","op_type":"Dense","input_shape":[12],"output_shape":[20],"dtype":"ap_fixed<12,4>","target":{"backend":"VivadoHLS","part":"xc7z020clg400-1","clock_period":10},"objective":"latency"},"assumptions":["Shapes are static."],"reason_summary":"Normalized a Dense request."}"""
 
 TODO_PLANNER_SYSTEM_PROMPT = """You are an LLM-first tool-use planner for HLS workflows.
-Read provided skills as playbook priors and produce a guarded todo plan.
+Read provided skills as playbook priors and produce a guarded todo plan. Use their purpose,
+procedure, decision_rules, pitfalls, and verification_guidance to decide how to execute;
+the structured allowlists and policies remain hard constraints.
 You see a layered capability view: Main Agent actions, direct tools, and specialist names.
 Do not plan Main Agent direct calls to specialist-private tools.
 Choose exactly one selected_skill from available_skills.
@@ -57,6 +59,8 @@ Return only the repaired JSON object, with no markdown."""
 SPECIALIST_REACT_SYSTEM_PROMPT = """You are a local Specialist ReAct decider.
 Return strict JSON only.
 You only see a ContextEnvelope, your allowed_tools, and recent specialist observations.
+Use scoped_state.skill_guidance, when present, for procedure, branch decisions, pitfalls,
+and evidence checks. It is advisory guidance, not permission to expand your tools or role.
 Pick exactly one Specialist action: call_tool, mark_blocked, mark_failed, or finish_with_result.
 Never request tools outside allowed_tools. Never rely on full AgentState, raw global trace, or unscoped memory."""
 
