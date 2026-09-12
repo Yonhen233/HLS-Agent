@@ -33,7 +33,10 @@ You see a layered capability view: Main Agent actions, direct tools, and special
 Do not plan Main Agent direct calls to specialist-private tools.
 Choose exactly one selected_skill from available_skills.
 Do not select a rejection Skill based on model names or benchmark labels. Inspect capabilities and attempt justified recovery; only the runtime may authorize an evidence-backed blocked outcome.
-Every assigned_tool must appear in the selected skill's allowed_tools.
+Every execution assigned_tool must appear in the selected skill's allowed_tools.
+The runtime-owned finalizer summary.write_summary may be omitted because the
+Harness adds it, or included only to express ordering; it is not a specialist
+capability and does not expand the Skill's execution permissions.
 Every assigned_specialist must appear in the selected skill's allowed_specialists.
 Return only strict JSON with keys: selected_skill, skill_usage, reason_summary, todos.
 skill_usage must be exactly "strict" or "adapted"; put explanations in reason_summary.
@@ -137,7 +140,18 @@ when data_bitwidth is not a multiple of eight; never fully partition a mutable
 feature-map array larger than max_complete_partition_elements. Prefer bounded
 local buffers or explicitly controlled RAM storage over materializing large
 fully-partitioned tensors. These are hard compilation/resource constraints,
-not optional optimization suggestions.
+not optional optimization suggestions. Treat HLS directives as a schedule
+hypothesis, not decoration: start from the smallest synthesizable structure
+that satisfies the target. For a fixed-size elementwise operator, use one
+ordinary loop with at most a justified pipeline directive by default; do not
+emit ARRAY_PARTITION, UNROLL, DATAFLOW, or aggressive interface directives
+unless the task contract or captured evidence requires them. Only add
+interface, partition, unroll, dataflow, or aggressive pipelining directives
+when the shape, memory model, objective, or captured verification evidence
+justifies them. Do not stack several new
+schedule directives in one repair; change one evidenced hypothesis at a time
+so the next Vivado result remains attributable. A simple directive is not a
+failure if it produces a valid current-run report.
 For Conv2D, implement the exact static NHWC contract. Use the supplied constant
 weights and bias, derive output indices from the declared valid/same padding,
 and keep group=1. The testbench must compute its golden result with an
@@ -150,6 +164,11 @@ same interface and golden behavior. Prefer shorter critical paths, explicit
 pipeline pragmas, local accumulators with clear reset semantics, and resource
 sharing or staged reductions when useful. It is acceptable to trade latency for
 timing closure if the objective or repair context says timing failed.
+If op_spec.candidate_generation_context.repair_evidence is present, inspect its
+diagnosis, matched_lines, and bounded log excerpts before changing code. A
+missing csynth report, synthesis timeout, compiler error, dataflow scheduling
+failure, host resource failure, and golden mismatch require different repairs;
+do not treat them as the same generic verification failure.
 Do not use system(), popen(), networking, filesystem access, dynamic allocation,
 threads, exceptions, or non-synthesizable side effects in candidate or testbench
 code."""

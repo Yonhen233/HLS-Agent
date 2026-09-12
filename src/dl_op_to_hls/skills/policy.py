@@ -11,6 +11,11 @@ from .skill import Skill
 from .schema import SkillValidator
 
 
+# These tools are owned by the runtime finalization boundary. They may appear
+# in an LLM plan for ordering/evidence purposes, but are not Skill capabilities.
+RUNTIME_OWNED_TOOLS = {"summary.write_summary"}
+
+
 class SkillPolicy:
     """Coordinate SkillPolicy within the policy boundary.
 
@@ -84,7 +89,7 @@ class SkillPolicy:
         for todo in todos:
             assigned_tool = todo.get("assigned_tool")
             assigned_specialist = todo.get("assigned_specialist")
-            if assigned_tool and assigned_tool not in allowed_tools:
+            if assigned_tool and assigned_tool not in allowed_tools and assigned_tool not in RUNTIME_OWNED_TOOLS:
                 errors.append(f"Tool {assigned_tool} is outside selected skill allowlist.")
             if assigned_tool:
                 tool_counts[assigned_tool] = tool_counts.get(assigned_tool, 0) + 1

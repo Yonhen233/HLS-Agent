@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-09-13｜LLM Candidate Harness 回归修复：工具证据升级与 Vivado 深路径隔离
+
+### 背景
+
+针对真实 LLM Candidate 回归中 ReLU 出现的 `No rule to make target`、深层 durable run 目录导致 Vivado HLS 2018.3 挂起，以及 repair 阶段只能看到压缩错误摘要的问题，进行了 Harness、tool adapter 和 repair evidence 的联合修复。本轮只保留 LLM Candidate 路径，没有恢复或启用 hls4ml 路径。
+
+### 主要改造
+
+1. **证据升级与 repair 复用**
+   - 新增 `core/repair_evidence.py`，在 bounded context 之外按需读取有限数量的原始 Vivado 日志尾部、错误行和路径字段。
+   - 对 `Dataflow strict check failed`、`No rule to make target`、编译错误、超时、主机资源错误等进行结构化诊断。
+   - `verify_candidate.run` 将原始日志证据挂到失败结果；runtime 在 repair 前生成 `repair/repair_evidence_<todo_id>.json`，并将证据路径和诊断传给 candidate repair prompt。
+   - repair prompt 要求先区分工具输入/环境问题与候选代码问题，并且一次只验证一个修复假设，避免让 LLM 盲目改变语义或叠加优化指令。
+
+2. **Vivado HLS 工具边界修复**
+   - full-flow Tcl 改为一次 `open_project -reset` 和一次 `open_solution -reset`，不再拼接多个 stage 脚本造成重复打开工程。
+   - 候选输入使用稳定的普通 `add_files` 声明，去除会改变旧版 make 依赖图的 per-file cflags；这不是禁用 HLS 优化，而是减少工具输入的不确定性。
+   - Windows 深层 durable run 路径超过阈值时，adapter 将同一份候选、头文件、testbench、数据目录和 Tcl 放入短路径 staging 目录执行，再把日志、工程报告和 synthesis evidence 回写到 canonical run artifacts。
+   - staging 失败仍保留 staging 路径和原始日志，repair 可以继续读取真实工具证据，而不会误把路径错误归因于候选代码。
+
+3. **状态与终止语义修复**
+   - `verify_candidate.run` 已经完成真实 CSim/CSynth 时，后续重复 synthesis/report todo 被标记为明确的 `superseded` cancellation，而不是制造“任务未完成”的假失败。
+   - failure diagnosis 过滤这类由 composite verification 替代的取消项，避免最终成功的 run 同时生成 blocked 诊断。
+   - plan 在失败早期仍会初始化空 TodoList，保证原始规划错误能够被持久化，不被二次 finalize 错误覆盖。
+
+### 回归验证
+
+- 单元与 Harness 回归：`tests/test_repair_harness.py`、`tests/test_llm_runtime_plan_validation.py`、`tests/test_llm_only_runtime_policy.py`、`tests/test_claude_comparison_runtime.py` 全部通过。
+- 编译检查：`python -m compileall -q src scripts tests` 通过。
+- 短路径真实 Vivado HLS：ReLU CSim 和 CSynth 通过并生成 report。
+- 深层 durable run 路径真实 Vivado HLS：通过短路径 staging 完成 CSim、CSynth、report parse，未再出现 `No rule to make target`。
+- Harness ReLU 端到端回归：`runs/benchmarks/claude_cli_comparison_harness_regression_v7`，状态 `success`，`llm_candidate_path`，真实 report 和 completion gate 均通过；总耗时约 266 秒，5 次 LLM 调用，13,914 tokens。
+
+### 设计取舍
+
+本轮没有简单删除 pipeline、关闭优化或把失败强行改成成功。修复将职责分开：Harness 决定何时升级证据和何时 repair，adapter 负责旧版 HLS 的路径与工程边界，LLM 只在确认是候选问题后修改一个可验证假设。这样既保留了 LLM Agent 的自主修复能力，也避免工具环境噪声消耗 repair 次数和 token。
+
+---
+
 ## 2026-09-12：六组 HLS Agent 对比任务与 Claude baseline 严格对齐
 
 ### 背景

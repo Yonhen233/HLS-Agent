@@ -267,6 +267,12 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         Returns:
             The structured value promised by the function signature.
         """
+        # Planning can fail before the LLM plan creates a TodoList. Finalization
+        # still has to preserve the original planning error and emit durable
+        # state/checkpoint artifacts instead of replacing it with a secondary
+        # "TodoList not initialized" error.
+        if self.todo_manager is not None and self.todo_manager.todo_list is None:
+            self.todo_manager.todo_list = TodoList(run_id=state.run_id, items=list(state.todos))
         reflect_on_errors(state)
         update_status_from_todos(state)
         if state.status != "interrupted":
@@ -603,6 +609,12 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             reason = "; ".join(str(item) for item in boundary.get("reasons", [])) or str(
                 boundary.get("kind") or "The task cannot be independently verified."
             )
+            # A capability gate is a terminal plan in its own right. Initialize
+            # the durable todo container before appending the evidence-backed
+            # unsupported report, so unsupported model/operator requests do not
+            # fail with an unrelated TodoList initialization error.
+            if self.todo_manager.todo_list is None:
+                self.todo_manager.todo_list = TodoList(run_id=state.run_id, items=[])
             self._mark_blocked(state, reason, {"decision": boundary.get("decision")})
             state.plan = ["Capability gate: record an evidence-backed blocked outcome."]
             gate_todo = self.todo_manager.append_item(

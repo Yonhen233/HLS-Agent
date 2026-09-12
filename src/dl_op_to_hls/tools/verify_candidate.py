@@ -12,6 +12,7 @@ from typing import Any
 
 from ..adapters.vivado_hls_adapter import VivadoHLSAdapter
 from ..core.errors import build_error, error_result
+from ..core.repair_evidence import collect_repair_evidence
 
 
 MOCK_REPORT = """== Utilization Estimates
@@ -290,21 +291,23 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
         status=str(synth_result.get("status") or "error"),
         artifact_path=synth_result.get("report_path"),
     )
+    repair_evidence = collect_repair_evidence(synth_result, create_result, {"work_dir": str(work_dir)})
     if synth_result.get("status") != "success":
         error = synth_result.get("error") or build_error(
             "VerificationFailedError",
             "Real candidate verification did not complete Vivado HLS csim/csynth successfully.",
             recoverable=True,
             source="verify_candidate",
-            details={"result": synth_result},
+            details={"result": synth_result, "repair_evidence": repair_evidence},
         ).to_dict()
+        error.setdefault("details", {})["repair_evidence"] = repair_evidence
         return {"status": "failed", "error": error}
 
     report_path = synth_result.get("report_path")
     if not report_path:
         return _candidate_failed(
             "Vivado HLS completed but did not produce a csynth report.",
-            details={"work_dir": create_result["work_dir"]},
+            details={"work_dir": create_result["work_dir"], "repair_evidence": repair_evidence},
         )
 
     parsed_report = adapter.parse_report({"report_path": report_path})
@@ -321,7 +324,7 @@ def _real_verify(candidate_dir: Path, report_dir: Path, arguments: dict[str, Any
             "Candidate verification report could not be parsed.",
             recoverable=True,
             source="verify_candidate",
-            details={"report_path": report_path},
+            details={"report_path": report_path, "repair_evidence": repair_evidence},
         ).to_dict()
         return {"status": "failed", "error": error}
 

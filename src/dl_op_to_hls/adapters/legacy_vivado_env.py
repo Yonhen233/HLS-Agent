@@ -81,12 +81,19 @@ class HLSVerificationEnv:
             The structured value promised by the function signature.
         """
         first_open = not workspace.get("initialized")
+
         open_project_line = f"open_project {'-reset ' if first_open else ''}{workspace['project_name']}"
         lines = ["# Auto-generated stage-aware HLS TCL", open_project_line]
         if first_open:
-            lines.append(f"add_files -cflags \"-std=c++0x\" {workspace['code_filename']}")
+            # Keep the file graph deliberately boring.  Vivado HLS 2018.3 can
+            # leave a stale make dependency when the same project is opened
+            # twice or when per-file cflags are attached to a relative input.
+            # The candidate contract already supplies valid C++, so the
+            # tool-level input declaration should not introduce another
+            # variable for repair to chase.
+            lines.append(f"add_files {workspace['code_filename']}")
             if workspace.get("testbench_filename"):
-                lines.append(f"add_files -tb -cflags \"-std=c++0x\" {workspace['testbench_filename']}")
+                lines.append(f"add_files -tb {workspace['testbench_filename']}")
             for data_dir in workspace.get("testbench_data_dirs", []):
                 lines.append(f"add_files -tb {data_dir}")
             lines.append(f"set_top {workspace['top_function']}")
@@ -157,7 +164,7 @@ class HLSVerificationEnv:
             "code_filename": os.path.basename(code_file),
             "testbench_filename": os.path.basename(testbench_file) if testbench_file else None,
             "testbench_data_dirs": [
-                item
+                str((Path(project_dir) / item).resolve())
                 for item in ["weights", "tb_data"]
                 if testbench_file and os.path.isdir(os.path.join(project_dir, item))
             ],
@@ -165,13 +172,36 @@ class HLSVerificationEnv:
         }
         tcl_path = os.path.join(project_dir, f"run_{workspace['project_name']}.tcl")
         stages = ["csim", "csynth"] if testbench_file else ["csynth"]
-        lines = ["# Legacy full-flow HLS TCL"]
+        # Materialize stage files for the runtime's explicit CSim call.  The
+        # full-flow file is intentionally generated independently: concatenating
+        # stage scripts used to emit a second open_project/open_solution pair,
+        # which is a known source of stale Vivado HLS make graphs.
         for stage in stages:
-            stage_tcl = self._build_stage_tcl(workspace, stage)
-            stage_lines = [line for line in Path(stage_tcl).read_text(encoding="utf-8").splitlines() if line != "exit"]
-            lines.extend(line for line in stage_lines if not line.startswith("# Auto-generated"))
-            workspace["initialized"] = True
-        lines.append("exit")
+            self._build_stage_tcl(workspace, stage)
+
+        lines = [
+            "# Legacy full-flow HLS TCL",
+            f"open_project -reset {workspace['project_name']}",
+            f"add_files {workspace['code_filename']}",
+        ]
+        if workspace.get("testbench_filename"):
+            lines.append(f"add_files -tb {workspace['testbench_filename']}")
+        for data_dir in workspace.get("testbench_data_dirs", []):
+            lines.append(f"add_files -tb {{{data_dir}}}")
+        lines.extend([
+            f"set_top {workspace['top_function']}",
+            'open_solution -reset "solution1"',
+            f"set_part {{{workspace['part']}}}",
+            f"create_clock -period {workspace['clock_period']} -name default",
+        ])
+        if workspace.get("array_partition_maximum_size"):
+            lines.append(
+                "config_array_partition -maximum_size "
+                f"{int(workspace['array_partition_maximum_size'])}"
+            )
+        if testbench_file:
+            lines.extend(['puts "Starting C simulation..."', "csim_design", 'puts "C simulation completed"'])
+        lines.extend(['puts "Starting synthesis..."', "csynth_design", 'puts "Synthesis completed"', "exit"])
         Path(tcl_path).write_text("\n".join(lines), encoding="utf-8")
         return tcl_path
 
@@ -265,7 +295,7 @@ class HLSVerificationEnv:
             if stderr:
                 combined += f"\n=== STDERR BEFORE TIMEOUT ===\n{stderr}"
             log_path.write_text(combined, encoding="utf-8")
-            return {
+            result = {
                 "project_dir": str(cwd),
                 "synthesis": {
                     "status": "timeout",
@@ -277,19 +307,20 @@ class HLSVerificationEnv:
                     "duration_seconds": round(time.time() - started, 3),
                 },
             }
-
-        combined = (stdout or "") + ("\n=== STDERR ===\n" + (stderr or "") if stderr else "")
-        log_path.write_text(combined, encoding="utf-8")
-        status = "success" if process.returncode == 0 else "error"
-        return {
-            "project_dir": str(cwd),
-            "synthesis": {
-                "status": status,
-                "passed": process.returncode == 0,
-                "errors": [] if process.returncode == 0 else [f"Vivado HLS exited with return code {process.returncode}"],
-                "warnings": [],
-                "log_path": str(log_path),
+        else:
+            combined = (stdout or "") + ("\n=== STDERR ===\n" + (stderr or "") if stderr else "")
+            log_path.write_text(combined, encoding="utf-8")
+            status = "success" if process.returncode == 0 else "error"
+            result = {
                 "project_dir": str(cwd),
-                "duration_seconds": round(time.time() - started, 3),
-            },
-        }
+                "synthesis": {
+                    "status": status,
+                    "passed": process.returncode == 0,
+                    "errors": [] if process.returncode == 0 else [f"Vivado HLS exited with return code {process.returncode}"],
+                    "warnings": [],
+                    "log_path": str(log_path),
+                    "project_dir": str(cwd),
+                    "duration_seconds": round(time.time() - started, 3),
+                },
+            }
+        return result

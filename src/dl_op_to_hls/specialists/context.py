@@ -387,9 +387,9 @@ class ContextBuilder:
             The structured value promised by the function signature.
         """
         relevant = {
-            "CodegenSpecialist": {"input_task", "normalized_task", "summary", "suggestions", "report_json", "vivado_report", "compressed_logs", "hls_cpp", "hls_header", "testbench"},
+            "CodegenSpecialist": {"input_task", "normalized_task", "summary", "suggestions", "report_json", "vivado_log", "vivado_report", "repair_evidence", "compressed_logs", "hls_cpp", "hls_header", "testbench"},
             "VivadoSpecialist": {"hls_project", "tcl", "vivado_log", "vivado_report", "report_json", "compressed_logs"},
-            "VerificationSpecialist": {"hls_cpp", "hls_header", "testbench", "tcl", "report_json"},
+            "VerificationSpecialist": {"hls_cpp", "hls_header", "testbench", "tcl", "vivado_log", "repair_evidence", "report_json"},
             "OptimizationSpecialist": {"report_json", "summary", "suggestions"},
             "MemorySpecialist": {"summary", "suggestions", "compressed_context", "report_json", "unsupported_report"},
         }

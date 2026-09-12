@@ -38,7 +38,12 @@ def _is_superseded_cancellation(item) -> bool:
         The structured value promised by the function signature.
     """
     message = ((item.error or {}).get("message") or "").lower()
-    return "repair" in message or "repaired" in message or "replace the previous" in message
+    return (
+        "repair" in message
+        or "repaired" in message
+        or "replace the previous" in message
+        or "superseded" in message
+    )
 
 
 def update_status_from_todos(state) -> None:

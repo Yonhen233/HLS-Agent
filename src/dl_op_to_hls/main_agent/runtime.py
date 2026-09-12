@@ -16,6 +16,7 @@ from ..core.context_modes import ContextModeConfig
 from ..core.errors import AgentRuntimeError, build_error
 from ..core.goal_contract import CompletionGate, GoalContractBuilder, PlanCoverageValidator
 from ..core.progress import ProgressSupervisor
+from ..core.repair_evidence import collect_repair_evidence
 from ..memory.short_term import build_short_term_entry
 from ..rag.evidence import ClaimEvidenceVerifier
 from ..schemas.hls_project_schema import normalize_hls_project_task
@@ -850,7 +851,7 @@ class PlanExecuteReactRuntime:
             # repaired candidate, so downstream synthesis/report todos are redundant.
             self._cancel_pending_tools(
                 {"vivado.create_project", "vivado.create_vivado_project", "vivado.run_csynth", "vivado.parse_report", "vivado.parse_csynth_report"},
-                "Candidate verification already produced a current-run real CSynth report.",
+                "Candidate verification already produced a current-run real CSynth report; downstream todos are superseded by composite verification.",
             )
             self._switch_finalization_to_terminal(state, todo.id)
         if result.specialist_name == "OptimizationSpecialist" and result.metrics:
@@ -1657,12 +1658,12 @@ class PlanExecuteReactRuntime:
         """Return the verification-failure budget before switching to unsupported."""
 
         candidate_cfg = state.task.get("llm_candidate") if isinstance(state.task.get("llm_candidate"), dict) else {}
-        raw_value = (
-            state.task.get("max_repair_attempts")
-            or candidate_cfg.get("max_repair_attempts")
-            or os.environ.get("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS")
-            or "2"
-        )
+        raw_value = state.task.get("max_repair_attempts") or candidate_cfg.get("max_repair_attempts")
+        if raw_value is None and self.selected_skill is not None:
+            policy = self.selected_skill.failure_policy.get("VerificationFailedError", {})
+            if isinstance(policy, dict):
+                raw_value = policy.get("max_repair_attempts")
+        raw_value = raw_value or os.environ.get("DL_OP_TO_HLS_LLM_MAX_REPAIR_ATTEMPTS") or "2"
         try:
             return max(0, int(raw_value))
         except (TypeError, ValueError):
@@ -1730,6 +1731,7 @@ class PlanExecuteReactRuntime:
         """
         repair_count = self._llm_candidate_repair_count()
         max_attempts = self._max_candidate_repair_attempts(state)
+        repair_evidence = self._prepare_repair_evidence(state, todo.error, {"observation": details}, todo)
         self._cancel_pending_tools(
             {"vivado.parse_report", "vivado.parse_csynth_report"},
             "A timing repair candidate will replace the previous Vivado report.",
@@ -1766,9 +1768,11 @@ class PlanExecuteReactRuntime:
                 "repair_reason": repair_reason,
                 "last_report": state.report,
                 "timing": details.get("timing"),
+                "repair_evidence": repair_evidence,
                 "instruction": (
                     "The previous candidate passed golden functional verification but failed timing. "
-                    "Preserve the same top_function signature and testbench contract, but reduce the critical path."
+                    "Preserve the same top_function signature and testbench contract, but reduce the critical path. "
+                    "Use the bounded Vivado evidence to change one scheduling hypothesis at a time."
                 ),
             },
         )
@@ -1862,6 +1866,7 @@ class PlanExecuteReactRuntime:
         """
         observed = observation.get("observation") if isinstance(observation.get("observation"), dict) else {}
         error = observed.get("error") or observation.get("error") or todo.error or {}
+        repair_evidence = self._prepare_repair_evidence(state, error, observation, todo)
         repair_count = self._llm_candidate_repair_count()
         max_attempts = self._max_candidate_repair_attempts(state)
         self._cancel_pending_tools(
@@ -1878,6 +1883,7 @@ class PlanExecuteReactRuntime:
                 inputs={
                     "reason": f"LLM candidate failed verification after {max_attempts} repair attempt(s).",
                     "error": error,
+                    "repair_evidence": repair_evidence,
                 },
             )
             self._switch_finalization_to_terminal(state, unsupported_todo.id)
@@ -1905,10 +1911,13 @@ class PlanExecuteReactRuntime:
                 "repair_attempt": repair_count + 1,
                 "repair_reason": "verification_failed",
                 "last_error": error,
+                "repair_evidence": repair_evidence,
                 "instruction": (
                     "The previous candidate failed golden verification or csim. "
                     "Regenerate the same top_function contract and fix the design/testbench mismatch. "
-                    "For fixed-point math, compute golden values with matching fixed-point accumulation or an explicitly justified tolerance."
+                    "For fixed-point math, compute golden values with matching fixed-point accumulation or an explicitly justified tolerance. "
+                    "Use the bounded raw tool evidence to identify the failing stage. Preserve operator semantics, "
+                    "change one evidenced scheduling or source hypothesis at a time, and do not claim verification."
                 ),
             },
         )
@@ -1942,6 +1951,27 @@ class PlanExecuteReactRuntime:
         self._switch_finalization_to_terminal(state, parse_todo.id)
         state.status = "partial_success"
         state.todos = self.todo_manager.todo_list.items
+
+    def _prepare_repair_evidence(
+        self,
+        state: AgentState,
+        error: dict[str, Any] | None,
+        observation: dict[str, Any],
+        todo: TodoItem,
+    ) -> dict[str, Any]:
+        """Escalate from compressed failure metadata to bounded raw tool evidence."""
+
+        details = error.get("details") if isinstance(error, dict) else {}
+        evidence = details.get("repair_evidence") if isinstance(details, dict) else None
+        if not isinstance(evidence, dict) or evidence.get("status") != "available":
+            evidence = collect_repair_evidence(error or {}, observation, todo.outputs or {})
+        evidence_path = self.context["artifact_manager"].write_json(
+            f"repair/repair_evidence_{todo.id}.json", evidence, "repair_evidence"
+        )
+        state.artifacts["repair_evidence"] = str(evidence_path)
+        if isinstance(error, dict):
+            error.setdefault("details", {})["repair_evidence"] = evidence
+        return {**evidence, "artifact_path": str(evidence_path)}
 
     def _append_llm_candidate_generation_retry(
         self,

@@ -107,7 +107,12 @@ def build_failure_diagnosis(state: Any, trace_path: str | None = None) -> dict[s
     """
     todos = list(getattr(state, "todos", []) or [])
     failed = [item for item in todos if item.status in {"failed", "completed_with_warning"}]
-    blocked = [item for item in todos if item.status in {"blocked", "cancelled"}]
+    blocked = [
+        item
+        for item in todos
+        if item.status == "blocked"
+        or (item.status == "cancelled" and "superseded" not in str((item.error or {}).get("message", "")).lower())
+    ]
     incomplete = [item for item in todos if item.status in {"pending", "in_progress"}]
     trace_failures: list[dict[str, Any]] = []
     trace_decisions: list[dict[str, Any]] = []

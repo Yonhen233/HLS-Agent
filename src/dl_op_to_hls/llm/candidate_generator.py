@@ -199,6 +199,12 @@ class LLMCandidateGenerator:
             "operator": op_spec.get("op_type"),
             "input_shape": op_spec.get("input_shape"),
             "output_shape": op_spec.get("output_shape"),
+            "schedule_policy": {
+                "mode": "evidence_driven",
+                "initial_candidate": "minimal_synthesizable_structure",
+                "max_new_schedule_hypotheses_per_repair": 1,
+                "must_preserve_functional_contract": True,
+            },
         }
         if str(op_spec.get("op_type")) == "Conv2D":
             params = op_spec.get("operator_params") or op_spec.get("params") or {}

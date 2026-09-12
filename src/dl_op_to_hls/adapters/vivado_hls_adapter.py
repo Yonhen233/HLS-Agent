@@ -9,6 +9,7 @@ import re
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,78 @@ class VivadoHLSAdapter:
         """
         return SeniorVivadoBridge(self.vivado_hls_path, work_dir)
 
+    def _run_legacy_tcl_with_path_guard(
+        self,
+        bridge: SeniorVivadoBridge,
+        *,
+        tcl_path: str,
+        work_dir: Path,
+        code_file: Path,
+        testbench_file: Path,
+        log_filename: str,
+    ) -> dict[str, Any]:
+        """Run Vivado HLS from a short input path when Windows paths are deep.
+
+        The Agent's durable run layout is intentionally rich in artifacts and
+        can exceed the path assumptions of Vivado HLS 2018.3's generated make
+        files.  This is a tool-boundary concern: stage the same candidate and
+        Tcl in a short-lived directory, then copy logs and reports back so the
+        Harness still owns the canonical evidence paths.
+        """
+        execution_dir = work_dir
+        execution_tcl = Path(tcl_path)
+        staging_dir: Path | None = None
+        if os.name == "nt" and len(str(work_dir)) >= 120:
+            staging_root = Path(
+                os.environ.get("DL_OP_TO_HLS_VIVADO_STAGING_ROOT", "")
+                or (Path(tempfile.gettempdir()) / "dl_op_to_hls_vivado")
+            )
+            staging_root.mkdir(parents=True, exist_ok=True)
+            staging_dir = staging_root / f"candidate_{int(time.time() * 1000)}"
+            staging_dir.mkdir(parents=True, exist_ok=False)
+            for child in work_dir.iterdir():
+                if child.is_file() and child.suffix.lower() in {
+                    ".cpp", ".h", ".hpp", ".inc", ".tcl", ".dat", ".bin", ".txt"
+                }:
+                    shutil.copy2(child, staging_dir / child.name)
+                elif child.is_dir() and child.name in {"tb_data", "weights"}:
+                    shutil.copytree(child, staging_dir / child.name, dirs_exist_ok=True)
+            execution_tcl = staging_dir / Path(tcl_path).name
+            tcl_text = Path(tcl_path).read_text(encoding="utf-8", errors="ignore")
+            original_path = str(work_dir).replace("\\", "/")
+            tcl_text = tcl_text.replace(original_path, ".").replace(str(work_dir), ".")
+            execution_tcl.write_text(tcl_text, encoding="utf-8")
+            execution_dir = staging_dir
+
+        result = bridge.run_with_existing_tcl(
+            tcl_file_path=str(execution_tcl),
+            design_dir=str(execution_dir),
+            code_text=(execution_dir / code_file.name).read_text(encoding="utf-8", errors="ignore"),
+            testbench_text=(execution_dir / testbench_file.name).read_text(encoding="utf-8", errors="ignore")
+            if testbench_file.exists()
+            else None,
+            project_name=code_file.stem,
+            log_filename=log_filename,
+        )
+        if staging_dir is None:
+            return result
+
+        synthesis = result.get("synthesis", {})
+        for artifact in ("csim.log", "csynth.log", "vivado_hls.log"):
+            source = staging_dir / artifact
+            if source.exists():
+                shutil.copy2(source, work_dir / artifact)
+        for project_dir in staging_dir.iterdir():
+            if project_dir.is_dir() and (project_dir / "solution1").exists():
+                shutil.copytree(project_dir, work_dir / project_dir.name, dirs_exist_ok=True)
+        canonical_log = work_dir / log_filename
+        if canonical_log.exists():
+            synthesis["log_path"] = str(canonical_log)
+        synthesis["project_dir"] = str(work_dir)
+        synthesis["staging_dir"] = str(staging_dir)
+        result["project_dir"] = str(work_dir)
+        return result
+
     @staticmethod
     def _hls_log_errors(log_path: str | Path | None) -> list[str]:
         """Return hard compiler/simulation failures without treating "0 errors" as one."""
@@ -100,7 +173,11 @@ class VivadoHLSAdapter:
                 or "c preprocessor failed" in lowered
                 or "compilation of the preprocessed source" in lowered
                 or "failed before report" in lowered
+                or "dataflow strict check failed" in lowered
+                or "strict check failed" in lowered
+                or "synthesis failed" in lowered
                 or "csim_design' failed" in lowered
+                or "no rule to make target" in lowered
                 or "@e simulation failed" in lowered
                 or "out of memory allocating" in lowered
             ):
@@ -507,7 +584,11 @@ class VivadoHLSAdapter:
             )
             tcl_path = bridge.create_project_tcl(
                 project_dir=str(work_dir),
-                project_name=Path(arguments.get("work_dir", work_dir)).name,
+                # Keep the Vivado project name distinct from the staging
+                # directory. Vivado HLS 2018.3 otherwise creates a nested
+                # project with the same name and can emit broken relative make
+                # dependencies for csim inputs.
+                project_name=f"{top_function or work_dir.name}_project",
                 top_function=top_function,
                 code_file=str(copied_code),
                 testbench_file=str(copied_tb) if copied_tb else None,
@@ -557,7 +638,7 @@ class VivadoHLSAdapter:
             top_function = detected_top or hls_project_dir.name
         tcl_path = bridge.create_project_tcl(
             project_dir=str(work_dir),
-            project_name=Path(arguments.get("work_dir", work_dir)).name,
+            project_name=f"{top_function or work_dir.name}_project",
             top_function=top_function,
             code_file=str(copied_code),
             testbench_file=str(copied_tb) if copied_tb else None,
@@ -639,12 +720,12 @@ class VivadoHLSAdapter:
                     suggested_action="Use vivado.run_csynth for the Vitis HLS full-flow path.",
                 )
             )
-        result = bridge.run_with_existing_tcl(
-            tcl_file_path=str(stage_tcl),
-            design_dir=str(work_dir),
-            code_text=code_file.read_text(encoding="utf-8", errors="ignore"),
-            testbench_text=testbench_file.read_text(encoding="utf-8", errors="ignore") if testbench_file.exists() else None,
-            project_name=arguments.get("top_function") or "myproject",
+        result = self._run_legacy_tcl_with_path_guard(
+            bridge,
+            tcl_path=str(stage_tcl),
+            work_dir=work_dir,
+            code_file=code_file,
+            testbench_file=testbench_file,
             log_filename=log_path.name,
         )
         simulation = result.get("synthesis", {})
@@ -742,15 +823,43 @@ class VivadoHLSAdapter:
         if self.hls_toolchain == "vitis_hls":
             result = self._run_vitis_with_existing_tcl(tcl_path=tcl_path, work_dir=work_dir)
         else:
-            result = bridge.run_with_existing_tcl(
-                tcl_file_path=tcl_path,
-                design_dir=str(work_dir),
-                code_text=code_file.read_text(encoding="utf-8", errors="ignore"),
-                testbench_text=testbench_file.read_text(encoding="utf-8", errors="ignore") if testbench_file.exists() else None,
-                project_name=top_function,
+            result = self._run_legacy_tcl_with_path_guard(
+                bridge,
+                tcl_path=tcl_path,
+                work_dir=work_dir,
+                code_file=code_file,
+                testbench_file=testbench_file,
                 log_filename=log_path.name,
             )
         synthesis = result.get("synthesis", {})
+        initial_log_path = synthesis.get("log_path")
+        initial_log_errors = self._hls_log_errors(initial_log_path) if initial_log_path and Path(initial_log_path).exists() else []
+        if synthesis.get("status") != "success" and any("No rule to make target" in item for item in initial_log_errors):
+            # A failed Vivado HLS make graph can survive an in-place reset.
+            # Re-stage this exact candidate in a fresh sibling directory before
+            # asking the LLM to change source or scheduling decisions.
+            retry_dir = work_dir.parent / f"{work_dir.name}_staging_retry_{int(time.time() * 1000)}"
+            retry_dir.mkdir(parents=True, exist_ok=True)
+            for child in work_dir.iterdir():
+                if child.is_file() and child.suffix.lower() in {".cpp", ".h", ".hpp", ".inc", ".tcl"}:
+                    shutil.copy2(child, retry_dir / child.name)
+                elif child.is_dir() and child.name in {"tb_data", "weights"}:
+                    shutil.copytree(child, retry_dir / child.name, dirs_exist_ok=True)
+            retry_tcl = retry_dir / Path(tcl_path).name
+            if retry_tcl.exists():
+                retry_result = self._run_legacy_tcl_with_path_guard(
+                    bridge,
+                    tcl_path=str(retry_tcl),
+                    work_dir=retry_dir,
+                    code_file=retry_dir / code_file.name,
+                    testbench_file=retry_dir / testbench_file.name,
+                    log_filename=log_path.name,
+                )
+                result = retry_result
+                work_dir = retry_dir
+                tcl_path = str(retry_tcl)
+                synthesis = result.get("synthesis", {})
+                synthesis["staging_retry"] = str(retry_dir)
         real_report = bridge.locate_report(result.get("project_dir") or work_dir, top_function=top_function)
         log_path = synthesis.get("log_path")
         if synthesis.get("status") != "success":
