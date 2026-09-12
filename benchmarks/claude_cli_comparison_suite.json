@@ -24,7 +24,6 @@
     {"id": "matmul_llm_candidate", "task": "examples/matmul_llm_candidate.json", "family": "MatMul-LLM"},
     {"id": "mnist_recognition_mlp", "task": "examples/mnist_recognition_mlp.json", "family": "MNIST-MLP"},
     {"id": "mnist_mlp_hls4ml", "task": "examples/mnist_mlp_hls4ml.json", "family": "MNIST-hls4ml"},
-    {"id": "mnist_tiny_cnn", "task": "examples/mnist_tiny_cnn.json", "family": "MNIST-CNN"},
-    {"id": "matmul_only_hls4ml_real", "task": "examples/matmul_only_hls4ml_real.json", "family": "MatMul-real"}
+    {"id": "mnist_tiny_cnn", "task": "examples/mnist_tiny_cnn.json", "family": "MNIST-CNN"}
   ]
 }

@@ -26,6 +26,11 @@
 - Continue monitoring checkpoint advancement and child heartbeats. Do not regenerate completed cases or replace raw evidence.
 - If the controller exits again, retain the new process history and inspect the last durable stage before restarting from the checkpoint.
 
+### 4. Scope adjustment
+
+- Removed `matmul_only_hls4ml_real` from the active comparison suite. It is a pure ONNX → hls4ml → Vivado HLS route and does not exercise an LLM candidate workflow, so it is outside the requested LLM-Agent comparison scope.
+- Its existing workspace and logs remain under the benchmark output root as historical evidence, but it will not be resumed or included in the final suite denominator.
+
 ---
 
 ## 2026-09-12 15:30：巡检修复原生 Claude 启动及评测计量
