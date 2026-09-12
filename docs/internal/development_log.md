@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-09-12 durable Claude/HLS comparison recovery
+
+### 1. Observation
+
+- The durable comparison reached 10 of 12 cases. During `mnist_tiny_cnn`, the comparison controller disappeared while the HLS Agent child was still in a resumable run.
+- The HLS checkpoint remained intact: `mnist_tiny_cnn/hls_agent/process.json` recorded `status=running`, a recent heartbeat, and the child session `session_20b2ee178b51` remained available with `status=running`.
+- No API key, authentication error, Claude session error, or child-process diagnostic was present in the launcher stderr. The controller interruption is therefore recorded as an unexplained process-level interruption rather than attributed to the toolchain without evidence.
+
+### 2. Recovery
+
+- Preserved the stale `process.json`, session state, Vivado logs, and prior launcher logs as evidence.
+- Restarted the existing durable runner from `comparison_checkpoint.json`; it resumed the HLS Agent through `session-resume` instead of starting the case over.
+- Recovery launcher: `runs/benchmarks/claude_cli_comparison_durable_v2/launcher_recovery_20260912_172512/`.
+- At recovery verification, the controller was alive and the HLS process heartbeat had advanced to `2026-09-12T17:25:28+08:00`.
+
+### 3. Follow-up
+
+- Continue monitoring checkpoint advancement and child heartbeats. Do not regenerate completed cases or replace raw evidence.
+- If the controller exits again, retain the new process history and inspect the last durable stage before restarting from the checkpoint.
+
+---
+
 ## 2026-09-12 15:30：巡检修复原生 Claude 启动及评测计量
 
 ### 现象与根因
