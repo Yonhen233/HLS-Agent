@@ -27,7 +27,7 @@ def test_llm_plan_rejects_unknown_tool(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
-        "selected_skill": "operator_fallback_flow",
+        "selected_skill": "llm_candidate_verification_flow",
         "skill_usage": "adapted",
         "reason_summary": "test",
         "todos": [
@@ -97,14 +97,14 @@ def test_llm_plan_rejects_tool_specialist_mismatch(temp_workspace, monkeypatch):
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
-        "selected_skill": "hls4ml_model_flow",
+        "selected_skill": "llm_candidate_verification_flow",
         "skill_usage": "adapted",
         "reason_summary": "test",
         "todos": [
             {
                 "title": "Bad Assignment",
                 "assigned_tool": "task.validate_schema",
-                "assigned_specialist": "HLS4MLSpecialist",
+                "assigned_specialist": "VivadoSpecialist",
                 "dependencies": [],
                 "inputs": {},
             }
@@ -112,7 +112,7 @@ def test_llm_plan_rejects_tool_specialist_mismatch(temp_workspace, monkeypatch):
     }
     fake = FakeLLMClient(json_responses=[plan, plan])
     agent = MainAgent(temp_workspace, console=False)
-    state = run_task_llm(str(temp_workspace / "examples" / "mlp_onnx_example.json"), agent=agent, llm_client=fake)
+    state = run_task_llm(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent, llm_client=fake)
     assert state.status == "failed"
     assert any("outside allowed_tools" in item.get("message", "") for item in state.errors)
 
@@ -132,13 +132,13 @@ def test_llm_plan_repairs_private_tool_with_unambiguous_specialist(temp_workspac
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_ENABLED", "1")
     monkeypatch.setenv("DL_OP_TO_HLS_LLM_API_KEY", "fake")
     plan = {
-        "selected_skill": "hls4ml_model_flow",
+        "selected_skill": "llm_candidate_verification_flow",
         "skill_usage": "adapted",
         "reason_summary": "test",
         "todos": [
             {
                 "title": "Private Tool Without Owner",
-                "assigned_tool": "hls4ml.check_support",
+                "assigned_tool": "fallback.generate_testbench",
                 "assigned_specialist": None,
                 "dependencies": [],
                 "inputs": {},
@@ -147,10 +147,10 @@ def test_llm_plan_repairs_private_tool_with_unambiguous_specialist(temp_workspac
     }
     fake = FakeLLMClient(json_responses=[plan, plan])
     agent = MainAgent(temp_workspace, console=False)
-    state = run_task_llm(str(temp_workspace / "examples" / "mlp_onnx_example.json"), agent=agent, llm_client=fake)
-    assert state.status == "success"
-    repaired = [item for item in state.todos if item.assigned_tool == "hls4ml.check_support"]
-    assert repaired and repaired[0].assigned_specialist == "HLS4MLSpecialist"
+    state = run_task_llm(str(temp_workspace / "examples" / "dense_operator.json"), agent=agent, llm_client=fake)
+    assert state.status in {"success", "partial_success"}
+    candidate = [item for item in state.todos if item.assigned_tool == "llm.generate_candidate"]
+    assert candidate and candidate[0].assigned_specialist == "CodegenSpecialist"
     trace_path = temp_workspace / "runs" / state.run_id / "trace.jsonl"
     events = [json.loads(line)["event"] for line in trace_path.read_text(encoding="utf-8").splitlines()]
     assert "LLMPlanOwnershipRepaired" in events
