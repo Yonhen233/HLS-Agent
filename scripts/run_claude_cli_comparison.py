@@ -254,7 +254,7 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                     existing = json.loads(result_path.read_text(encoding="utf-8"))
                 except json.JSONDecodeError:
                     existing = {}
-                if existing.get("status") not in {"running"}:
+                if existing.get("status") in {"process_success", "timeout"}:
                     case_record[system] = existing
                     continue
             env = os.environ.copy()
