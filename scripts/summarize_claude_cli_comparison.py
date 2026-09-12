@@ -72,7 +72,14 @@ def collect(root: Path) -> list[dict[str, Any]]:
 
 def system_summary(rows: list[dict[str, Any]], system: str) -> dict[str, Any]:
     selected = [row for row in rows if row["system"] == system]
-    runtimes = [float(row["result"].get("elapsed_seconds", 0)) for row in selected if row["result"].get("elapsed_seconds") is not None]
+    runtimes = []
+    for row in selected:
+        result = row["result"]
+        elapsed = result.get("elapsed_seconds")
+        if elapsed is None:
+            elapsed = result.get("last_process", {}).get("elapsed_seconds")
+        if elapsed is not None:
+            runtimes.append(float(elapsed))
     verified = sum(bool(row["result"].get("verified")) for row in selected)
     usage_rows = [row["result"].get("usage", {}) for row in selected]
     total_tokens = [int(item["total_tokens"]) for item in usage_rows if item.get("total_tokens") is not None]
@@ -105,6 +112,17 @@ def system_summary(rows: list[dict[str, Any]], system: str) -> dict[str, Any]:
 
 def write_report(root: Path, rows: list[dict[str, Any]]) -> tuple[Path, Path]:
     root.mkdir(parents=True, exist_ok=True)
+    def result_tokens(result: dict[str, Any]) -> int | None:
+        usage = result.get("usage", {})
+        if usage.get("total_tokens") is not None:
+            return int(usage["total_tokens"])
+        known = [
+            int(item["total_tokens"])
+            for item in usage.get("per_invocation", [])
+            if item.get("total_tokens") is not None
+        ]
+        return sum(known) if known else None
+
     summary = {
         "output_root": str(root),
         "case_count": len({row["case"] for row in rows}),
@@ -121,7 +139,7 @@ def write_report(root: Path, rows: list[dict[str, Any]]) -> tuple[Path, Path]:
                 "elapsed_seconds": row["result"].get("elapsed_seconds") or row["result"].get("last_process", {}).get("elapsed_seconds"),
                 "interruption_count": row["result"].get("interruption_count"),
                 "llm_calls": row["result"].get("usage", {}).get("llm_calls"),
-                "total_tokens": row["result"].get("usage", {}).get("total_tokens"),
+                "total_tokens": result_tokens(row["result"]),
             }
             for row in rows
         ],

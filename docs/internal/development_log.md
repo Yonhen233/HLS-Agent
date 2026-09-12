@@ -39,6 +39,7 @@
 - 增加 `model_catalog_mismatch`、认证错误和限流错误门禁；这些错误不再连续触发无意义续接。每次 turn 日志改为覆盖写，避免重试时污染 token/输出证据。
 - 2026-09-12 11:34 自动巡检发现：Claude CLI 在 DeepSeek 网关下会把 `unrecognized_model` 作为 stderr warning，即使进程返回成功也不代表 session 失败；旧逻辑误将 warning 作为 fatal，导致 `matmul_operator` 只执行一轮。修复为仅对非零进程退出时判定模型配置错误；若真正 `resume` 报 session 不存在，则只自动新建一次 session 从工作区恢复，并记录 `session_recovery_count`。
 - 2026-09-12 12:09 自动巡检发现：部分 case 前置中断 turn 没有 provider usage 时，汇总器会把后续成功 turn 的 token 总量误显示为 `null`。保留原始每轮 usage，并在后处理汇总中回退读取 `per_invocation`，同时报告 `missing_runs`，避免丢失已知成本数据。
+- 2026-09-12 12:16 继续检查发现：汇总器的 Claude runtime 和单 case token 明细仍未使用最后一轮耗时及 `per_invocation` 回退。已补齐 p50/p95 输入与 case 明细，使成功 turn 的耗时和 token 成本在总览、单 case 两处一致可见。
 
 ---
 
