@@ -31,6 +31,28 @@
 - Removed `matmul_only_hls4ml_real` from the active comparison suite. It is a pure ONNX → hls4ml → Vivado HLS route and does not exercise an LLM candidate workflow, so it is outside the requested LLM-Agent comparison scope.
 - Its existing workspace and logs remain under the benchmark output root as historical evidence, but it will not be resumed or included in the final suite denominator.
 
+## 2026-09-12 durable Claude/HLS comparison completed
+
+### 1. Final scope and artifacts
+
+- The active suite completed with 11 cases. `matmul_only_hls4ml_real` was excluded because it does not exercise an LLM candidate workflow.
+- Final reports: `runs/benchmarks/claude_cli_comparison_durable_v2/comparison_summary.json` and `comparison_summary.md`.
+- The benchmark controller exited cleanly after the last Claude turn; no active runner or child process remained at completion.
+
+### 2. Observed result
+
+- Native Claude CLI: 10/11 artifact-corroborated successes (90.91%); one `dense_llm_candidate` run timed out.
+- HLS Agent: 1/11 artifact-corroborated successes (9.09%); the remaining runs were partial, incomplete, or timed out under the current completion gate.
+- Runtime p50/p95: HLS Agent 1003.035/1800.987 seconds; Claude CLI 815.283/3550.205 seconds.
+- HLS Agent usage telemetry was complete for 11 runs: mean 26,791 tokens/run and 6.455 observed LLM calls/run.
+- Claude usage telemetry was complete for 4 runs. The other 7 runs retain known lower-bound tokens but are excluded from the complete-token mean because their older/interrupted invocations lack final usage envelopes.
+
+### 3. Interpretation constraints
+
+- “Success” means the persisted artifact gate passed; it is not an independent hidden-test benchmark.
+- The result is a baseline comparison of the current harnesses, not a claim that native Claude is inherently better. The large gap also reflects that the HLS Agent currently reports many toolchain executions as partial or unverified and that the two systems do not expose identical tool surfaces.
+- The raw per-case logs, session checkpoints, interruption history, and process evidence remain preserved for later diagnosis.
+
 ---
 
 ## 2026-09-12 15:30：巡检修复原生 Claude 启动及评测计量
