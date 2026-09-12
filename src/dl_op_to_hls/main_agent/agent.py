@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..adapters.hls4ml_adapter import HLS4MLAdapter
 from ..adapters.llm_adapter import LLMAdapter
 from ..adapters.vivado_hls_adapter import VivadoHLSAdapter
 from ..core.artifacts import ArtifactManager
@@ -49,7 +48,6 @@ from ..memory.memory_tools import (
     save_skill,
     write_short_term,
 )
-from ..mcp_servers.hls4ml_server import register_hls4ml_tools
 from ..mcp_servers.vivado_hls_server import register_vivado_tools
 from ..mcp.client import StdioMCPClient
 from ..mcp.proxy import register_mcp_proxy_tools
@@ -62,8 +60,6 @@ from ..schemas.tool_schema import simple_schema
 from ..skills.registry import SkillRegistry
 from ..skills.extractor import LegacyWorkflowExtractor
 from ..specialists.router import build_default_router
-from ..tools.fallback_template import generate_operator_hls, generate_testbench
-from ..tools.graph_rewrite import rewrite_graph
 from ..tools.llm_candidate import LLMCandidateGenerator, generate_candidate
 from ..tools.parameter_advisor import recommend_parameters
 from ..tools.suggest_optimization import suggest_optimization
@@ -129,10 +125,6 @@ class MainAgent:
         self.registry = ToolRegistry()
         self.console = console
         self.llm_client = LLMClient()
-        self.hls4ml_adapter = HLS4MLAdapter(
-            mock_mode=self.config.mock_hls4ml,
-            backend_override=self.config.hls4ml_backend,
-        )
         self.vivado_adapter = VivadoHLSAdapter(
             mock_mode=self.config.mock_vivado,
             hls_toolchain=self.config.hls_toolchain,
@@ -167,9 +159,6 @@ class MainAgent:
             "memory.retrieve_failure_cases",
             "memory.retrieve_optimization_rules",
             "rag.retrieve_experience",
-            "hls4ml.inspect_model",
-            "hls4ml.check_support",
-            "hls4ml.check_hls4ml_support",
         }
         for spec in self.registry.list_tools():
             if spec.permission_level == "read":
@@ -181,7 +170,7 @@ class MainAgent:
             if spec.required_capabilities is None:
                 if spec.name.startswith("memory.") or spec.name.startswith("rag."):
                     spec.required_capabilities = ["memory.read" if spec.permission_level == "read" else "memory.write"]
-                elif spec.name.startswith(("hls4ml.", "vivado.")):
+                elif spec.name.startswith("vivado."):
                     spec.required_capabilities = ["hls.inspect" if spec.permission_level == "read" else "hls.execute"]
 
     def _register_tools(self) -> None:
@@ -195,7 +184,6 @@ class MainAgent:
         if os.environ.get("DL_OP_TO_HLS_MCP_TRANSPORT", "local").lower() == "stdio":
             self._register_stdio_mcp_tools()
         else:
-            register_hls4ml_tools(self.registry, self.hls4ml_adapter)
             register_vivado_tools(self.registry, self.vivado_adapter)
         self._register_domain_tools()
         self.registry.register(
@@ -233,10 +221,7 @@ class MainAgent:
         Returns:
             The structured value promised by the function signature.
         """
-        server_configs = [
-            ("hls4ml", "serve-hls4ml", register_hls4ml_tools, self.hls4ml_adapter),
-            ("vivado_hls", "serve-vivado-hls", register_vivado_tools, self.vivado_adapter),
-        ]
+        server_configs = [("vivado_hls", "serve-vivado-hls", register_vivado_tools, self.vivado_adapter)]
         for name, command_name, register, adapter in server_configs:
             local_registry = ToolRegistry()
             register(local_registry, adapter)
@@ -378,39 +363,6 @@ class MainAgent:
                 permission_level="write",
                 tags=["report"],
                 handler=self._write_unsupported_report_tool,
-            )
-        )
-        self.registry.register(
-            ToolSpec(
-                name="graph_rewrite.rewrite",
-                description="Suggest simple graph rewrites for unsupported ops.",
-                input_schema=simple_schema({"task": {"type": "object"}}, ["task"]),
-                output_schema=simple_schema({"status": {"type": "string"}}),
-                permission_level="read",
-                tags=["rewrite"],
-                handler=rewrite_graph,
-            )
-        )
-        self.registry.register(
-            ToolSpec(
-                name="fallback.generate_operator_hls",
-                description="Generate a fallback HLS implementation for a supported operator template.",
-                input_schema=simple_schema({"task": {"type": "object"}, "output_dir": {"type": "string"}}, ["task", "output_dir"]),
-                output_schema=simple_schema({"status": {"type": "string"}}),
-                permission_level="write",
-                tags=["fallback"],
-                handler=generate_operator_hls,
-            )
-        )
-        self.registry.register(
-            ToolSpec(
-                name="fallback.generate_testbench",
-                description="Generate a simple fallback testbench.",
-                input_schema=simple_schema({"task": {"type": "object"}, "output_dir": {"type": "string"}}, ["task", "output_dir"]),
-                output_schema=simple_schema({"status": {"type": "string"}}),
-                permission_level="write",
-                tags=["fallback"],
-                handler=generate_testbench,
             )
         )
         self.registry.register(
@@ -672,14 +624,9 @@ class MainAgent:
             The structured value promised by the function signature.
         """
         alias_map = {
-            "hls4ml.check_hls4ml_support": "hls4ml.check_support",
-            "hls4ml.generate_hls4ml_config": "hls4ml.generate_config",
-            "hls4ml.convert_with_hls4ml": "hls4ml.convert",
-            "hls4ml.run_hls4ml_csim": "hls4ml.run_csim",
             "vivado.create_vivado_project": "vivado.create_project",
             "vivado.parse_csynth_report": "vivado.parse_report",
             "vivado.parse_vivado_log": "vivado.parse_log",
-            "verify.generate_testbench": "fallback.generate_testbench",
             "verify.run_csim": "verify_candidate.run",
             "llm.generate_hls_candidate": "llm.generate_candidate",
             "suggestion.generate": "suggestion.suggest_optimization",
@@ -1028,7 +975,7 @@ class MainAgent:
             "evidence_receipts": [],
             "llm_candidate_generator": self.llm_generator,
             "llm_client": self.llm_client,
-            "hls4ml_adapter": self.hls4ml_adapter,
+            "hls4ml_adapter": None,
             "vivado_adapter": self.vivado_adapter,
             "runtime_mode": self.config.runtime_mode,
             "llm_fallback_policy": self.config.llm_fallback_policy,

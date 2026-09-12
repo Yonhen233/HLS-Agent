@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-09-12 20:00 +08:00｜核对评测版本并收敛为 LLM Candidate-only Harness
+
+### 1. 版本核对结论
+
+- 本轮 durable Claude/HLS 对比使用的是当前工作树 `main` 的 commit `3c07e2f`，不是旧版 Agent。
+- 当前版本本来已经具备：durable session/checkpoint、LLM candidate 生成、candidate verification、candidate repair/replan、CompletionGate、ProgressSupervisor、Trace JSONL、RAG evidence grading，以及 token/tool budget。
+- 因此此前把 `1/11` 直接解释成“Agent 缺少 repair/replan 或完成门禁”是不准确的。历史结果混合了两类任务：
+  - 算子任务已经进入 LLM candidate 链，但部分任务在 candidate verification 或 Vivado 长程阶段超时。
+  - MNIST/model 任务仍走旧的 hls4ml 计划，不能用于与原生 Claude CLI 的 LLM candidate 公平比较。
+- 评测暴露的真实缺陷是策略落地不完整：配置声明 candidate-first，但 planner 仍可能看到旧实现工具；model 任务没有明确的 candidate capability boundary；失败阶段没有形成单独的可解释投影。
+
+### 2. 本次修改
+
+#### 2.1 彻底关闭 Agent 内的旧生成路径
+
+- MainAgent 不再注册 `hls4ml.*`、`fallback.*`、`graph_rewrite.*` 工具，也不再启动 hls4ml MCP server。
+- Specialist router 不再挂载 `HLS4MLSpecialist`，VerificationSpecialist 不再声明 fallback testbench 工具。
+- Runtime 增加执行前硬门禁：任何历史 checkpoint 或异常计划中的旧路径都会在工具执行前被阻断，并留下 `RetiredImplementationPathError`，绝不触发旧工具。
+- 旧 adapter/source 文件保留为历史代码和迁移参考，但不属于 Agent runtime 的可达路径。
+
+#### 2.2 LLM candidate-only 计划策略
+
+- operator 任务的 planner tool view 只暴露 candidate、verification、Vivado 和治理类能力。
+- 即使模型返回旧工具，计划校正器也会移除 hls4ml/fallback/graph rewrite，并补齐：
+  `llm.generate_candidate -> verify_candidate.run -> vivado.run_csynth -> vivado.parse_report`。
+- model 任务如果没有可独立验证的 full-model candidate contract，会在进入 LLM/Vivado 前生成诚实的 capability boundary 和 unsupported report，不再隐式回退到 hls4ml。
+- GoalContract 和 pipeline status 不再把 fallback/hls4ml 视为成功实现路径；候选实现必须通过独立验证。
+
+#### 2.3 Trace 复用的失败诊断
+
+- 新增 `failure_diagnosis.json`，由当前 `AgentState` 和 `trace.jsonl` 派生，不维护第二套 mutable error ledger。
+- 诊断包含失败阶段、todo、tool、状态、原因、是否可恢复、下一步动作、已完成/失败/阻塞/未完成阶段，以及 Trace 证据计数。
+- candidate generation、candidate verification、Vivado synthesis/report 失败会分别给出 repair/replan 建议；依赖图无 ready todo 时给出 stalled dependency graph 诊断。
+
+#### 2.4 评测集校准
+
+- `benchmarks/claude_cli_comparison_suite.json` 已改成 6 个明确的 LLM candidate 算子任务：Dense、MatMul、ReLU、Add、Conv2D、ScaleShift。
+- 移除旧的 fallback alias 样例以及 MNIST hls4ml/model 样例，避免把不同 Harness 和不同实现范式混在一个成功率分母里。
+- 旧的 `1/11` 结果保留为历史证据，不覆盖；新的 6 算子套件需要在本次策略修改后重新运行，才能作为公平对比结果。
+
+### 3. 验证
+
+- `python -m compileall -q src/dl_op_to_hls`：通过。
+- 新增 `tests/test_llm_only_runtime_policy.py`：4 项通过，覆盖旧工具不注册、model capability boundary、candidate-only plan repair、Trace failure diagnosis。
+- candidate contract、candidate guard、LLM todo schema、skill routing、RAG 相关回归集合：通过。
+- 完整旧测试中仍有依赖旧 hls4ml/fallback 行为的测试；这些失败代表 API/策略迁移断言，需要后续按 candidate-only 规范更新，不能作为旧路径重新启用的理由。
+
+### 4. 面试口径
+
+本次结论应明确区分“已有能力”和“真实缺陷”：已有的 durable/recovery/gate/trace 能力没有被错误归因；真正补的是 policy enforcement、旧路径不可达性、评测集公平性和 trace-derived diagnosis。这样既避免重复实现，也能说明为什么一次混合评测会低估或误读 Agent 的能力。
+
+---
+
 ## 2026-09-12 durable Claude/HLS comparison recovery
 
 ### 1. Observation

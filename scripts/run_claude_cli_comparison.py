@@ -25,7 +25,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
-RUNNER_VERSION = "durable-multi-turn-v3"
+RUNNER_VERSION = "durable-multi-turn-v4-llm-candidate-only"
 LAUNCH_REVISION = "native-stdin-stream-v1"
 
 
@@ -689,6 +689,13 @@ def run_suite(
 ) -> None:
     """Run or resume the complete sequential comparison suite."""
     suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    for case in suite.get("cases", []):
+        task_path = (ROOT / case["task"]).resolve()
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        if task.get("task_type") != "operator" or not isinstance(task.get("candidate_contract"), dict):
+            raise ValueError(
+                f"Comparison suite only accepts operator tasks with candidate_contract: {case.get('id')}"
+            )
     output_root.mkdir(parents=True, exist_ok=True)
     hls_key = os.environ.get("HLS_AGENT_API_KEY", "")
     claude_key = os.environ.get("CLAUDE_API_KEY", "")

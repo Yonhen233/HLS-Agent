@@ -11,9 +11,6 @@ from typing import Any
 
 
 SUCCESS_PATHS = {
-    "fallback_template_path",
-    "hls4ml_path",
-    "existing_hls_project_path",
     "llm_candidate_path",
 }
 
@@ -68,15 +65,8 @@ class GoalContractBuilder:
         """
         task_type = str(task.get("task_type") or "")
         implementation_tools = {
-            "model": (
-                "hls4ml.convert",
-                "hls4ml.convert_with_hls4ml",
-                "llm.generate_candidate",
-                "llm.generate_hls_candidate",
-                "report.write_unsupported",
-            ),
+            "model": ("report.write_unsupported",),
             "operator": (
-                "fallback.generate_operator_hls",
                 "llm.generate_candidate",
                 "llm.generate_hls_candidate",
                 "report.write_unsupported",
@@ -182,13 +172,6 @@ class PlanCoverageValidator:
     The class owns the state or policy described by its public methods. Use the class through those methods so schema validation, permissions, trace events, and evidence rules remain centralized.
     """
     ENABLING_TOOL_REQUIREMENTS = {
-        "hls4ml.inspect_model": ["implementation.resolved"],
-        "hls4ml.check_support": ["implementation.resolved"],
-        "hls4ml.check_hls4ml_support": ["implementation.resolved"],
-        "hls4ml.generate_config": ["implementation.resolved"],
-        "hls4ml.generate_hls4ml_config": ["implementation.resolved"],
-        "graph_rewrite.rewrite": ["implementation.resolved"],
-        "fallback.generate_testbench": ["implementation.verified"],
         "vivado.create_project": ["implementation.verified", "report.produced"],
         "vivado.create_vivado_project": ["implementation.verified", "report.produced"],
         "vivado.parse_log": ["report.produced"],
@@ -330,7 +313,7 @@ class CompletionGate:
         critical_receipts = [
             item
             for item in receipts
-            if str(item.get("tool_name") or "").startswith(("hls4ml.", "vivado.", "verify."))
+            if str(item.get("tool_name") or "").startswith(("vivado.", "verify."))
             or item.get("tool_name") == "verify_candidate.run"
         ]
         mock_only = bool(critical_receipts) and not any(

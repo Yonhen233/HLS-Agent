@@ -24,6 +24,7 @@ from ..skills.registry import SkillRegistry
 from .reflector import reflect_on_errors, update_status_from_todos
 from .runtime import PlanExecuteReactRuntime, _normalize_task
 from .state import AgentState
+from .status import build_failure_diagnosis
 from .todo import TodoList
 
 
@@ -271,6 +272,11 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
         if state.status != "interrupted":
             self._apply_completion_gate(state)
         trace_path = self.context["run_dir"] / "trace.jsonl"
+        state.failure_diagnosis = build_failure_diagnosis(state, str(trace_path))
+        diagnosis_path = self.context["artifact_manager"].write_json(
+            "failure_diagnosis.json", state.failure_diagnosis, "failure_diagnosis"
+        )
+        state.artifacts["failure_diagnosis"] = str(diagnosis_path)
         if trace_path.exists():
             self.context["artifact_manager"].register_file(trace_path, "trace")
             state.artifacts["trace"] = str(trace_path)
@@ -355,6 +361,30 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
     def _apply_generation_policy(self, task: dict[str, Any]) -> dict[str, Any]:
         """Make the configured operator path explicit before skill selection."""
 
+        if task.get("task_type") == "model":
+            normalized = dict(task)
+            normalized["llm_candidate"] = {
+                "required": False,
+                "eligible": False,
+                "rejection_reasons": [
+                    "Full-model LLM candidate generation is not implemented with an independent candidate contract."
+                ],
+            }
+            normalized["generation_policy"] = {
+                "primary_path": "capability_gate",
+                "hls4ml_allowed": False,
+                "template_role": "disabled",
+            }
+            normalized["capability_boundary"] = {
+                "kind": "model_candidate_not_supported",
+                "reasons": normalized["llm_candidate"]["rejection_reasons"],
+                "decision": "reject_before_llm_or_vivado",
+            }
+            demo = dict(normalized.get("demo") or {})
+            demo["expected_path"] = "unsupported_report"
+            normalized["demo"] = demo
+            return normalized
+
         if task.get("task_type") != "operator":
             return task
         if self.agent.config.operator_generation_path != "llm_candidate":
@@ -394,6 +424,67 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             "template_role": "fair_baseline_only",
         }
         return normalized
+
+    @staticmethod
+    def _candidate_only_tool_view(layered_tool_view: dict[str, Any]) -> dict[str, Any]:
+        """Remove retired implementation paths from the planner's contract."""
+        retired_prefixes = ("hls4ml.", "fallback.", "graph_rewrite.")
+
+        def allowed(name: str) -> bool:
+            return not str(name).startswith(retired_prefixes)
+
+        view = dict(layered_tool_view)
+        view["direct_tools"] = [name for name in layered_tool_view.get("direct_tools", []) if allowed(name)]
+        view["direct_tool_specs"] = [
+            spec for spec in layered_tool_view.get("direct_tool_specs", []) if allowed(spec.get("name", ""))
+        ]
+        view["specialists"] = []
+        for specialist in layered_tool_view.get("specialists", []):
+            filtered = dict(specialist)
+            filtered["capability_tools"] = [
+                name for name in specialist.get("capability_tools", []) if allowed(name)
+            ]
+            if filtered["capability_tools"]:
+                view["specialists"].append(filtered)
+        return view
+
+    def _enforce_candidate_only_plan(self, plan: dict[str, Any], task: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        """Repair an accepted LLM plan so deprecated generators are unreachable."""
+        if task.get("task_type") != "operator" or (task.get("generation_policy") or {}).get("primary_path") != "llm_candidate":
+            return plan, []
+        todos = [dict(item) for item in plan.get("todos", []) if isinstance(item, dict)]
+        retired = ("hls4ml.", "fallback.", "graph_rewrite.")
+        removed = [str(item.get("assigned_tool")) for item in todos if str(item.get("assigned_tool") or "").startswith(retired)]
+        todos = [item for item in todos if not str(item.get("assigned_tool") or "").startswith(retired)]
+        tools = {str(item.get("assigned_tool") or "") for item in todos}
+
+        def add(title: str, tool: str, dependencies: list[str], description: str) -> None:
+            if tool in tools:
+                return
+            todos.append({
+                "title": title,
+                "description": description,
+                "assigned_tool": tool,
+                "dependencies": dependencies,
+                "inputs": {"task": task},
+            })
+            tools.add(tool)
+
+        candidate = next((item for item in todos if item.get("assigned_tool") in {"llm.generate_candidate", "llm.generate_hls_candidate"}), None)
+        validate = next((item for item in todos if item.get("assigned_tool") == "task.validate_schema"), None)
+        if candidate is None:
+            add("Generate LLM candidate", "llm.generate_candidate", [validate.get("title")] if validate else [], "Generate a sandbox-checked candidate implementation.")
+            candidate = todos[-1]
+        verify = next((item for item in todos if item.get("assigned_tool") == "verify_candidate.run"), None)
+        if verify is None:
+            add("Verify LLM candidate", "verify_candidate.run", [candidate.get("title")], "Run the independent candidate verification contract.")
+        synth = next((item for item in todos if item.get("assigned_tool") == "vivado.run_csynth"), None)
+        if synth is None:
+            add("Run Vivado HLS synthesis", "vivado.run_csynth", ["Verify LLM candidate"], "Run synthesis on the verified candidate when the toolchain is available.")
+        parse = next((item for item in todos if item.get("assigned_tool") in {"vivado.parse_report", "vivado.parse_csynth_report"}), None)
+        if parse is None:
+            add("Parse synthesis report", "vivado.parse_report", ["Run Vivado HLS synthesis"], "Parse the current-run synthesis report.")
+        return {**plan, "todos": todos}, sorted(set(removed))
 
     def _build_executor(self):
         """Implement the internal _build_executor helper.
@@ -535,8 +626,11 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
             return state
 
         layered_tool_view = build_layered_tool_view(self.agent.registry, self.specialist_router)
-        available_tools = list(layered_tool_view["direct_tools"])
-        available_specialists = [item["name"] for item in layered_tool_view["specialists"]]
+        planner_tool_view = layered_tool_view
+        if (state.task.get("generation_policy") or {}).get("primary_path") == "llm_candidate":
+            planner_tool_view = self._candidate_only_tool_view(layered_tool_view)
+        available_tools = list(planner_tool_view["direct_tools"])
+        available_specialists = [item["name"] for item in planner_tool_view["specialists"]]
         skill_context = json.loads(Path(state.artifacts["skill_context"]).read_text(encoding="utf-8"))
         errors: list[str] = []
         last_plan: dict[str, Any] | None = None
@@ -547,7 +641,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     skill_context=skill_context,
                     available_tools=available_tools,
                     available_specialists=available_specialists,
-                    layered_tool_view=layered_tool_view,
+                    layered_tool_view=planner_tool_view,
                     retrieved_memories=state.retrieved_memories,
                     goal_contract=state.goal_contract,
                     client=self.llm_client,
@@ -567,6 +661,18 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     selected_skill = self.skill_registry.get(plan["selected_skill"])
                 except KeyError:
                     pass
+            plan, retired_tools = self._enforce_candidate_only_plan(plan, state.task)
+            if retired_tools:
+                emit_llm_event(
+                    self.context,
+                    "LLMPlanPathRepaired",
+                    {
+                        "run_id": state.run_id,
+                        "attempt": attempt + 1,
+                        "removed_retired_tools": retired_tools,
+                        "policy": "llm_candidate_only",
+                    },
+                )
             plan, coverage_repair = self.plan_coverage_validator.repair_with_skill(
                 plan,
                 selected_skill,
@@ -585,6 +691,18 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                         ],
                     },
                 )
+            plan, post_repair_retired = self._enforce_candidate_only_plan(plan, state.task)
+            if post_repair_retired:
+                emit_llm_event(
+                    self.context,
+                    "LLMPlanPathRepaired",
+                    {
+                        "run_id": state.run_id,
+                        "attempt": attempt + 1,
+                        "removed_retired_tools": post_repair_retired,
+                        "policy": "llm_candidate_only_post_coverage",
+                    },
+                )
             terminal_tools = self._append_skill_terminal_todos(plan, selected_skill)
             if terminal_tools:
                 emit_llm_event(
@@ -592,7 +710,7 @@ class LLMFirstRuntime(PlanExecuteReactRuntime):
                     "LLMPlanTerminalTodosAdded",
                     {"run_id": state.run_id, "attempt": attempt + 1, "added_tools": terminal_tools},
                 )
-            ownership_repair = self._repair_specialist_ownership(plan, layered_tool_view)
+            ownership_repair = self._repair_specialist_ownership(plan, planner_tool_view)
             if ownership_repair:
                 emit_llm_event(
                     self.context,

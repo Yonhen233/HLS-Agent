@@ -21,8 +21,6 @@ class VerificationSpecialist(BaseSpecialist):
     name = "VerificationSpecialist"
     description = "Verifies generated HLS candidates through explicit mock or real Vivado-backed verification modes."
     allowed_tools = [
-        "fallback.generate_testbench",
-        "verify.generate_testbench",
         "verify.run_csim",
         "verify_candidate.run",
         "vivado.run_csynth",

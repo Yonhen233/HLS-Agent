@@ -40,9 +40,9 @@ class SkillPromptContextBuilder:
             "Skills are playbook priors, not strict deterministic plans.",
             "Use each selected skill's purpose, procedure, decision_rules, pitfalls, and verification_guidance as execution guidance; never bypass its structured contract.",
             "LLM may adapt or reorder recommended_todos under guardrails.",
-            "For initial model-to-HLS tasks, choose the end-to-end hls4ml_model_flow even when the objective is resource or latency.",
-            "Optimization-only skills require existing report metrics and must not replace conversion/synthesis steps.",
-            "Do not plan hls4ml.run_csim for real toolchains; real csim/csynth is delegated to VivadoSpecialist through the configured HLS toolchain.",
+            "The runtime is LLM-candidate-only for generated implementations; never plan hls4ml, fallback, or graph-rewrite tools.",
+            "Optimization-only skills require existing candidate report metrics and must not replace candidate generation or verification.",
+            "Vivado is downstream verification/synthesis for a generated candidate, not an alternate implementation generator.",
         ]
         if forced_llm_candidate:
             selection_notes.insert(

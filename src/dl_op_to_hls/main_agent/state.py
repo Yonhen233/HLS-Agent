@@ -53,6 +53,7 @@ class AgentState:
     goal_contract: dict[str, Any] = field(default_factory=dict)
     plan_coverage: dict[str, Any] = field(default_factory=dict)
     completion: dict[str, Any] = field(default_factory=dict)
+    failure_diagnosis: dict[str, Any] = field(default_factory=dict)
     progress: dict[str, Any] = field(default_factory=dict)
     rag_evidence_report: dict[str, Any] = field(default_factory=dict)
     evidence_receipts: list[dict[str, Any]] = field(default_factory=list)

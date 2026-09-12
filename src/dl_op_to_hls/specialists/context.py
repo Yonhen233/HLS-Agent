@@ -19,17 +19,6 @@ SPECIALIST_ALLOWED_TOOLS = {
         "llm.generate_candidate",
         "llm.generate_hls_candidate",
     ],
-    "HLS4MLSpecialist": [
-        "hls4ml.inspect_model",
-        "hls4ml.check_support",
-        "hls4ml.check_hls4ml_support",
-        "hls4ml.generate_config",
-        "hls4ml.generate_hls4ml_config",
-        "hls4ml.convert",
-        "hls4ml.convert_with_hls4ml",
-        "hls4ml.run_csim",
-        "hls4ml.run_hls4ml_csim",
-    ],
     "VivadoSpecialist": [
         "vivado.create_project",
         "vivado.create_vivado_project",
@@ -41,8 +30,6 @@ SPECIALIST_ALLOWED_TOOLS = {
         "vivado.parse_vivado_log",
     ],
     "VerificationSpecialist": [
-        "fallback.generate_testbench",
-        "verify.generate_testbench",
         "verify.run_csim",
         "verify_candidate.run",
         "vivado.run_csynth",
@@ -270,32 +257,6 @@ class ContextBuilder:
         task = state.task
         target = task.get("target", {})
         hls4ml_cfg = task.get("hls4ml", {})
-        if specialist_name == "HLS4MLSpecialist":
-            support = state.hls4ml_support
-            if support and support.get("model_path") and support.get("model_path") != task.get("model_path"):
-                support = None
-            if support and not support.get("model_path") and task.get("original_model_path"):
-                support = None
-            return {
-                "task": task,
-                "assigned_tool": getattr(todo, "assigned_tool", None),
-                "model_path": task.get("model_path"),
-                "frontend": task.get("frontend"),
-                "backend": target.get("backend"),
-                "part": target.get("part"),
-                "clock_period": target.get("clock_period"),
-                "precision": hls4ml_cfg.get("precision"),
-                "accumulator_precision": hls4ml_cfg.get("accumulator_precision") or hls4ml_cfg.get("accum_precision"),
-                "reuse_factor": hls4ml_cfg.get("reuse_factor"),
-                "strategy": hls4ml_cfg.get("strategy"),
-                "io_type": hls4ml_cfg.get("io_type") or hls4ml_cfg.get("IOType"),
-                "layer_overrides": hls4ml_cfg.get("layer_overrides") or hls4ml_cfg.get("LayerName") or {},
-                "model_overrides": hls4ml_cfg.get("model_overrides") or hls4ml_cfg.get("Model") or {},
-                "hls4ml_support": support,
-                "hls4ml_config_path": state.hls4ml_config_path,
-                "hls_project_dir": state.hls_project_dir,
-                "run_dir": str(self._run_dir_from_state(state)),
-            }
         if specialist_name == "CodegenSpecialist":
             return {
                 "task": task,
@@ -427,7 +388,6 @@ class ContextBuilder:
         """
         relevant = {
             "CodegenSpecialist": {"input_task", "normalized_task", "summary", "suggestions", "report_json", "vivado_report", "compressed_logs", "hls_cpp", "hls_header", "testbench"},
-            "HLS4MLSpecialist": {"input_task", "normalized_task", "hls4ml_config"},
             "VivadoSpecialist": {"hls_project", "tcl", "vivado_log", "vivado_report", "report_json", "compressed_logs"},
             "VerificationSpecialist": {"hls_cpp", "hls_header", "testbench", "tcl", "report_json"},
             "OptimizationSpecialist": {"report_json", "summary", "suggestions"},

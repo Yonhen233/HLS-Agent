@@ -21,18 +21,15 @@ def build_plan(task: dict) -> list[str]:
     if task_type == "model":
         return [
             "Validate task schema",
-            "Inspect model structure",
-            "Check hls4ml support",
-            "Run Vivado HLS synthesis",
-            "Parse synthesis report",
-            "Generate optimization suggestions",
+            "Generate unsupported report",
             "Write run summary",
             "Promote memories",
         ]
     if task_type == "operator":
         return [
             "Validate task schema",
-            "Check hls4ml support",
+            "Generate LLM candidate",
+            "Verify LLM candidate",
             "Run Vivado HLS synthesis",
             "Parse synthesis report",
             "Generate optimization suggestions",

@@ -30,7 +30,7 @@ from .finalizer import finalize_state
 from .planner import build_plan
 from .reflector import reflect_on_errors, update_status_from_todos
 from .state import AgentState
-from .status import compute_pipeline_status
+from .status import build_failure_diagnosis, compute_pipeline_status
 from .todo import DONE_STATUSES, TodoItem, TodoManager
 
 
@@ -138,6 +138,11 @@ class PlanExecuteReactRuntime:
             if state.status != "interrupted":
                 self._apply_completion_gate(state)
             trace_path = self.context["run_dir"] / "trace.jsonl"
+            state.failure_diagnosis = build_failure_diagnosis(state, str(trace_path))
+            diagnosis_path = self.context["artifact_manager"].write_json(
+                "failure_diagnosis.json", state.failure_diagnosis, "failure_diagnosis"
+            )
+            state.artifacts["failure_diagnosis"] = str(diagnosis_path)
             if trace_path.exists():
                 self.context["artifact_manager"].register_file(trace_path, "trace")
                 state.artifacts["trace"] = str(trace_path)
@@ -433,6 +438,22 @@ class PlanExecuteReactRuntime:
             todo = self.todo_manager.get_next_ready_item(self.todo_manager.todo_list)
             if todo is None:
                 break
+            if (todo.assigned_tool or "").startswith(("hls4ml.", "fallback.", "graph_rewrite.")):
+                retired_error = build_error(
+                    "RetiredImplementationPathError",
+                    f"Retired implementation tool was blocked before execution: {todo.assigned_tool}.",
+                    recoverable=False,
+                    source="runtime.execute_todos",
+                    suggested_action="Use llm.generate_candidate and verify_candidate.run.",
+                ).to_dict()
+                self.todo_manager.mark_failed(todo.id, retired_error)
+                state.errors.append(retired_error)
+                state.status = "partial_success"
+                self.context["hooks"].emit(
+                    "RetiredImplementationPathBlocked",
+                    {"run_id": state.run_id, "todo_id": todo.id, "tool": todo.assigned_tool},
+                )
+                continue
             decision_before = self._decision_snapshot(state, todo)
             observation = self.execute_todo_with_react(state, todo)
             state = self.reflect(state, todo, observation)
