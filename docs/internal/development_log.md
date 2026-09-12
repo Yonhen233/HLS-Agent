@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-09-13｜六算子 LLM Candidate 全量回归完成
+
+### 测试范围
+
+使用与 Claude baseline 对齐的六个真实端到端任务，只执行 `hls_agent` 的 LLM Candidate 路径：
+
+- Dense
+- MatMul
+- ReLU
+- Add
+- Conv2D
+- ScaleShift
+
+每个任务均使用真实 LLM、真实 Vivado HLS 2018.3、真实 CSim/CSynth 和报告解析；未启动 hls4ml 路径。
+
+### 结果
+
+结果目录：`runs/benchmarks/claude_cli_comparison_harness_full_v8`
+
+| 算子 | 状态 | 路径 | 真实验证 | 耗时（秒） | LLM calls | tokens |
+|---|---|---|---|---:|---:|---:|
+| Dense | success | llm_candidate_path | passed | 333.940 | 5 | 16,591 |
+| MatMul | success | llm_candidate_path | passed | 432.323 | 5 | 16,519 |
+| ReLU | success | llm_candidate_path | passed | 267.953 | 5 | 12,745 |
+| Add | success | llm_candidate_path | passed | 339.023 | 5 | 15,839 |
+| Conv2D | success | llm_candidate_path | passed | 470.021 | 5 | 17,722 |
+| ScaleShift | success | llm_candidate_path | passed | 266.242 | 5 | 13,568 |
+
+汇总：
+
+- 成功率：`6/6 = 100%`
+- completion gate：`6/6 passed`
+- 真实验证：`6/6 passed`
+- failure diagnosis：`6/6 healthy`
+- 总耗时：`2109.502 s`
+- 平均耗时：`351.584 s`
+- P50：`336.482 s`
+- P95：`460.596 s`
+- 总 tokens：`92,984`
+- 平均 tokens/run：`15,497`
+- 平均 LLM calls/run：`5`
+
+### Claude baseline 对比
+
+对齐的 Claude durable baseline 中，MatMul、ReLU、Add、Conv2D、ScaleShift 为有效成功；Dense 因 baseline 的模型目录不匹配而未形成有效完成结果。因此有效 baseline 为 `5/6`，HLS Agent 本轮为 `6/6`，成功率不低于 Claude，并额外完成 Dense。
+
+Claude baseline 的部分 token ledger 不完整，不能和 HLS Agent 的 token 数做严格成本结论；本轮只将成功率作为严格可比指标，并保留 HLS Agent 的完整 token/call/latency 数据供后续重复实验。
+
+### Harness 结论
+
+本轮成功不是通过粗暴关闭优化得到的：
+
+- Harness 在压缩摘要不足时升级读取 bounded 原始 Vivado 日志。
+- 工具层对旧版 Vivado 的深路径和重复工程初始化做 staging/输入图隔离。
+- repair 收到结构化的错误诊断和原始证据路径。
+- composite verification 已完成时，重复 synthesis todo 被明确标记为 superseded，不再制造假失败或重复消耗 token。
+- 六组仍保留各自的 LLM candidate 生成和真实 HLS 优化能力。
+
+---
+
 ## 2026-09-13｜LLM Candidate Harness 回归修复：工具证据升级与 Vivado 深路径隔离
 
 ### 背景
