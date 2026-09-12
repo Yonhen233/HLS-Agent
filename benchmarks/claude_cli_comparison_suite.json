@@ -7,6 +7,8 @@
     "operator_timeout_seconds": 1800,
     "model_timeout_seconds": 3600,
     "recovery_timeout_seconds": 4500,
+    "claude_max_turns": 4,
+    "claude_session_persistence": true,
     "sequential": true,
     "no_best_of_selection": true
   },

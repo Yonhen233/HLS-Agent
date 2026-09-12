@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-09-12 Durable multi-turn Claude CLI 真实端到端对比改造
+
+### 1. 背景
+
+- 原对比脚本对 Claude CLI 每个 case 只发起一次 `claude -p`，模型提前结束、命令超时或进程异常后只能记为失败，不能继续完成真实的长程 HLS 任务。
+- 这种一次性 baseline 不能回答“原生 CLI 在真实业务端到端任务中如何恢复、是否会偷懒早停、续接成本是多少”等面试中的关键问题。
+- 已停止旧版后台进程，旧产物保留在原目录，新的 durable 对比使用独立输出目录。
+
+### 2. 实现
+
+- `scripts/run_claude_cli_comparison.py` 改为 durable multi-turn：每个 case 固定一个 Claude session id，首轮使用 `--session-id`，后续使用 `--resume`，最多按 suite policy 续接 4 个 turn。
+- 每个 turn 单独落盘 `process.json`、`stdout.log`、`stderr.log` 和 token usage；`session.json` 原子保存会话状态、当前 turn、中断原因和累计中断次数。
+- 增加外部完成门禁：Claude 必须写 `claude_completion.json`，但 success 还必须有独立的功能验证证据；缺证据、提前停止、进程失败或超时都会自动进入续接流程。
+- 增加 `scripts/summarize_claude_cli_comparison.py`，可在任务中断后从已持久化结果重新生成 JSON/Markdown 汇总，不需要重跑昂贵的 HLS/LLM 工作。
+- 新默认输出目录为 `runs/benchmarks/claude_cli_comparison_durable`，不覆盖旧版一次性试跑数据。
+
+### 3. 记录口径
+
+- `interruption_count`：未通过完成门禁而需要继续工作的次数，区分 `turn_timeout`、`claude_process_failed`、`early_stop_without_completion_gate` 和 runner 重启。
+- `usage.per_invocation`：每次 Claude CLI 调用的 input/output/total token；`usage.llm_calls`：成功返回的 CLI 调用次数；若 CLI 未暴露某类 token，则记录为 `null`，不伪造数值。
+- `turn_count`、`continuation_count`、session id、每轮 prompt 类型和最终 outcome 均保存在 case 结果中。
+
+### 4. 验证
+
+- `python -m py_compile scripts/run_claude_cli_comparison.py scripts/summarize_claude_cli_comparison.py`：通过。
+- `git diff --check`：通过。
+- 空输出目录汇总 smoke test：通过，能生成 `comparison_summary.json` 与 `comparison_summary.md`。
+
+---
+
 ## 2026-09-12：启动 HLS Agent 与原生 Claude CLI 对比实验
 
 ### 实验实现

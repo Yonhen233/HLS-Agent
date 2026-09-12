@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
+RUNNER_VERSION = "durable-multi-turn-v1"
 
 
 def utc_now() -> str:
@@ -113,6 +115,46 @@ def run_process(command: list[str], cwd: Path, env: dict[str, str], output_dir: 
     return result
 
 
+def parse_json_envelope(path: Path) -> dict[str, Any]:
+    """Parse Claude's JSON envelope even when a wrapper adds trailing output."""
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8", errors="replace").strip()
+    if not text:
+        return {}
+    try:
+        value = json.loads(text)
+        return value if isinstance(value, dict) else {}
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}\s*$", text)
+        if not match:
+            return {}
+        try:
+            value = json.loads(match.group(0))
+            return value if isinstance(value, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+
+def usage_from_envelope(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize per CLI invocation token data without inventing unavailable detail."""
+    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    prompt_tokens = usage.get("input_tokens")
+    completion_tokens = usage.get("output_tokens")
+    total = usage.get("total_tokens")
+    if total is None and (prompt_tokens is not None or completion_tokens is not None):
+        total = (prompt_tokens or 0) + (completion_tokens or 0)
+    api_turns = payload.get("num_turns")
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total,
+        "api_turns": api_turns if isinstance(api_turns, int) else None,
+        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens"),
+        "cache_read_input_tokens": usage.get("cache_read_input_tokens"),
+    }
+
+
 def iter_json_lines(path: Path) -> list[dict[str, Any]]:
     """Read structured trace lines while tolerating partial final writes."""
     rows: list[dict[str, Any]] = []
@@ -164,45 +206,123 @@ def summarize_hls(result_dir: Path, process_result: dict[str, Any]) -> dict[str,
     }
 
 
-def summarize_claude(result_dir: Path, process_result: dict[str, Any]) -> dict[str, Any]:
-    """Extract Claude CLI usage when its JSON envelope exposes it."""
-    stdout = Path(process_result["stdout"])
-    text = stdout.read_text(encoding="utf-8", errors="replace") if stdout.exists() else ""
-    payload: dict[str, Any] = {}
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r"\{[\s\S]*\}\s*$", text)
-        if match:
-            try:
-                payload = json.loads(match.group(0))
-            except json.JSONDecodeError:
-                payload = {}
-    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
-    total = usage.get("total_tokens")
-    if total is None:
-        total = (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0)
-    evidence = []
+def collect_verification_evidence(result_dir: Path) -> list[str]:
+    """Collect conservative, externally observable verification evidence."""
+    evidence: list[str] = []
+    ignored_names = {"case.json", "session.json", "claude_completion.json"}
     for path in result_dir.rglob("*"):
-        if path.is_file() and path.suffix.lower() in {".log", ".json", ".md", ".cpp", ".h", ".tcl"}:
-            try:
-                content = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if "GOLDEN_CHECK_PASSED" in content or '"passed": true' in content.lower():
-                evidence.append(str(path))
+        if not path.is_file() or path.name in ignored_names:
+            continue
+        if path.suffix.lower() not in {".log", ".json", ".md", ".cpp", ".h", ".tcl", ".rpt"}:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lowered = content.lower()
+        if "golden_check_passed" in lowered or '"passed": true' in lowered or "functional verification: passed" in lowered:
+            evidence.append(str(path))
+    return sorted(set(evidence))
+
+
+def completion_marker(result_dir: Path) -> dict[str, Any]:
+    """Read the model's explicit completion protocol, if it wrote one."""
+    marker = result_dir / "claude_completion.json"
+    if not marker.exists():
+        return {}
+    try:
+        value = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def classify_completion(result_dir: Path) -> dict[str, Any]:
+    """Apply an external completion gate to the model's self-reported status."""
+    marker = completion_marker(result_dir)
+    evidence = collect_verification_evidence(result_dir)
+    claimed = str(marker.get("status", "")).lower()
+    reason = str(marker.get("reason", "")).strip()
+    if claimed in {"success", "completed"} and evidence:
+        return {"terminal": True, "outcome": "success", "verified": True, "reason": reason, "evidence_files": evidence}
+    if claimed in {"blocked", "unsupported", "partial_success"} and reason:
+        return {"terminal": True, "outcome": claimed, "verified": False, "reason": reason, "evidence_files": evidence}
+    return {
+        "terminal": False,
+        "outcome": "incomplete",
+        "verified": False,
+        "reason": "missing independent completion evidence or completion marker",
+        "evidence_files": evidence,
+    }
+
+
+def summarize_claude_turn(turn_dir: Path, process_result: dict[str, Any]) -> dict[str, Any]:
+    """Summarize one durable Claude CLI invocation."""
+    payload = parse_json_envelope(Path(process_result["stdout"]))
+    usage = usage_from_envelope(payload)
     return {
         **process_result,
+        "payload_result": payload.get("result"),
+        "is_error": bool(payload.get("is_error")),
+        "session_id": payload.get("session_id"),
+        "usage": usage,
+        "turn_dir": str(turn_dir),
+    }
+
+
+def aggregate_usage(turns: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate only values actually exposed by the CLI envelopes."""
+    total_prompt = 0
+    total_completion = 0
+    total_tokens = 0
+    known_prompt = known_completion = known_total = 0
+    api_turns = 0
+    llm_invocations = 0
+    for turn in turns:
+        if turn.get("status") != "process_success":
+            continue
+        llm_invocations += 1
+        usage = turn.get("usage") or {}
+        if usage.get("prompt_tokens") is not None:
+            total_prompt += int(usage["prompt_tokens"])
+            known_prompt += 1
+        if usage.get("completion_tokens") is not None:
+            total_completion += int(usage["completion_tokens"])
+            known_completion += 1
+        if usage.get("total_tokens") is not None:
+            total_tokens += int(usage["total_tokens"])
+            known_total += 1
+        if usage.get("api_turns") is not None:
+            api_turns += int(usage["api_turns"])
+    return {
+        "prompt_tokens": total_prompt if known_prompt == llm_invocations else None,
+        "completion_tokens": total_completion if known_completion == llm_invocations else None,
+        "total_tokens": total_tokens if known_total == llm_invocations else None,
+        "llm_calls": llm_invocations,
+        "api_turns": api_turns or None,
+        "per_invocation": [turn.get("usage", {}) for turn in turns],
+    }
+
+
+def summarize_claude(result_dir: Path, process_result: dict[str, Any], session_state: dict[str, Any]) -> dict[str, Any]:
+    """Build the durable multi-turn result used by reports and later diagnosis."""
+    gate = classify_completion(result_dir)
+    turns = session_state.get("turns", [])
+    return {
+        "runner_version": RUNNER_VERSION,
         "comparison_completed": True,
-        "agent_status": payload.get("result") if isinstance(payload, dict) else None,
-        "verified": bool(evidence),
-        "usage": {
-            "prompt_tokens": usage.get("input_tokens"),
-            "completion_tokens": usage.get("output_tokens"),
-            "total_tokens": total,
-            "llm_calls": 1 if process_result["status"] != "timeout" else None,
-        },
-        "evidence_files": evidence,
+        "status": session_state.get("status", "incomplete"),
+        "outcome": gate["outcome"],
+        "verified": gate["verified"],
+        "completion_reason": gate["reason"],
+        "evidence_files": gate["evidence_files"],
+        "session_id": session_state.get("session_id"),
+        "turn_count": len(turns),
+        "interruption_count": session_state.get("interruption_count", 0),
+        "continuation_count": max(0, len(turns) - 1),
+        "usage": aggregate_usage(turns),
+        "turns": turns,
+        "last_process": process_result,
     }
 
 
@@ -217,12 +337,145 @@ def case_timeout(case: dict[str, Any], policy: dict[str, Any]) -> int:
 
 
 def claude_prompt(task_path: Path, output_dir: Path) -> str:
-    """Build the native Claude CLI baseline prompt."""
-    return f"""Work independently on the HLS task described by {task_path}.
+    """Build the initial durable multi-turn baseline prompt."""
+    return f"""Work independently on the real end-to-end HLS task described by {task_path}.
 
 Use only Claude CLI's native capabilities (Read, Glob, Grep, Bash, Edit, Write and normal shell tools). Do not invoke the dl-op-to-hls Agent CLI, import its Python runtime, or use its Agent/Skill/benchmark orchestration as a shortcut. You may use the repository's existing hls4ml/Vivado binaries and inspect the repository as read-only source material.
 
-Write all generated code, logs, reports and temporary files under {output_dir}. Do not modify the source repository or other comparison cases. Execute the task end to end as far as the local toolchain permits, run functional verification when possible, and do not claim latency, resources or verification without evidence. If the task is unsupported, report that honestly with the reason and evidence. Do not ask the user questions; finish autonomously and summarize the result in your final response."""
+Write all generated code, logs, reports and temporary files under {output_dir}. Do not modify the source repository or other comparison cases. Execute the task end to end as far as the local toolchain permits, run functional verification when possible, and do not claim latency, resources or verification without evidence. Maintain progress in {output_dir}/progress.json so a later turn can continue without repeating completed work.
+
+Completion protocol: only after the end-to-end work is actually finished, or after an honest irrecoverable block, write {output_dir}/claude_completion.json with JSON fields status (success, blocked, unsupported or partial_success), reason, verified, evidence and last_stage. A success status must name concrete evidence files. Never write success merely because code was generated. If a command fails or you reach a partial stop, leave the workspace usable and wait for the next continuation turn. Do not ask the user questions; work autonomously."""
+
+
+def claude_continuation_prompt(output_dir: Path, turn_number: int, max_turns: int) -> str:
+    """Build a deterministic recovery/replan prompt for the same Claude session."""
+    return f"""Continue the same HLS task from the current workspace and artifacts under {output_dir}. This is continuation turn {turn_number} of at most {max_turns}. Inspect progress.json, the latest command output and generated artifacts first; do not repeat completed work. Find the first unfinished or failed stage, repair or replan it, and run the strongest available functional verification. Check that any claimed result is supported by concrete files and command output. If the task is genuinely unsupported after investigation, write claude_completion.json with status blocked or unsupported and an evidence-backed reason. Otherwise, do not stop early: keep working until end-to-end completion. Update progress.json and the completion marker only when appropriate."""
+
+
+def mark_interrupted_turn(turn: dict[str, Any], reason: str) -> None:
+    """Make an interrupted in-flight turn explicit before durable resumption."""
+    if turn.get("status") == "running":
+        turn["status"] = "interrupted"
+        turn["interrupted"] = True
+        turn["interruption_reason"] = reason
+
+
+def run_claude_case(
+    case_task: Path,
+    system_root: Path,
+    timeout_seconds: int,
+    max_turns: int,
+    model: str,
+    base_url: str,
+    api_key: str,
+    secrets: list[str],
+    env_base: dict[str, str],
+) -> dict[str, Any]:
+    """Run one Claude case as a durable, resumable multi-turn session."""
+    system_root.mkdir(parents=True, exist_ok=True)
+    session_path = system_root / "session.json"
+    if session_path.exists():
+        try:
+            session_state = json.loads(session_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            session_state = {}
+    else:
+        session_state = {}
+    if session_state.get("runner_version") != RUNNER_VERSION:
+        session_state = {}
+    session_state.setdefault("runner_version", RUNNER_VERSION)
+    session_state.setdefault("session_id", str(uuid.uuid4()))
+    session_state.setdefault("started_at", utc_now())
+    session_state.setdefault("turns", [])
+    session_state.setdefault("interruption_count", 0)
+    session_state.setdefault("status", "running")
+    for turn in session_state["turns"]:
+        was_running = turn.get("status") == "running"
+        mark_interrupted_turn(turn, "runner_restarted_during_turn")
+        if was_running:
+            session_state["interruption_count"] += 1
+    write_json(session_path, session_state)
+
+    start = time.perf_counter()
+    last_process: dict[str, Any] = {}
+    while len(session_state["turns"]) < max_turns:
+        gate = classify_completion(system_root)
+        if gate["terminal"]:
+            session_state["status"] = "completed"
+            break
+        elapsed = time.perf_counter() - start
+        remaining = timeout_seconds - int(elapsed)
+        if remaining <= 0:
+            session_state["status"] = "timeout"
+            session_state["interruption_count"] += 1
+            break
+        turn_number = len(session_state["turns"]) + 1
+        turn_dir = system_root / f"turn_{turn_number:02d}"
+        turn_dir.mkdir(parents=True, exist_ok=True)
+        prompt = claude_prompt(case_task, system_root) if turn_number == 1 else claude_continuation_prompt(system_root, turn_number, max_turns)
+        if turn_number == 1:
+            command = [
+                "claude.cmd", "-p", prompt,
+                "--output-format", "json", "--session-id", session_state["session_id"],
+                "--dangerously-skip-permissions", "--model", model,
+                "--add-dir", str(ROOT), "--add-dir", str(system_root),
+            ]
+        else:
+            command = [
+                "claude.cmd", "-p", prompt,
+                "--output-format", "json", "--resume", session_state["session_id"],
+                "--dangerously-skip-permissions", "--model", model,
+                "--add-dir", str(ROOT), "--add-dir", str(system_root),
+            ]
+        turn_record = {
+            "turn": turn_number,
+            "status": "running",
+            "started_at": utc_now(),
+            "prompt_type": "initial" if turn_number == 1 else "continuation",
+            "session_id": session_state["session_id"],
+        }
+        session_state["turns"].append(turn_record)
+        write_json(session_path, session_state)
+        env = env_base.copy()
+        env["ANTHROPIC_BASE_URL"] = base_url
+        env["ANTHROPIC_AUTH_TOKEN"] = api_key
+        env["ANTHROPIC_MODEL"] = model
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model
+        env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+        last_process = run_process(command, system_root, env, turn_dir, max(60, remaining), secrets)
+        turn_summary = summarize_claude_turn(turn_dir, last_process)
+        turn_record.update(turn_summary)
+        turn_record["finished_at"] = utc_now()
+        gate = classify_completion(system_root)
+        if gate["terminal"]:
+            turn_record["interrupted"] = False
+            session_state["status"] = "completed"
+        else:
+            turn_record["interrupted"] = True
+            if last_process["status"] == "timeout":
+                turn_record["interruption_reason"] = "turn_timeout"
+            elif last_process["status"] == "process_failed":
+                turn_record["interruption_reason"] = "claude_process_failed"
+            else:
+                turn_record["interruption_reason"] = "early_stop_without_completion_gate"
+            session_state["interruption_count"] += 1
+        write_json(session_path, session_state)
+        interim = summarize_claude(system_root, last_process, session_state)
+        write_json(system_root / "result.json", interim)
+        if gate["terminal"]:
+            break
+    else:
+        session_state["status"] = "max_turns_reached"
+
+    if session_state.get("status") == "running":
+        session_state["status"] = "max_turns_reached" if len(session_state["turns"]) >= max_turns else "incomplete"
+    session_state["finished_at"] = utc_now()
+    write_json(session_path, session_state)
+    result = summarize_claude(system_root, last_process, session_state)
+    result["comparison_completed"] = True
+    write_json(system_root / "result.json", result)
+    return result
 
 
 def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None) -> None:
@@ -256,7 +509,8 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                     existing = json.loads(result_path.read_text(encoding="utf-8"))
                 except json.JSONDecodeError:
                     existing = {}
-                if existing.get("comparison_completed") and existing.get("status") != "process_failed":
+                valid_version = system == "hls_agent" or existing.get("runner_version") == RUNNER_VERSION
+                if existing.get("comparison_completed") and valid_version and existing.get("status") not in {"process_failed", "incomplete", "max_turns_reached", "timeout"}:
                     case_record[system] = existing
                     continue
             env = os.environ.copy()
@@ -278,21 +532,23 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                 cwd = ROOT
             else:
                 env.pop("DL_OP_TO_HLS_LLM_API_KEY", None)
-                env["ANTHROPIC_BASE_URL"] = suite["base_url"]
-                env["ANTHROPIC_AUTH_TOKEN"] = claude_key
-                env["ANTHROPIC_MODEL"] = suite["model"]
-                env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = suite["model"]
-                env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = suite["model"]
-                env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
-                command = [
-                    "claude.cmd", "-p", claude_prompt(case_task, system_root),
-                    "--output-format", "json", "--no-session-persistence",
-                    "--dangerously-skip-permissions", "--model", suite["model"],
-                    "--add-dir", str(ROOT), "--add-dir", str(system_root),
-                ]
-                cwd = system_root
+                summary = run_claude_case(
+                    case_task=case_task,
+                    system_root=system_root,
+                    timeout_seconds=case_timeout(case, policy),
+                    max_turns=int(policy.get("claude_max_turns", 4)),
+                    model=suite["model"],
+                    base_url=suite["base_url"],
+                    api_key=claude_key,
+                    secrets=secrets,
+                    env_base=env,
+                )
+                case_record[system] = summary
+                checkpoint["cases"][case["id"]] = case_record
+                write_json(master_path, checkpoint)
+                continue
             process_result = run_process(command, cwd, env, system_root, case_timeout(case, policy), secrets)
-            summary = summarize_hls(system_root, process_result) if system == "hls_agent" else summarize_claude(system_root, process_result)
+            summary = summarize_hls(system_root, process_result)
             write_json(result_path, summary)
             case_record[system] = summary
             checkpoint["cases"][case["id"]] = case_record
@@ -307,7 +563,7 @@ def main() -> int:
     """Parse launcher arguments and start/resume the durable suite."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
-    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison")
+    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison_durable")
     parser.add_argument("--only", nargs="*", default=[])
     args = parser.parse_args()
     run_suite(args.suite.resolve(), args.output_root.resolve(), set(args.only) or None)
