@@ -24,6 +24,7 @@
 - 根据首轮执行稳定性复核，移除 `tiny_residual_block` 和 `resnet18_boundary`，本轮只保留可重复的算子、MNIST 和常规 LLM candidate 任务。
 - 首次恢复测试发现固定 HLS `run_id` 在中断重启后会触发目录冲突；改为每次尝试生成唯一 run id，保留历史尝试并允许断点续跑。
 - 第二个恢复测试问题是失败进程记录被误判为完成；跳过策略收紧为只跳过正常结束或已记录超时的结果，启动失败会自动重试。
+- 补充 `comparison_completed` 标记，避免 Agent 正常结束为 `partial_success` 时在后续恢复中被重复执行。
 
 ---
 

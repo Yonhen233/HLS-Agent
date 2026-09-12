@@ -151,6 +151,7 @@ def summarize_hls(result_dir: Path, process_result: dict[str, Any]) -> dict[str,
     pipeline = state.get("pipeline_status") or {}
     return {
         **process_result,
+        "comparison_completed": True,
         "status": state.get("status") or process_result["status"],
         "agent_status": state.get("status"),
         "selected_path": state.get("selected_path"),
@@ -192,6 +193,7 @@ def summarize_claude(result_dir: Path, process_result: dict[str, Any]) -> dict[s
                 evidence.append(str(path))
     return {
         **process_result,
+        "comparison_completed": True,
         "agent_status": payload.get("result") if isinstance(payload, dict) else None,
         "verified": bool(evidence),
         "usage": {
@@ -254,7 +256,7 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                     existing = json.loads(result_path.read_text(encoding="utf-8"))
                 except json.JSONDecodeError:
                     existing = {}
-                if existing.get("status") in {"process_success", "timeout"}:
+                if existing.get("comparison_completed") and existing.get("status") != "process_failed":
                     case_record[system] = existing
                     continue
             env = os.environ.copy()
