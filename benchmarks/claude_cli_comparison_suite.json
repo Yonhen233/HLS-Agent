@@ -9,6 +9,7 @@
     "recovery_timeout_seconds": 4500,
     "claude_max_turns": 4,
     "claude_session_persistence": true,
+    "claude_cli_model": "sonnet",
     "sequential": true,
     "no_best_of_selection": true
   },

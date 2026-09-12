@@ -37,6 +37,9 @@ def diagnosis(result: dict[str, Any]) -> str:
     """Classify the dominant observable failure without guessing hidden causes."""
     status = result.get("status")
     outcome = result.get("outcome")
+    interruption_reasons = " ".join(str(turn.get("interruption_reason", "")) for turn in result.get("turns", []))
+    if any(code in interruption_reasons for code in ("model_catalog_mismatch", "api_authentication_error", "api_rate_limit")):
+        return "cli_configuration_or_api_error"
     if status == "timeout" or result.get("last_process", {}).get("status") == "timeout":
         return "timeout"
     if status == "process_failed" or result.get("last_process", {}).get("status") == "process_failed":
@@ -135,7 +138,7 @@ def write_report(root: Path, rows: list[dict[str, Any]]) -> tuple[Path, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison_durable")
+    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison_durable_v2")
     args = parser.parse_args()
     root = args.output_root.resolve()
     json_path, md_path = write_report(root, collect(root))

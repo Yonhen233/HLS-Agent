@@ -23,7 +23,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
-RUNNER_VERSION = "durable-multi-turn-v1"
+RUNNER_VERSION = "durable-multi-turn-v2"
 
 
 def utc_now() -> str:
@@ -50,7 +50,7 @@ def redact_bytes(data: bytes, secrets: list[str]) -> bytes:
 
 def pump(stream, target: Path, secrets: list[str]) -> None:
     """Stream one child-process pipe to a redacted log file."""
-    with target.open("ab") as handle:
+    with target.open("wb") as handle:
         while True:
             chunk = stream.read(8192)
             if not chunk:
@@ -270,6 +270,19 @@ def summarize_claude_turn(turn_dir: Path, process_result: dict[str, Any]) -> dic
     }
 
 
+def cli_error_code(turn_dir: Path) -> str | None:
+    """Identify errors that continuation cannot repair and should not burn tokens."""
+    stderr = turn_dir / "stderr.log"
+    text = stderr.read_text(encoding="utf-8", errors="replace").lower() if stderr.exists() else ""
+    if "unrecognized_model" in text or "isn't described by this version's model catalog" in text:
+        return "model_catalog_mismatch"
+    if "authentication" in text or "invalid api key" in text or "401" in text or "403" in text:
+        return "api_authentication_error"
+    if "rate limit" in text or "429" in text:
+        return "api_rate_limit"
+    return None
+
+
 def aggregate_usage(turns: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate only values actually exposed by the CLI envelopes."""
     total_prompt = 0
@@ -366,6 +379,7 @@ def run_claude_case(
     timeout_seconds: int,
     max_turns: int,
     model: str,
+    cli_model: str,
     base_url: str,
     api_key: str,
     secrets: list[str],
@@ -417,14 +431,14 @@ def run_claude_case(
             command = [
                 "claude.cmd", "-p", prompt,
                 "--output-format", "json", "--session-id", session_state["session_id"],
-                "--dangerously-skip-permissions", "--model", model,
+                "--permission-mode", "bypassPermissions", "--model", cli_model,
                 "--add-dir", str(ROOT), "--add-dir", str(system_root),
             ]
         else:
             command = [
                 "claude.cmd", "-p", prompt,
                 "--output-format", "json", "--resume", session_state["session_id"],
-                "--dangerously-skip-permissions", "--model", model,
+                "--permission-mode", "bypassPermissions", "--model", cli_model,
                 "--add-dir", str(ROOT), "--add-dir", str(system_root),
             ]
         turn_record = {
@@ -440,15 +454,22 @@ def run_claude_case(
         env["ANTHROPIC_BASE_URL"] = base_url
         env["ANTHROPIC_AUTH_TOKEN"] = api_key
         env["ANTHROPIC_MODEL"] = model
-        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model
-        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = cli_model
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = cli_model
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+        env["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] = "1"
         last_process = run_process(command, system_root, env, turn_dir, max(60, remaining), secrets)
         turn_summary = summarize_claude_turn(turn_dir, last_process)
         turn_record.update(turn_summary)
         turn_record["finished_at"] = utc_now()
         gate = classify_completion(system_root)
-        if gate["terminal"]:
+        fatal_error = cli_error_code(turn_dir)
+        if fatal_error:
+            turn_record["interrupted"] = True
+            turn_record["interruption_reason"] = fatal_error
+            session_state["status"] = fatal_error
+            session_state["interruption_count"] += 1
+        elif gate["terminal"]:
             turn_record["interrupted"] = False
             session_state["status"] = "completed"
         else:
@@ -463,7 +484,7 @@ def run_claude_case(
         write_json(session_path, session_state)
         interim = summarize_claude(system_root, last_process, session_state)
         write_json(system_root / "result.json", interim)
-        if gate["terminal"]:
+        if gate["terminal"] or fatal_error:
             break
     else:
         session_state["status"] = "max_turns_reached"
@@ -478,7 +499,12 @@ def run_claude_case(
     return result
 
 
-def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None) -> None:
+def run_suite(
+    suite_path: Path,
+    output_root: Path,
+    only: set[str] | None = None,
+    systems: set[str] | None = None,
+) -> None:
     """Run or resume the complete sequential comparison suite."""
     suite = json.loads(suite_path.read_text(encoding="utf-8"))
     output_root.mkdir(parents=True, exist_ok=True)
@@ -502,6 +528,8 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
         case_record["updated_at"] = utc_now()
         write_json(case_root / "case.json", {**case, "task": str(case_task), "timeout_seconds": case_timeout(case, policy)})
         for system in ("hls_agent", "claude_cli"):
+            if systems is not None and system not in systems:
+                continue
             system_root = case_root / system
             result_path = system_root / "result.json"
             if result_path.exists():
@@ -538,6 +566,7 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                     timeout_seconds=case_timeout(case, policy),
                     max_turns=int(policy.get("claude_max_turns", 4)),
                     model=suite["model"],
+                    cli_model=str(policy.get("claude_cli_model", "sonnet")),
                     base_url=suite["base_url"],
                     api_key=claude_key,
                     secrets=secrets,
@@ -563,10 +592,11 @@ def main() -> int:
     """Parse launcher arguments and start/resume the durable suite."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
-    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison_durable")
+    parser.add_argument("--output-root", type=Path, default=ROOT / "runs" / "benchmarks" / "claude_cli_comparison_durable_v2")
     parser.add_argument("--only", nargs="*", default=[])
+    parser.add_argument("--systems", nargs="*", choices=["hls_agent", "claude_cli"], default=[])
     args = parser.parse_args()
-    run_suite(args.suite.resolve(), args.output_root.resolve(), set(args.only) or None)
+    run_suite(args.suite.resolve(), args.output_root.resolve(), set(args.only) or None, set(args.systems) or None)
     return 0
 
 

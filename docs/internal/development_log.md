@@ -20,7 +20,8 @@
 - 每个 turn 单独落盘 `process.json`、`stdout.log`、`stderr.log` 和 token usage；`session.json` 原子保存会话状态、当前 turn、中断原因和累计中断次数。
 - 增加外部完成门禁：Claude 必须写 `claude_completion.json`，但 success 还必须有独立的功能验证证据；缺证据、提前停止、进程失败或超时都会自动进入续接流程。
 - 增加 `scripts/summarize_claude_cli_comparison.py`，可在任务中断后从已持久化结果重新生成 JSON/Markdown 汇总，不需要重跑昂贵的 HLS/LLM 工作。
-- 新默认输出目录为 `runs/benchmarks/claude_cli_comparison_durable`，不覆盖旧版一次性试跑数据。
+- 新默认输出目录为 `runs/benchmarks/claude_cli_comparison_durable_v2`，不覆盖旧版一次性试跑数据或 model catalog 修复前的 smoke 产物。
+- Smoke test 发现 Claude Code 本地 catalog 不接受自定义模型名作为 `--model`，会导致 session 未建立；改为 CLI 使用已注册的 `sonnet` alias，同时通过 `ANTHROPIC_MODEL`/默认模型环境变量把请求路由到 DeepSeek 网关。这样保留真实 DeepSeek 推理，又保证 session 可被 `--resume` 找到。
 
 ### 3. 记录口径
 
@@ -33,6 +34,9 @@
 - `python -m py_compile scripts/run_claude_cli_comparison.py scripts/summarize_claude_cli_comparison.py`：通过。
 - `git diff --check`：通过。
 - 空输出目录汇总 smoke test：通过，能生成 `comparison_summary.json` 与 `comparison_summary.md`。
+- Claude CLI 路由 smoke test：`--model sonnet` + DeepSeek 网关返回结构化成功结果，并暴露 input/output token 与 `num_turns` 字段。
+- durable session smoke test：固定 `--session-id` 的首轮与 `--resume` 续接均能被 Claude CLI 接受；DeepSeek 在当前网关配置下未可靠地产生本地工具调用，因此这类结果会由外部完成门禁判为 incomplete，而不会伪造端到端成功。
+- 增加 `model_catalog_mismatch`、认证错误和限流错误门禁；这些错误不再连续触发无意义续接。每次 turn 日志改为覆盖写，避免重试时污染 token/输出证据。
 
 ---
 
