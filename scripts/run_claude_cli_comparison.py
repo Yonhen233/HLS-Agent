@@ -23,7 +23,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
-RUNNER_VERSION = "durable-multi-turn-v2"
+RUNNER_VERSION = "durable-multi-turn-v3"
 
 
 def utc_now() -> str:
@@ -270,10 +270,14 @@ def summarize_claude_turn(turn_dir: Path, process_result: dict[str, Any]) -> dic
     }
 
 
-def cli_error_code(turn_dir: Path) -> str | None:
-    """Identify errors that continuation cannot repair and should not burn tokens."""
+def cli_error_code(turn_dir: Path, process_result: dict[str, Any]) -> str | None:
+    """Identify non-recoverable errors while ignoring benign stderr warnings."""
     stderr = turn_dir / "stderr.log"
     text = stderr.read_text(encoding="utf-8", errors="replace").lower() if stderr.exists() else ""
+    if process_result.get("status") == "process_success":
+        return None
+    if "no conversation found" in text or "session not found" in text:
+        return "session_not_found"
     if "unrecognized_model" in text or "isn't described by this version's model catalog" in text:
         return "model_catalog_mismatch"
     if "authentication" in text or "invalid api key" in text or "401" in text or "403" in text:
@@ -402,6 +406,8 @@ def run_claude_case(
     session_state.setdefault("started_at", utc_now())
     session_state.setdefault("turns", [])
     session_state.setdefault("interruption_count", 0)
+    session_state.setdefault("session_recovery_count", 0)
+    session_state.setdefault("force_new_session", False)
     session_state.setdefault("status", "running")
     for turn in session_state["turns"]:
         was_running = turn.get("status") == "running"
@@ -426,8 +432,10 @@ def run_claude_case(
         turn_number = len(session_state["turns"]) + 1
         turn_dir = system_root / f"turn_{turn_number:02d}"
         turn_dir.mkdir(parents=True, exist_ok=True)
+        force_new_session = bool(session_state.pop("force_new_session", False))
+        initial_session_turn = turn_number == 1 or force_new_session
         prompt = claude_prompt(case_task, system_root) if turn_number == 1 else claude_continuation_prompt(system_root, turn_number, max_turns)
-        if turn_number == 1:
+        if initial_session_turn:
             command = [
                 "claude.cmd", "-p", prompt,
                 "--output-format", "json", "--session-id", session_state["session_id"],
@@ -445,7 +453,7 @@ def run_claude_case(
             "turn": turn_number,
             "status": "running",
             "started_at": utc_now(),
-            "prompt_type": "initial" if turn_number == 1 else "continuation",
+            "prompt_type": "initial" if turn_number == 1 else ("fresh_session_recovery" if force_new_session else "continuation"),
             "session_id": session_state["session_id"],
         }
         session_state["turns"].append(turn_record)
@@ -461,10 +469,20 @@ def run_claude_case(
         last_process = run_process(command, system_root, env, turn_dir, max(60, remaining), secrets)
         turn_summary = summarize_claude_turn(turn_dir, last_process)
         turn_record.update(turn_summary)
+        turn_record["session_id"] = turn_summary.get("session_id") or session_state["session_id"]
+        turn_record["session_persistence_confirmed"] = bool(turn_summary.get("session_id"))
         turn_record["finished_at"] = utc_now()
         gate = classify_completion(system_root)
-        fatal_error = cli_error_code(turn_dir)
-        if fatal_error:
+        fatal_error = cli_error_code(turn_dir, last_process)
+        recover_session = fatal_error == "session_not_found" and not session_state.get("session_recovery_count")
+        if recover_session:
+            session_state["session_recovery_count"] += 1
+            session_state["session_id"] = str(uuid.uuid4())
+            session_state["force_new_session"] = True
+            turn_record["interrupted"] = True
+            turn_record["interruption_reason"] = "session_not_found_fresh_session_recovery"
+            session_state["interruption_count"] += 1
+        elif fatal_error:
             turn_record["interrupted"] = True
             turn_record["interruption_reason"] = fatal_error
             session_state["status"] = fatal_error
@@ -484,7 +502,7 @@ def run_claude_case(
         write_json(session_path, session_state)
         interim = summarize_claude(system_root, last_process, session_state)
         write_json(system_root / "result.json", interim)
-        if gate["terminal"] or fatal_error:
+        if gate["terminal"] or (fatal_error and not recover_session):
             break
     else:
         session_state["status"] = "max_turns_reached"
