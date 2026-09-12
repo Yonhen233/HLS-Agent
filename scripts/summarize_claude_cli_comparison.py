@@ -76,6 +76,13 @@ def system_summary(rows: list[dict[str, Any]], system: str) -> dict[str, Any]:
     verified = sum(bool(row["result"].get("verified")) for row in selected)
     usage_rows = [row["result"].get("usage", {}) for row in selected]
     total_tokens = [int(item["total_tokens"]) for item in usage_rows if item.get("total_tokens") is not None]
+    if not total_tokens:
+        for item in usage_rows:
+            total_tokens.extend(
+                int(invocation["total_tokens"])
+                for invocation in item.get("per_invocation", [])
+                if invocation.get("total_tokens") is not None
+            )
     llm_calls = [int(item["llm_calls"]) for item in usage_rows if item.get("llm_calls") is not None]
     reasons: dict[str, int] = {}
     for row in selected:
@@ -86,7 +93,11 @@ def system_summary(rows: list[dict[str, Any]], system: str) -> dict[str, Any]:
         "verified_successes": verified,
         "verified_success_rate": round(verified / len(selected), 4) if selected else None,
         "runtime_seconds": {"p50": percentile(runtimes, 0.50), "p95": percentile(runtimes, 0.95), "mean": round(sum(runtimes) / len(runtimes), 3) if runtimes else None},
-        "tokens_per_run": {"mean": round(sum(total_tokens) / len(total_tokens), 3) if total_tokens else None, "known_runs": len(total_tokens)},
+        "tokens_per_run": {
+            "mean": round(sum(total_tokens) / len(total_tokens), 3) if total_tokens else None,
+            "known_runs": len(total_tokens),
+            "missing_runs": max(0, len(selected) - len(total_tokens)),
+        },
         "llm_calls_per_run": {"mean": round(sum(llm_calls) / len(llm_calls), 3) if llm_calls else None, "known_runs": len(llm_calls)},
         "diagnoses": reasons,
     }
