@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-09-12 15:30：巡检修复原生 Claude 启动及评测计量
+
+### 现象与根因
+
+- 巡检确认 PID 3960 及其子进程已不在运行；launcher stderr 为空。不能从现有记录确定进程退出原因，因此不把它归因于 API 或业务代码。
+- 初始 Claude 提示词含多行，经 Windows npm `claude.cmd` 的 `%*` 转发时，后续 JSON/session/permission 参数未可靠生效；单行 recovery prompt 却能正常输出 JSON。之前将问题归因于模型 catalog 或修改模型 alias 的判断不充分，本条以原生可执行文件和真实会话探针纠正。
+- `dense_llm_candidate` 实际超时，却因 stderr 同时有 `unrecognized_model` 警告被误标为配置错误；HLS Agent 的中间 `partial_success` 又覆盖了进程 timeout。
+- 旧汇总把 CLI invocation 当 LLM call，遗漏 cache-read/cache-write 输入 token，使用最后一轮而非全流程耗时，并将运行中的 case 纳入分母。此前报告不宜作为正式性能结论。
+
+### 修复方案
+
+- 直接定位并启动同一安装中的 `claude.exe`，提示词通过标准输入传递；不改动用户全局 Claude 配置，不替换实际 DeepSeek 模型。保留原生工具能力和现有权限模式。
+- 使用 `stream-json` 输出，并转发 subagent 消息用于计量；按 assistant message id 去重，保留每次可观测 LLM 返回的 provider usage 到 `llm_calls.json`。同一消息的文本和 tool block 不重复计数。未返回消息的请求、隐藏请求及历史缺失数据不能声称已完整计量。
+- 总输入 token 包括 uncached、cache-read 和 cache-write；CLI 启动次数、已观察 LLM 调用数、完整计量值和部分数据下界分别存储。缺失值仍为 null，不以每轮调用次数或 num_turns 伪造 API 调用数。
+- timeout 优先于 stderr 警告，HLS 进程失败优先于中间状态；latency 汇总所有 turn，包含失败及恢复。未终结 case 不进入成功率和分位数分母。
+- 增加进程 PID/5 秒 heartbeat、输出目录独占锁及启动失败落盘。正常已终结的失败也作为实验结果保留，不通过自动重启进行 best-of 选择。恢复不重置 Claude 总时间预算，不清空会话版本、不覆盖旧日志；受中断的 HLS 使用现有 session checkpoint 续跑。旧日志无法精确定位退出时刻时，保留可观测耗时下界的标记。
+- 收紧成功证据筛选：源码字符串、模型 prose 或自写 passed JSON 不作验证证据；要求实际 CSim 风格日志及 synthesis report。这仍是产物交叉检查，不等于独立隐藏测试，报告明确区分。
+
+### 测试动作与结果
+
+- 新增 `tests/test_claude_comparison_runtime.py`，12 项针对性回归通过：stdin 多行参数保真、stream 去重/cache 计量、中断后 usage 保留、超时优先级、杜绝源码假阳性、同 session 续接、预算不重置、独占锁、启动错误落盘、全流程耗时与运行中样例剔除、HLS provider 字段解析等。
+- 默认 pytest 临时目录权限失败；改用项目 `runs/` 下新建的专用测试目录后通过，未修改 ACL 或全局安全设置。
+- 新增可重复运行的 `scripts/verify_claude_transport.py`。真实 DeepSeek API 探针通过：首轮 Read 工具读取 ReLU 任务，第二轮通过相同 session 恢复并记住随机 marker，实际模型为 `DeepSeek-V4-Pro-0813`，permission_denials 为空。两轮分别观测到 2 和 1 次 LLM 返回，包含缓存的 token 为 31,388 和 15,829。探针产物独立存放，不计入业务成功率。
+- 原业务样例未重跑；历史缺失的逐调用数据无法无损补齐，保留缺失标记。后续从未完成的 `matmul_llm_candidate` 继续，最终报告需标记启动修复前后的实验版本差异。
+
+---
+
 ## 2026-09-12 Durable multi-turn Claude CLI 真实端到端对比改造
 
 ### 1. 背景

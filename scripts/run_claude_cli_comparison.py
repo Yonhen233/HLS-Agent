@@ -11,11 +11,13 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,51 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
 RUNNER_VERSION = "durable-multi-turn-v3"
+LAUNCH_REVISION = "native-stdin-stream-v1"
+
+
+@contextmanager
+def suite_lock(root: Path):
+    """The OS releases this lock even when the runner is killed."""
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / ".runner.lock").open("a+b") as handle:
+        if handle.tell() == 0:
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def claude_executable() -> str:
+    """Avoid cmd.exe reparsing multiline prompts and dropping trailing flags."""
+    configured = os.environ.get("CLAUDE_EXECUTABLE")
+    if configured:
+        executable = Path(configured)
+    elif os.name == "nt":
+        native = shutil.which("claude.exe")
+        shim = shutil.which("claude.cmd")
+        executable = Path(native) if native else (
+            Path(shim).parent / "node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+            if shim else Path("claude.exe")
+        )
+    else:
+        executable = Path(shutil.which("claude") or "claude")
+    if not executable.is_file() or executable.suffix.lower() in {".cmd", ".bat"}:
+        raise RuntimeError("Set CLAUDE_EXECUTABLE to the native Claude executable, not a shell wrapper.")
+    return str(executable.resolve())
 
 
 def utc_now() -> str:
@@ -52,7 +99,7 @@ def pump(stream, target: Path, secrets: list[str]) -> None:
     """Stream one child-process pipe to a redacted log file."""
     with target.open("wb") as handle:
         while True:
-            chunk = stream.read(8192)
+            chunk = stream.readline()
             if not chunk:
                 break
             handle.write(redact_bytes(chunk, secrets))
@@ -71,28 +118,63 @@ def kill_tree(process: subprocess.Popen) -> None:
     )
 
 
-def run_process(command: list[str], cwd: Path, env: dict[str, str], output_dir: Path, timeout: int, secrets: list[str]) -> dict[str, Any]:
+def run_process(command: list[str], cwd: Path, env: dict[str, str], output_dir: Path, timeout: int, secrets: list[str], input_text: str | None = None) -> dict[str, Any]:
     """Run one long-lived child with streamed logs and a durable result record."""
     output_dir.mkdir(parents=True, exist_ok=True)
     stdout_path = output_dir / "stdout.log"
     stderr_path = output_dir / "stderr.log"
+    if (output_dir / "process.json").exists():
+        history = output_dir / "process_history" / uuid.uuid4().hex
+        history.mkdir(parents=True)
+        for name in ("process.json", "stdout.log", "stderr.log", "prompt.txt"):
+            if (output_dir / name).exists():
+                shutil.copy2(output_dir / name, history / name)
+    prompt_file = None
+    if input_text is not None:
+        (output_dir / "prompt.txt").write_bytes(redact_bytes(input_text.encode("utf-8"), secrets))
+        prompt_file = (output_dir / "prompt.txt").open("rb")
     start = time.perf_counter()
     write_json(output_dir / "process.json", {"status": "running", "started_at": utc_now(), "command": command})
-    process = subprocess.Popen(
-        command,
-        cwd=str(cwd),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-    )
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            env=env,
+            stdin=prompt_file if prompt_file else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+    except OSError as exc:
+        stdout_path.write_bytes(b"")
+        stderr_path.write_bytes(redact_bytes(str(exc).encode("utf-8"), secrets))
+        result = {"status": "process_failed", "exit_code": None, "timed_out": False,
+                  "elapsed_seconds": round(time.perf_counter() - start, 3),
+                  "failure_stage": "spawn", "finished_at": utc_now(),
+                  "stdout": str(stdout_path), "stderr": str(stderr_path), "command": command}
+        write_json(output_dir / "process.json", result)
+        return result
+    finally:
+        if prompt_file:
+            prompt_file.close()
+    running = json.loads((output_dir / "process.json").read_text(encoding="utf-8"))
+    running.update(pid=process.pid, parent_pid=os.getpid())
+    write_json(output_dir / "process.json", running)
     stdout_thread = threading.Thread(target=pump, args=(process.stdout, stdout_path, secrets), daemon=True)
     stderr_thread = threading.Thread(target=pump, args=(process.stderr, stderr_path, secrets), daemon=True)
     stdout_thread.start()
     stderr_thread.start()
     timed_out = False
     try:
-        process.wait(timeout=timeout)
+        while process.poll() is None:
+            remaining = timeout - (time.perf_counter() - start)
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout)
+            try:
+                process.wait(timeout=min(5, remaining))
+            except subprocess.TimeoutExpired:
+                write_json(output_dir / "process.json", {**running, "heartbeat_at": utc_now(),
+                                                          "elapsed_seconds": round(time.perf_counter() - start, 3)})
     except subprocess.TimeoutExpired:
         timed_out = True
         kill_tree(process)
@@ -110,6 +192,7 @@ def run_process(command: list[str], cwd: Path, env: dict[str, str], output_dir: 
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
         "command": command,
+        "pid": process.pid,
     }
     write_json(output_dir / "process.json", result)
     return result
@@ -122,6 +205,9 @@ def parse_json_envelope(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="replace").strip()
     if not text:
         return {}
+    results = [row for row in iter_json_lines(path) if row.get("type") == "result"]
+    if results:
+        return results[-1]
     try:
         value = json.loads(text)
         return value if isinstance(value, dict) else {}
@@ -139,7 +225,10 @@ def parse_json_envelope(path: Path) -> dict[str, Any]:
 def usage_from_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize per CLI invocation token data without inventing unavailable detail."""
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
-    prompt_tokens = usage.get("input_tokens")
+    uncached = usage.get("input_tokens")
+    cache_read = usage.get("cache_read_input_tokens", 0) or 0
+    cache_write = usage.get("cache_creation_input_tokens", 0) or 0
+    prompt_tokens = None if uncached is None else uncached + cache_read + cache_write
     completion_tokens = usage.get("output_tokens")
     total = usage.get("total_tokens")
     if total is None and (prompt_tokens is not None or completion_tokens is not None):
@@ -147,12 +236,35 @@ def usage_from_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     api_turns = payload.get("num_turns")
     return {
         "prompt_tokens": prompt_tokens,
+        "uncached_input_tokens": uncached,
         "completion_tokens": completion_tokens,
         "total_tokens": total,
         "api_turns": api_turns if isinstance(api_turns, int) else None,
         "cache_creation_input_tokens": usage.get("cache_creation_input_tokens"),
         "cache_read_input_tokens": usage.get("cache_read_input_tokens"),
     }
+
+
+def claude_call_ledger(path: Path) -> list[dict[str, Any]]:
+    """A message ID may occur for text and tool blocks; count it only once."""
+    calls: dict[str, dict[str, Any]] = {}
+    for row in iter_json_lines(path):
+        message = row.get("message") or {}
+        if row.get("type") != "assistant" or not message.get("id") or not message.get("usage"):
+            continue
+        key = message["id"]
+        usage = message["usage"]
+        prior = calls.get(key, {}).get("provider_usage", {})
+        merged = {**prior, **usage}
+        for field in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+            if field in prior and field in usage:
+                merged[field] = max(prior[field] or 0, usage[field] or 0)
+        calls[key] = {
+            "call_id": key, "model": message.get("model"), "session_id": row.get("session_id"),
+            "parent_tool_use_id": row.get("parent_tool_use_id"), "provider_usage": merged,
+            "usage": usage_from_envelope({"usage": merged}),
+        }
+    return list(calls.values())
 
 
 def iter_json_lines(path: Path) -> list[dict[str, Any]]:
@@ -172,57 +284,76 @@ def iter_json_lines(path: Path) -> list[dict[str, Any]]:
 
 def summarize_hls(result_dir: Path, process_result: dict[str, Any]) -> dict[str, Any]:
     """Extract HLS Agent status and usage from its durable artifacts."""
-    states = sorted(result_dir.rglob("state.json"), key=lambda item: item.stat().st_mtime)
+    states = sorted((result_dir / "runs").glob("agent-*/state.json"), key=lambda item: item.stat().st_mtime)
     state: dict[str, Any] = {}
     if states:
         try:
             state = json.loads(states[-1].read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             state = {}
-    traces = [item for item in result_dir.rglob("trace.jsonl")]
+    traces = list((result_dir / "runs").glob("agent-*/trace.jsonl"))
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "llm_calls": 0}
+    ledger = []
+    seen = set()
     for trace in traces:
         for event in iter_json_lines(trace):
             if event.get("event") != "LLMUsageRecorded":
                 continue
-            usage["prompt_tokens"] += int(event.get("prompt_tokens") or 0)
-            usage["completion_tokens"] += int(event.get("completion_tokens") or 0)
+            key = (event.get("run_id", str(trace)), event.get("call_id", event.get("ts")))
+            if key in seen:
+                continue
+            seen.add(key)
+            ledger.append(event)
+            usage["prompt_tokens"] += int(event.get("input_tokens", event.get("prompt_tokens")) or 0)
+            usage["completion_tokens"] += int(event.get("output_tokens", event.get("completion_tokens")) or 0)
             usage["total_tokens"] += int(event.get("total_tokens") or 0)
             usage["llm_calls"] += 1
     completion = state.get("completion") or {}
     pipeline = state.get("pipeline_status") or {}
+    write_json(result_dir / "llm_calls.json", ledger)
+    failed_process = process_result["status"] in {"timeout", "process_failed"}
     return {
         **process_result,
         "comparison_completed": True,
-        "status": state.get("status") or process_result["status"],
+        "status": process_result["status"] if failed_process else state.get("status") or process_result["status"],
+        "process_status": process_result["status"],
         "agent_status": state.get("status"),
         "selected_path": state.get("selected_path"),
         "terminal_outcome": state.get("terminal_outcome"),
-        "verified": bool(completion.get("passed") or pipeline.get("functional_verified")),
+        "verified": not failed_process and bool(completion.get("passed") or pipeline.get("functional_verified")),
         "completion_passed": completion.get("passed"),
         "pipeline_level": pipeline.get("level"),
         "usage": usage,
         "state_path": str(states[-1]) if states else None,
+        "llm_calls_path": str(result_dir / "llm_calls.json"),
     }
 
 
 def collect_verification_evidence(result_dir: Path) -> list[str]:
-    """Collect conservative, externally observable verification evidence."""
+    """Check toolchain artifacts, not source strings or the model's own prose.
+
+    This is artifact corroboration, not an independent hidden-test rerun.
+    """
     evidence: list[str] = []
-    ignored_names = {"case.json", "session.json", "claude_completion.json"}
+    synth: list[str] = []
     for path in result_dir.rglob("*"):
-        if not path.is_file() or path.name in ignored_names:
+        if not path.is_file() or "process_history" in path.parts:
             continue
-        if path.suffix.lower() not in {".log", ".json", ".md", ".cpp", ".h", ".tcl", ".rpt"}:
+        name = path.name.lower()
+        if path.suffix.lower() not in {".log", ".rpt"} or not any(word in name for word in ("csim", "csynth", "vivado")):
             continue
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         lowered = content.lower()
-        if "golden_check_passed" in lowered or '"passed": true' in lowered or "functional verification: passed" in lowered:
+        if ("csim done with 0 errors" in lowered
+                and re.search(r"(?m)^\s*GOLDEN_CHECK_PASSED\s*$", content)):
             evidence.append(str(path))
-    return sorted(set(evidence))
+        if (path.suffix.lower() == ".rpt" and "hls report for" in lowered
+                and "performance estimates" in lowered and "utilization estimates" in lowered):
+            synth.append(str(path))
+    return sorted(set(evidence + synth)) if evidence and synth else []
 
 
 def completion_marker(result_dir: Path) -> dict[str, Any]:
@@ -260,6 +391,13 @@ def summarize_claude_turn(turn_dir: Path, process_result: dict[str, Any]) -> dic
     """Summarize one durable Claude CLI invocation."""
     payload = parse_json_envelope(Path(process_result["stdout"]))
     usage = usage_from_envelope(payload)
+    ledger = claude_call_ledger(Path(process_result["stdout"]))
+    write_json(turn_dir / "llm_calls.json", ledger)
+    if not payload and ledger:
+        usage = {key: sum(call["usage"].get(key) or 0 for call in ledger)
+                 for key in ("prompt_tokens", "completion_tokens", "total_tokens")}
+    usage["llm_calls"] = len(ledger) if ledger else None
+    usage["ledger_partial"] = not bool(payload)
     return {
         **process_result,
         "payload_result": payload.get("result"),
@@ -267,6 +405,7 @@ def summarize_claude_turn(turn_dir: Path, process_result: dict[str, Any]) -> dic
         "session_id": payload.get("session_id"),
         "usage": usage,
         "turn_dir": str(turn_dir),
+        "llm_calls_path": str(turn_dir / "llm_calls.json"),
     }
 
 
@@ -274,11 +413,13 @@ def cli_error_code(turn_dir: Path, process_result: dict[str, Any]) -> str | None
     """Identify non-recoverable errors while ignoring benign stderr warnings."""
     stderr = turn_dir / "stderr.log"
     text = stderr.read_text(encoding="utf-8", errors="replace").lower() if stderr.exists() else ""
+    if process_result.get("timed_out") or process_result.get("status") == "timeout":
+        return "timeout"
     if process_result.get("status") == "process_success":
         return None
     if "no conversation found" in text or "session not found" in text:
         return "session_not_found"
-    if "unrecognized_model" in text or "isn't described by this version's model catalog" in text:
+    if "model_not_found" in text or "invalid model" in text:
         return "model_catalog_mismatch"
     if "authentication" in text or "invalid api key" in text or "401" in text or "403" in text:
         return "api_authentication_error"
@@ -296,26 +437,30 @@ def aggregate_usage(turns: list[dict[str, Any]]) -> dict[str, Any]:
     api_turns = 0
     llm_invocations = 0
     for turn in turns:
-        if turn.get("status") != "process_success":
-            continue
         llm_invocations += 1
         usage = turn.get("usage") or {}
+        complete = not usage.get("ledger_partial", False)
         if usage.get("prompt_tokens") is not None:
             total_prompt += int(usage["prompt_tokens"])
-            known_prompt += 1
+            known_prompt += int(complete)
         if usage.get("completion_tokens") is not None:
             total_completion += int(usage["completion_tokens"])
-            known_completion += 1
+            known_completion += int(complete)
         if usage.get("total_tokens") is not None:
             total_tokens += int(usage["total_tokens"])
-            known_total += 1
+            known_total += int(complete)
         if usage.get("api_turns") is not None:
             api_turns += int(usage["api_turns"])
     return {
         "prompt_tokens": total_prompt if known_prompt == llm_invocations else None,
         "completion_tokens": total_completion if known_completion == llm_invocations else None,
         "total_tokens": total_tokens if known_total == llm_invocations else None,
-        "llm_calls": llm_invocations,
+        "llm_calls": (sum(turn.get("usage", {}).get("llm_calls") or 0 for turn in turns)
+                      if turns and all(turn.get("usage", {}).get("llm_calls") is not None and not turn.get("usage", {}).get("ledger_partial") for turn in turns) else None),
+        "observed_llm_calls": sum(turn.get("usage", {}).get("llm_calls") or 0 for turn in turns),
+        "cli_invocations": llm_invocations,
+        "known_total_tokens": total_tokens,
+        "missing_usage_invocations": llm_invocations - known_total,
         "api_turns": api_turns or None,
         "per_invocation": [turn.get("usage", {}) for turn in turns],
     }
@@ -327,7 +472,8 @@ def summarize_claude(result_dir: Path, process_result: dict[str, Any], session_s
     turns = session_state.get("turns", [])
     return {
         "runner_version": RUNNER_VERSION,
-        "comparison_completed": True,
+        "launch_revision": LAUNCH_REVISION,
+        "comparison_completed": session_state.get("status") != "running",
         "status": session_state.get("status", "incomplete"),
         "outcome": gate["outcome"],
         "verified": gate["verified"],
@@ -336,6 +482,8 @@ def summarize_claude(result_dir: Path, process_result: dict[str, Any], session_s
         "session_id": session_state.get("session_id"),
         "turn_count": len(turns),
         "interruption_count": session_state.get("interruption_count", 0),
+        "session_recovery_count": session_state.get("session_recovery_count", 0),
+        "elapsed_seconds": round(sum(turn.get("elapsed_seconds", 0) for turn in turns), 3),
         "continuation_count": max(0, len(turns) - 1),
         "usage": aggregate_usage(turns),
         "turns": turns,
@@ -399,8 +547,8 @@ def run_claude_case(
             session_state = {}
     else:
         session_state = {}
-    if session_state.get("runner_version") != RUNNER_VERSION:
-        session_state = {}
+    if session_state and session_state.get("runner_version") != RUNNER_VERSION:
+        raise RuntimeError("Incompatible session version; preserve artifacts and use an explicit new experiment directory.")
     session_state.setdefault("runner_version", RUNNER_VERSION)
     session_state.setdefault("session_id", str(uuid.uuid4()))
     session_state.setdefault("started_at", utc_now())
@@ -409,14 +557,27 @@ def run_claude_case(
     session_state.setdefault("session_recovery_count", 0)
     session_state.setdefault("force_new_session", False)
     session_state.setdefault("status", "running")
+    session_state["launch_revision"] = LAUNCH_REVISION
     for turn in session_state["turns"]:
         was_running = turn.get("status") == "running"
         mark_interrupted_turn(turn, "runner_restarted_during_turn")
         if was_running:
+            turn_dir = system_root / f"turn_{turn['turn']:02d}"
+            process_path = turn_dir / "process.json"
+            if process_path.exists():
+                prior = json.loads(process_path.read_text(encoding="utf-8"))
+                if prior.get("started_at"):
+                    turn["elapsed_seconds"] = prior.get("elapsed_seconds", 0)
+                    turn["elapsed_is_lower_bound"] = True
+                if (turn_dir / "stdout.log").exists():
+                    prior["stdout"] = str(turn_dir / "stdout.log")
+                    recovered = summarize_claude_turn(turn_dir, prior)
+                    turn["usage"] = recovered["usage"]
             session_state["interruption_count"] += 1
     write_json(session_path, session_state)
 
     start = time.perf_counter()
+    prior_elapsed = sum(turn.get("elapsed_seconds", 0) for turn in session_state["turns"])
     last_process: dict[str, Any] = {}
     while len(session_state["turns"]) < max_turns:
         gate = classify_completion(system_root)
@@ -424,10 +585,9 @@ def run_claude_case(
             session_state["status"] = "completed"
             break
         elapsed = time.perf_counter() - start
-        remaining = timeout_seconds - int(elapsed)
+        remaining = timeout_seconds - int(elapsed + prior_elapsed)
         if remaining <= 0:
             session_state["status"] = "timeout"
-            session_state["interruption_count"] += 1
             break
         turn_number = len(session_state["turns"]) + 1
         turn_dir = system_root / f"turn_{turn_number:02d}"
@@ -437,15 +597,15 @@ def run_claude_case(
         prompt = claude_prompt(case_task, system_root) if turn_number == 1 else claude_continuation_prompt(system_root, turn_number, max_turns)
         if initial_session_turn:
             command = [
-                "claude.cmd", "-p", prompt,
-                "--output-format", "json", "--session-id", session_state["session_id"],
+                claude_executable(), "-p",
+                "--output-format", "stream-json", "--verbose", "--forward-subagent-text", "--session-id", session_state["session_id"],
                 "--permission-mode", "bypassPermissions", "--model", cli_model,
                 "--add-dir", str(ROOT), "--add-dir", str(system_root),
             ]
         else:
             command = [
-                "claude.cmd", "-p", prompt,
-                "--output-format", "json", "--resume", session_state["session_id"],
+                claude_executable(), "-p",
+                "--output-format", "stream-json", "--verbose", "--forward-subagent-text", "--resume", session_state["session_id"],
                 "--permission-mode", "bypassPermissions", "--model", cli_model,
                 "--add-dir", str(ROOT), "--add-dir", str(system_root),
             ]
@@ -459,18 +619,22 @@ def run_claude_case(
         session_state["turns"].append(turn_record)
         write_json(session_path, session_state)
         env = env_base.copy()
+        env.pop("HLS_AGENT_API_KEY", None)
+        env.pop("CLAUDE_API_KEY", None)
         env["ANTHROPIC_BASE_URL"] = base_url
         env["ANTHROPIC_AUTH_TOKEN"] = api_key
         env["ANTHROPIC_MODEL"] = model
-        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = cli_model
-        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = cli_model
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
         env["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] = "1"
-        last_process = run_process(command, system_root, env, turn_dir, max(60, remaining), secrets)
+        last_process = run_process(command, system_root, env, turn_dir, remaining, secrets, input_text=prompt)
         turn_summary = summarize_claude_turn(turn_dir, last_process)
         turn_record.update(turn_summary)
         turn_record["session_id"] = turn_summary.get("session_id") or session_state["session_id"]
         turn_record["session_persistence_confirmed"] = bool(turn_summary.get("session_id"))
+        if turn_summary.get("session_id"):
+            session_state["session_id"] = turn_summary["session_id"]
         turn_record["finished_at"] = utc_now()
         gate = classify_completion(system_root)
         fatal_error = cli_error_code(turn_dir, last_process)
@@ -544,11 +708,15 @@ def run_suite(
         case_task = (ROOT / case["task"]).resolve()
         case_record = checkpoint["cases"].setdefault(case["id"], {"id": case["id"], "task": case["task"], "family": case["family"]})
         case_record["updated_at"] = utc_now()
+        checkpoint.pop("finished_at", None)
+        checkpoint["launch_revision"] = LAUNCH_REVISION
         write_json(case_root / "case.json", {**case, "task": str(case_task), "timeout_seconds": case_timeout(case, policy)})
         for system in ("hls_agent", "claude_cli"):
             if systems is not None and system not in systems:
                 continue
             system_root = case_root / system
+            checkpoint["active"] = {"case": case["id"], "system": system, "updated_at": utc_now()}
+            write_json(master_path, checkpoint)
             result_path = system_root / "result.json"
             if result_path.exists():
                 try:
@@ -556,10 +724,12 @@ def run_suite(
                 except json.JSONDecodeError:
                     existing = {}
                 valid_version = system == "hls_agent" or existing.get("runner_version") == RUNNER_VERSION
-                if existing.get("comparison_completed") and valid_version and existing.get("status") not in {"process_failed", "incomplete", "max_turns_reached", "timeout"}:
+                if existing.get("comparison_completed") and valid_version and existing.get("status") != "running":
                     case_record[system] = existing
                     continue
             env = os.environ.copy()
+            env.pop("HLS_AGENT_API_KEY", None)
+            env.pop("CLAUDE_API_KEY", None)
             env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
             env["DL_OP_TO_HLS_LLM_ENABLED"] = "1"
             env["DL_OP_TO_HLS_LLM_PROVIDER"] = "openai-compatible"
@@ -570,11 +740,23 @@ def run_suite(
             env["DL_OP_TO_HLS_MOCK_HLS4ML"] = "0"
             env["DL_OP_TO_HLS_MOCK_VIVADO"] = "0"
             if system == "hls_agent":
+                resumed_elapsed = 0
+                prior_process_path = system_root / "process.json"
+                prior_process = json.loads(prior_process_path.read_text(encoding="utf-8")) if prior_process_path.exists() else {}
                 env["DL_OP_TO_HLS_LLM_API_KEY"] = hls_key
                 env["DL_OP_TO_HLS_RUNS_ROOT"] = str((system_root / "runs").resolve())
                 env["DL_OP_TO_HLS_DB_PATH"] = str((system_root / "metadata.db").resolve())
                 env["DL_OP_TO_HLS_RUN_ID"] = f"agent-{int(time.time())}"
                 command = [sys.executable, "-m", "dl_op_to_hls.cli", "agent-run", str(case_task), "--real-tools"]
+                sessions = sorted((system_root / "runs/sessions").glob("*/session.json"), key=lambda path: path.stat().st_mtime)
+                if prior_process.get("status") == "running" and sessions:
+                    command = [sys.executable, "-m", "dl_op_to_hls.cli", "session-resume", sessions[-1].parent.name]
+                    resumed_elapsed = prior_process.get("elapsed_seconds", 0)
+                    if not resumed_elapsed:
+                        traces = list((system_root / "runs").glob("agent-*/trace.jsonl"))
+                        if traces:
+                            last_ts = max(path.stat().st_mtime for path in traces)
+                            resumed_elapsed = max(0, last_ts - datetime.fromisoformat(prior_process["started_at"]).timestamp())
                 cwd = ROOT
             else:
                 env.pop("DL_OP_TO_HLS_LLM_API_KEY", None)
@@ -594,7 +776,11 @@ def run_suite(
                 checkpoint["cases"][case["id"]] = case_record
                 write_json(master_path, checkpoint)
                 continue
-            process_result = run_process(command, cwd, env, system_root, case_timeout(case, policy), secrets)
+            process_result = run_process(command, cwd, env, system_root, max(1, case_timeout(case, policy) - int(resumed_elapsed)), secrets)
+            if resumed_elapsed:
+                process_result["elapsed_seconds"] += resumed_elapsed
+                process_result["elapsed_is_lower_bound"] = True
+                process_result["interruption_count"] = 1
             summary = summarize_hls(system_root, process_result)
             write_json(result_path, summary)
             case_record[system] = summary
@@ -603,6 +789,7 @@ def run_suite(
         case_record["completed_at"] = utc_now()
         write_json(master_path, checkpoint)
     checkpoint["finished_at"] = utc_now()
+    checkpoint.pop("active", None)
     write_json(master_path, checkpoint)
 
 
@@ -614,7 +801,8 @@ def main() -> int:
     parser.add_argument("--only", nargs="*", default=[])
     parser.add_argument("--systems", nargs="*", choices=["hls_agent", "claude_cli"], default=[])
     args = parser.parse_args()
-    run_suite(args.suite.resolve(), args.output_root.resolve(), set(args.only) or None, set(args.systems) or None)
+    with suite_lock(args.output_root.resolve()):
+        run_suite(args.suite.resolve(), args.output_root.resolve(), set(args.only) or None, set(args.systems) or None)
     return 0
 
 
