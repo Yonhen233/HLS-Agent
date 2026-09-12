@@ -66,8 +66,12 @@ def collect(root: Path) -> list[dict[str, Any]]:
     for case_json in root.glob("*/case.json"):
         case = load_json(case_json)
         for system in ("hls_agent", "claude_cli"):
-            result = load_json(case_json.parent / system / "result.json")
-            session = load_json(case_json.parent / system / "session.json") if system == "claude_cli" else {}
+            system_root = case_json.parent / system
+            baseline = case.get("claude_baseline") if system == "claude_cli" else None
+            if baseline:
+                system_root = Path(baseline["source_dir"])
+            result = load_json(system_root / "result.json")
+            session = load_json(system_root / "session.json") if system == "claude_cli" else {}
             if session:
                 result = {**result, "status": session.get("status"), "turns": session.get("turns", []),
                           "interruption_count": session.get("interruption_count", 0),
@@ -76,7 +80,7 @@ def collect(root: Path) -> list[dict[str, Any]]:
                     result.update(verified=False, outcome="incomplete", comparison_completed=False)
                 turns = result["turns"]
                 for turn in turns:
-                    log = Path(turn.get("stdout") or case_json.parent / system / f"turn_{turn['turn']:02d}" / "stdout.log")
+                    log = Path(turn.get("stdout") or system_root / f"turn_{turn['turn']:02d}" / "stdout.log")
                     envelope = parse_json_envelope(log)
                     calls = claude_call_ledger(log)
                     if envelope:
@@ -92,10 +96,10 @@ def collect(root: Path) -> list[dict[str, Any]]:
                     result.update(status="timeout", timed_out=True, verified=False)
                 if result.get("status") == "completed" and result.get("outcome") == "success":
                     result["reported_verified"] = result.get("verified")
-                    result["verified"] = classify_completion(case_json.parent / system)["verified"]
+                    result["verified"] = classify_completion(system_root)["verified"]
                     result["verification_basis"] = "artifact_corroboration_not_hidden_tests"
             if system == "hls_agent":
-                process = load_json(case_json.parent / system / "process.json")
+                process = load_json(system_root / "process.json")
                 if process.get("status") == "running":
                     result.update(status="running", verified=False, comparison_completed=False)
                 elif process.get("status") in {"timeout", "process_failed"}:
