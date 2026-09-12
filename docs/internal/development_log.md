@@ -21,6 +21,7 @@
 - `runs/benchmarks/claude_cli_comparison/comparison_checkpoint.json` 在每个 system/case 完成后更新。
 - Codex 会话或父进程中断后，可重新执行同一脚本，已完成结果会跳过，未完成 case 会继续执行。
 - 子进程超时会递归终止对应进程树，不影响其他 case。
+- 根据首轮执行稳定性复核，移除 `tiny_residual_block` 和 `resnet18_boundary`，本轮只保留可重复的算子、MNIST 和常规 LLM candidate 任务。
 
 ---
 
