@@ -271,7 +271,7 @@ def run_suite(suite_path: Path, output_root: Path, only: set[str] | None = None)
                 env["DL_OP_TO_HLS_LLM_API_KEY"] = hls_key
                 env["DL_OP_TO_HLS_RUNS_ROOT"] = str((system_root / "runs").resolve())
                 env["DL_OP_TO_HLS_DB_PATH"] = str((system_root / "metadata.db").resolve())
-                env["DL_OP_TO_HLS_RUN_ID"] = "agent-run"
+                env["DL_OP_TO_HLS_RUN_ID"] = f"agent-{int(time.time())}"
                 command = [sys.executable, "-m", "dl_op_to_hls.cli", "agent-run", str(case_task), "--real-tools"]
                 cwd = ROOT
             else:
