@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-09-12：启动 HLS Agent 与原生 Claude CLI 对比实验
+
+### 实验实现
+
+- 新增 `benchmarks/claude_cli_comparison_suite.json`，覆盖 14 个基础算子、组合算子、MNIST 模型和边界任务。
+- 新增 `scripts/run_claude_cli_comparison.py`，采用顺序执行、独立工作目录、长程任务分层超时和原子 checkpoint。
+- HLS Agent 与 Claude CLI 使用不同运行目录和不同 API key；key 只从 launcher 环境变量读取，不写入代码、manifest 或日志。
+- Claude CLI 保持原生 Read/Glob/Grep/Bash/Edit/Write 能力，不注入 HLS Agent 的 Tool/Skill/编排逻辑。
+- 每个系统记录 stdout、stderr、进程状态、退出码、超时、wall time、HLS trace usage、Claude JSON usage 和验证证据。
+
+### 恢复策略
+
+- `runs/benchmarks/claude_cli_comparison/comparison_checkpoint.json` 在每个 system/case 完成后更新。
+- Codex 会话或父进程中断后，可重新执行同一脚本，已完成结果会跳过，未完成 case 会继续执行。
+- 子进程超时会递归终止对应进程树，不影响其他 case。
+
+---
+
 ## 2026-09-12：unsupported_path 迁移为运行时能力门禁
 
 ### 目标

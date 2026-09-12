@@ -1,0 +1,29 @@
+{
+  "suite_name": "hls_agent_vs_native_claude_cli_basic",
+  "model": "DeepSeek-V4-Pro-0813",
+  "base_url": "https://llmapi.paratera.com",
+  "policy": {
+    "runs_per_case": 1,
+    "operator_timeout_seconds": 1800,
+    "model_timeout_seconds": 3600,
+    "recovery_timeout_seconds": 4500,
+    "sequential": true,
+    "no_best_of_selection": true
+  },
+  "cases": [
+    {"id": "dense_operator", "task": "examples/dense_operator.json", "family": "Dense"},
+    {"id": "matmul_operator", "task": "examples/matmul_operator.json", "family": "MatMul"},
+    {"id": "relu_operator", "task": "examples/relu_operator.json", "family": "ReLU"},
+    {"id": "add_operator", "task": "examples/add_operator.json", "family": "Add"},
+    {"id": "conv2d_llm_candidate", "task": "examples/conv2d_llm_candidate.json", "family": "Conv2D"},
+    {"id": "scale_shift_llm_candidate", "task": "examples/scale_shift_llm_candidate.json", "family": "ScaleShift"},
+    {"id": "dense_llm_candidate", "task": "examples/dense_llm_candidate.json", "family": "Dense-LLM"},
+    {"id": "matmul_llm_candidate", "task": "examples/matmul_llm_candidate.json", "family": "MatMul-LLM"},
+    {"id": "mnist_recognition_mlp", "task": "examples/mnist_recognition_mlp.json", "family": "MNIST-MLP"},
+    {"id": "mnist_mlp_hls4ml", "task": "examples/mnist_mlp_hls4ml.json", "family": "MNIST-hls4ml"},
+    {"id": "mnist_tiny_cnn", "task": "examples/mnist_tiny_cnn.json", "family": "MNIST-CNN"},
+    {"id": "matmul_only_hls4ml_real", "task": "examples/matmul_only_hls4ml_real.json", "family": "MatMul-real"},
+    {"id": "tiny_residual_block", "task": "examples/tiny_residual_block.json", "family": "Residual-boundary"},
+    {"id": "resnet18_boundary", "task": "examples/resnet18_boundary.json", "family": "ResNet-boundary"}
+  ]
+}
