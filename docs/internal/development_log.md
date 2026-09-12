@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-09-12：六组 HLS Agent 对比任务与 Claude baseline 严格对齐
+
+### 背景
+
+本轮对比测试的目标是让 HLS Agent 与已有 Claude Code baseline 接收完全相同的任务输入。此前六组中 ReLU 与 Add 使用了带 `llm_candidate` 后缀的改造任务文件，而 Claude 历史 baseline 实际接收的是 `examples/relu_operator.json` 与 `examples/add_operator.json`，因此不能把两组结果直接视为同任务对比。
+
+### 处理方式
+
+- Dense 第一组已经启动，按用户要求等待其自然结束后才切换，未中途终止或重跑。
+- 将六组统一对齐到 Claude 历史运行实际记录的任务身份：
+  - `dense_llm_candidate`
+  - `matmul_llm_candidate`
+  - `relu_operator`
+  - `add_operator`
+  - `conv2d_llm_candidate`
+  - `scale_shift_llm_candidate`
+- 对每个任务校验历史 `case.json`、任务文件绝对路径、任务内容 SHA-256，以及 Git 快照 `3c07e2f`，防止只按算子名复用结果。
+- Claude baseline 作为只读历史证据复用，不重新调用 Claude CLI；续跑只执行 HLS Agent。
+- 当前运行时仍严格采用 LLM Candidate 路径，未启用 HLS4ML 路径。ReLU/Add 使用历史 Claude 的原始任务文件只是为了保证输入一致，不代表恢复旧模板路线。
+- 将此前不一致的 `relu_llm_candidate`、`add_llm_candidate` case 元数据改名为 `case.pre_alignment.json` 保留证据，避免汇总时混入本轮正式结果。
+
+### 实现
+
+- 新增 `scripts/comparison_baseline.py`：负责任务哈希、历史 baseline 校验与 suite 对齐。
+- 新增 `scripts/align_after_first_hls_case.py`：在首个 Dense 结果落盘后执行一次性边界切换，并启动 HLS-only 续跑。
+- 修改 `scripts/run_claude_cli_comparison.py`：支持复用 Claude baseline、按选择的系统校验 API key、校验任务哈希，并允许内置语义算子走 LLM Candidate 路径。
+
+### 当前状态
+
+- Dense：已完成首轮运行，结果为 `timeout`，Agent 状态为 `partial_success`；运行过程中的 checkpoint、LLM 调用统计、错误阶段和候选产物均已保留。
+- 对齐后的 HLS-only 续跑已启动，当前从 `matmul_llm_candidate` 继续，结果目录为 `runs/benchmarks/claude_cli_comparison_durable_v4`。
+- 对齐清单：`runs/benchmarks/claude_cli_comparison_durable_v4/aligned_suite.json`。
+- 对齐证明：`runs/benchmarks/claude_cli_comparison_durable_v4/baseline_alignment.json`。
+
+
 ## 2026-09-12 20:00 +08:00｜核对评测版本并收敛为 LLM Candidate-only Harness
 
 ### 1. 版本核对结论

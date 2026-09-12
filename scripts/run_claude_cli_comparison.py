@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from comparison_baseline import task_hash, validate_baseline_reference
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "benchmarks" / "claude_cli_comparison_suite.json"
@@ -689,20 +691,27 @@ def run_suite(
 ) -> None:
     """Run or resume the complete sequential comparison suite."""
     suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    from dl_op_to_hls.llm.candidate_generator import candidate_generation_contract_errors
+
     for case in suite.get("cases", []):
         task_path = (ROOT / case["task"]).resolve()
         task = json.loads(task_path.read_text(encoding="utf-8"))
-        if task.get("task_type") != "operator" or not isinstance(task.get("candidate_contract"), dict):
+        if task.get("task_type") != "operator" or candidate_generation_contract_errors(task):
             raise ValueError(
-                f"Comparison suite only accepts operator tasks with candidate_contract: {case.get('id')}"
+                f"Comparison requires an operator with built-in semantics or an independent candidate contract: {case.get('id')}"
             )
+        if case.get("claude_baseline"):
+            validate_baseline_reference(task_path, case["claude_baseline"])
     output_root.mkdir(parents=True, exist_ok=True)
+    policy = suite["policy"]
+    systems = systems if systems is not None else set(policy.get("systems", ["hls_agent", "claude_cli"]))
+    if policy.get("reuse_claude_baseline") and systems != {"hls_agent"}:
+        raise ValueError("This suite reuses Claude baselines; only HLS Agent may execute")
     hls_key = os.environ.get("HLS_AGENT_API_KEY", "")
     claude_key = os.environ.get("CLAUDE_API_KEY", "")
-    if not hls_key or not claude_key:
-        raise SystemExit("HLS_AGENT_API_KEY and CLAUDE_API_KEY must be set in the launcher environment.")
+    if ("hls_agent" in systems and not hls_key) or ("claude_cli" in systems and not claude_key):
+        raise SystemExit("Set the API key for each system selected for execution.")
     secrets = [hls_key, claude_key]
-    policy = suite["policy"]
     master_path = output_root / "comparison_checkpoint.json"
     checkpoint = json.loads(master_path.read_text(encoding="utf-8")) if master_path.exists() else {
         "suite": suite["suite_name"], "started_at": utc_now(), "cases": {}
@@ -713,11 +722,20 @@ def run_suite(
         case_root = output_root / case["id"]
         case_root.mkdir(parents=True, exist_ok=True)
         case_task = (ROOT / case["task"]).resolve()
+        current_task_hash = task_hash(json.loads(case_task.read_text(encoding="utf-8")))
+        previous_case_path = case_root / "case.json"
+        if previous_case_path.exists():
+            previous_case = json.loads(previous_case_path.read_text(encoding="utf-8"))
+            if Path(previous_case["task"]).resolve() != case_task:
+                raise ValueError(f"Cannot reuse results from a different input task: {case['id']}")
+            if previous_case.get("task_sha256", current_task_hash) != current_task_hash:
+                raise ValueError(f"Input task changed since this case was started: {case['id']}")
         case_record = checkpoint["cases"].setdefault(case["id"], {"id": case["id"], "task": case["task"], "family": case["family"]})
         case_record["updated_at"] = utc_now()
         checkpoint.pop("finished_at", None)
         checkpoint["launch_revision"] = LAUNCH_REVISION
-        write_json(case_root / "case.json", {**case, "task": str(case_task), "timeout_seconds": case_timeout(case, policy)})
+        write_json(case_root / "case.json", {**case, "task": str(case_task), "task_sha256": current_task_hash,
+                                           "timeout_seconds": case_timeout(case, policy)})
         for system in ("hls_agent", "claude_cli"):
             if systems is not None and system not in systems:
                 continue
