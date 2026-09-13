@@ -227,11 +227,55 @@ def parse_json_envelope(path: Path) -> dict[str, Any]:
 def usage_from_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize per CLI invocation token data without inventing unavailable detail."""
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    usage_source = "response_usage" if usage else "missing"
+    if not usage and isinstance(payload.get("modelUsage"), dict):
+        # Claude Code's final envelope can expose the provider ledger under
+        # modelUsage even when the top-level usage object is absent.  Normalize
+        # both Anthropic-style camelCase and OpenAI-style snake_case fields.
+        totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+        observed = False
+        for model_usage in payload["modelUsage"].values():
+            if not isinstance(model_usage, dict):
+                continue
+            observed = observed or any(
+                key in model_usage
+                for key in (
+                    "inputTokens", "input_tokens", "prompt_tokens",
+                    "outputTokens", "output_tokens", "completion_tokens",
+                )
+            )
+            model_cache_read = int(model_usage.get("cacheReadInputTokens") or model_usage.get("cache_read_input_tokens") or 0)
+            model_cache_write = int(model_usage.get("cacheCreationInputTokens") or model_usage.get("cache_creation_input_tokens") or 0)
+            model_input = model_usage.get("inputTokens", model_usage.get("input_tokens"))
+            if model_input is None and model_usage.get("prompt_tokens") is not None:
+                model_input = max(0, int(model_usage["prompt_tokens"]) - model_cache_read - model_cache_write)
+            totals["input_tokens"] += int(model_input or 0)
+            totals["output_tokens"] += int(model_usage.get("outputTokens") or model_usage.get("output_tokens") or model_usage.get("completion_tokens") or 0)
+            totals["cache_read_input_tokens"] += model_cache_read
+            totals["cache_creation_input_tokens"] += model_cache_write
+        if observed:
+            usage = totals
+            usage_source = "model_usage"
+
     uncached = usage.get("input_tokens")
-    cache_read = usage.get("cache_read_input_tokens", 0) or 0
-    cache_write = usage.get("cache_creation_input_tokens", 0) or 0
-    prompt_tokens = None if uncached is None else uncached + cache_read + cache_write
+    cache_read = usage.get("cache_read_input_tokens")
+    if cache_read is None:
+        cache_read = usage.get("cacheReadInputTokens")
+    cache_read = cache_read or 0
+    cache_write = usage.get("cache_creation_input_tokens")
+    if cache_write is None:
+        cache_write = usage.get("cacheCreationInputTokens")
+    cache_write = cache_write or 0
+    # OpenAI prompt_tokens already includes cached input; Anthropic input_tokens
+    # excludes cache reads/writes. Normalize both to total processed input.
+    prompt_tokens = usage.get("prompt_tokens")
+    if prompt_tokens is None:
+        prompt_tokens = None if uncached is None else int(uncached) + int(cache_read) + int(cache_write)
+    elif uncached is None:
+        uncached = max(0, int(prompt_tokens) - int(cache_read) - int(cache_write))
     completion_tokens = usage.get("output_tokens")
+    if completion_tokens is None:
+        completion_tokens = usage.get("completion_tokens")
     total = usage.get("total_tokens")
     if total is None and (prompt_tokens is not None or completion_tokens is not None):
         total = (prompt_tokens or 0) + (completion_tokens or 0)
@@ -242,8 +286,9 @@ def usage_from_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "completion_tokens": completion_tokens,
         "total_tokens": total,
         "api_turns": api_turns if isinstance(api_turns, int) else None,
-        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens"),
-        "cache_read_input_tokens": usage.get("cache_read_input_tokens"),
+        "cache_creation_input_tokens": cache_write,
+        "cache_read_input_tokens": cache_read,
+        "usage_source": usage_source,
     }
 
 

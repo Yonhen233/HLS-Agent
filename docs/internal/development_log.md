@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-09-13｜Dense Claude Code baseline 重测与 API usage 对齐
+
+### 重测原因
+
+原 Dense Claude baseline 不是单一网络错误：第一次 turn 提前停止且没有 completion gate，续接时出现 `session_not_found`，fresh-session recovery 后又超时；三个 turn 都没有完整 usage ledger。因此使用新 session 对 Dense 做单独重测。
+
+### 重测结果
+
+结果目录：`runs/benchmarks/claude_cli_dense_rerun_v2`
+
+- Claude CLI turn：`1`
+- session recovery：`0`
+- interruption：`0`
+- wall time：`1320.495 s`
+- 原生 runner outcome：`success`（功能验证与综合完成）
+- 按 HLS Agent 的完整 target/completion gate 口径：`partial_success`，因为时序目标未满足
+- CSim：`GOLDEN_CHECK_PASSED`，0 errors
+- CSynth：37 cycles，II=1，0 BRAM / 16 DSP / 1309 FF / 2778 LUT
+- 时序：`9.4 ns` estimated vs `8 ns` target，未满足时序目标；Claude 明确保留并报告该限制，没有伪造 success timing
+
+### API usage
+
+Claude CLI 最终 envelope 提供了完整 response usage，且本轮 `missing_usage_invocations=0`：
+
+- API model calls：`59`
+- API internal turns：`71`
+- uncached input tokens：`158,270`
+- cache-read input tokens：`4,418,816`
+- output tokens：`65,936`
+- context-equivalent total：`4,643,022`
+- usage source：`response_usage`
+
+原始 API usage 保存在：
+
+- `dense_llm_candidate/claude_cli/turn_01/stdout.log`
+- `dense_llm_candidate/claude_cli/result.json`
+- `dense_llm_candidate/claude_cli/turn_01/llm_calls.json`
+
+与 HLS Agent Dense 对比：
+
+| 指标 | HLS Agent | Claude Code |
+|---|---:|---:|
+| 完整目标验收 | success | partial_success（时序未达标） |
+| API model calls | 5 | 59 |
+| API/context tokens | 16,591 | 4,643,022 |
+| wall time | 333.940 s | 1320.495 s |
+| CSim | passed | passed |
+| CSynth | passed | passed |
+
+这里的 Claude token 统计按 `uncached input + cache-read input + output` 统一为 context-equivalent total；它反映 API 响应中实际处理的 token，不等同于简单文本估算。cache-read token 的最终计费权重仍应以服务商账单规则为准。
+
+---
+
 ## 2026-09-13｜六算子 LLM Candidate 全量回归完成
 
 ### 测试范围

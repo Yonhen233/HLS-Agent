@@ -38,6 +38,27 @@ def test_stream_deduplicates_api_messages_and_counts_cache(runner, tmp_path):
     assert runner.parse_json_envelope(path)["session_id"] == "same-session"
 
 
+def test_openai_usage_does_not_double_count_cached_input(runner):
+    usage = runner.usage_from_envelope({"usage": {
+        "prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110,
+        "cache_read_input_tokens": 80,
+    }})
+    assert usage["prompt_tokens"] == 100
+    assert usage["uncached_input_tokens"] == 20
+    assert usage["total_tokens"] == 110
+    assert usage["usage_source"] == "response_usage"
+
+
+def test_model_usage_fallback_counts_cached_and_uncached_input(runner):
+    usage = runner.usage_from_envelope({"modelUsage": {"deepseek": {
+        "inputTokens": 20, "outputTokens": 5, "cacheReadInputTokens": 80,
+    }}})
+    assert usage["prompt_tokens"] == 100
+    assert usage["completion_tokens"] == 5
+    assert usage["total_tokens"] == 105
+    assert usage["usage_source"] == "model_usage"
+
+
 def test_interrupted_stream_keeps_usage(runner, tmp_path):
     path = tmp_path / "stdout.log"
     stream(path, [assistant("a"), assistant("b")])
